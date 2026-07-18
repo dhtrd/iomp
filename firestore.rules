@@ -1,0 +1,187 @@
+rules_version = '2';
+
+// ⚠️ معلّق قبل النشر (الدفعة ٢ من الربط): أضِف سماحَين —
+// (١) users/{uid}: السماح للمستخدم بتحديث حقل appearance في ملفّه هو فقط.
+// (٢) config/appearance: قراءة لكل مصادَق، وكتابة لحامل perms.manage.
+// ثم تحقّق المحاكي (firestore-rules.test.mjs) والنشر. — 18 يوليو 2026
+
+// ============================================================================
+// قواعد أمان Firestore — نظام الجرد متعدد المستخدمين (IOMP)
+// تحاكي نموذج الصلاحيات في التطبيق بالكامل: تقرأ config/permissions لتفرض كل
+// صلاحية على الخادم. المالك (a2@dhtrd.com) له كل الصلاحيات دائماً.
+//
+// ⚠️ اختبِرها في «Rules Playground» بلوحة Firebase (أو بالمحاكي) قبل النشر للإنتاج.
+//
+// ملاحظة تصميمية: بيانات الجلسة الوصفية (الاسم/الموقع/الحالة) مقروءة لأي مستخدم
+// مُوثَّق (كي تعمل استعلامات القوائم)، بينما البيانات الحسّاسة (العدّات + لقطة
+// الأصناف + الأصناف اليدوية + سجل الحركة) محميّة بنطاق الاطّلاع «canRead».
+// ============================================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- أدوات مساعدة عامة ----------
+    function authed()   { return request.auth != null; }
+    function uid()      { return request.auth.uid; }
+    function OWNER()    { return 'a2@dhtrd.com'; }
+
+    function pExists()  { return exists(/databases/$(database)/documents/config/permissions); }
+    function pData()    { return get(/databases/$(database)/documents/config/permissions).data; }
+    function meExists() { return authed() && exists(/databases/$(database)/documents/users/$(uid())); }
+    function me()       { return get(/databases/$(database)/documents/users/$(uid())).data; }
+
+    function myEmail()  { return meExists() ? me().get('email','') : ''; }
+    function myRole()   { return meExists() ? me().get('role','')  : ''; }
+    function isActive() { return meExists() && me().get('active', true) == true; }
+    function isOwner()  { return meExists() && myEmail() == OWNER(); }
+
+    // الافتراضات المدمجة — تطابق DEFAULT_CAPS في التطبيق (محسوبة خفيفة بدل بناء خريطة كبيرة)
+    function defCap(role, cap) {
+      return role == 'مدير' ? true
+        : role == 'مدير مخزون' ? !(['session.reopen','report.view.own','report.view.location','users.manage','perms.manage','trash.purge'].hasAny([cap]))
+        : role == 'عدّاد' ? (cap == 'count')
+        : role == 'مطّلع' ? (cap == 'report.view' || cap == 'report.export' || cap == 'pw.change' || cap == 'pw.request')
+        : false;
+    }
+    function roleCap(role, cap) {
+      return pExists()
+        ? pData().get('roles', {}).get(role, {}).get(cap, defCap(role, cap))
+        : defCap(role, cap);
+    }
+    // القرار النهائي لصلاحية — يطابق can() في التطبيق:
+    // المالك=كل شيء ← استثناء الفرد ← إعداد الدور ← الافتراضي. ويشترط أن يكون الحساب نشطاً.
+    function can(cap) {
+      return meExists() && isActive() && (
+        isOwner() ||
+        ( pExists()
+          ? ( pData().get('users', {}).get(uid(), {}).get(cap, roleCap(myRole(), cap)) == true )
+          : ( defCap(myRole(), cap) == true )
+        )
+      );
+    }
+    function canManageSessions() {
+      return can('session.create') || can('session.assign') || can('session.close')
+          || can('session.review') || can('session.approve') || can('session.reopen') || can('session.delete');
+    }
+
+    // نطاق الاطّلاع
+    function myLocations() { return pExists() ? pData().get('userLocations', {}).get(uid(), []) : []; }
+    function canViewSession(s) {
+      return can('report.view')
+        || ( can('report.view.own') && ( s.get('assignedCounters', []).hasAny([uid()]) || s.get('createdBy','') == uid() ) )
+        || ( can('report.view.location') && myLocations().hasAny([ s.get('location','') ]) );
+    }
+    // من يقرأ البيانات الحسّاسة للجلسة: عدّاد مكلَّف، أو منشئها، أو ضمن نطاق التقارير، أو فريق المراجعة/الإغلاق/الاعتماد، أو للحذف النهائي.
+    // «تكليف العدّادين» و«إنشاء الجلسة» وحدهما لا يمنحان قراءة العدّات/اللقطة (المنشئ يُغطّى بـ createdBy).
+    function canReadSession(s) {
+      return authed() && isActive() && (
+        s.get('assignedCounters', []).hasAny([uid()]) || s.get('createdBy','') == uid()   // المسار الرخيص أولاً
+        || canViewSession(s)
+        || can('session.review') || can('session.close') || can('session.approve') || can('session.reopen')
+        || can('trash.purge')
+      );
+    }
+    // شرط العدّ: مفتوحة + بدأ الجرد + مُكلَّف + صلاحية العدّ + غير محذوفة
+    function countable(s) {
+      return can('count') && s.get('status','open') == 'open' && s.get('started', false) == true
+          && s.get('deleted', false) == false && s.get('assignedCounters', []).hasAny([uid()]);
+    }
+    function sess(sid) { return get(/databases/$(database)/documents/sessions/$(sid)).data; }
+
+    // ---------- الإعدادات والصلاحيات ----------
+    match /config/permissions {
+      allow read:   if authed();
+      allow create: if isOwner() || can('perms.manage');
+      allow update: if isOwner() || can('perms.manage')
+        || ( can('warehouse.manage')
+             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['warehouses','updatedBy','updatedByName','updatedAt']) );
+      allow delete: if false;
+    }
+
+    // ---------- المستخدمون ----------
+    match /users/{userId} {
+      allow read: if authed();
+      // إنشاء: مدير المستخدمين، أو تهيئة المالك لنفسه أوّل دخول
+      allow create: if can('users.manage')
+        || ( uid() == userId && request.resource.data.get('email','') == OWNER() );
+      // تحديث: مدير المستخدمين لغير المالك؛ أو المستخدم نفسه لحقل «تغيير كلمة المرور» فقط؛
+      // أو المستخدم نفسه لرفع «طلب إعادة تعيين» إذا كان يملك صلاحية pw.request فقط
+      allow update: if ( can('users.manage') && resource.data.get('email','') != OWNER() )
+        || ( uid() == userId
+             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['mustChangePassword']) )
+        || ( uid() == userId && can('pw.request')
+             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pwResetRequested','pwResetRequestedAt']) );
+      allow delete: if false; // لا حذف — التعطيل بدل الحذف
+    }
+
+    // ---------- الجلسات ----------
+    match /sessions/{sid} {
+      // المستند الوصفي مقروء لأي مستخدم نشط (كي تعمل القوائم)؛ النطاق يُفرَض على البيانات الحسّاسة أدناه
+      allow read:   if authed() && isActive();
+      allow create: if can('session.create') && request.resource.data.get('createdBy','') == uid();
+      allow delete: if can('trash.purge') && resource.data.get('deleted', false) == true; // الحذف النهائي — من السلة فقط
+
+      function chk(kk) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(kk); }
+      function stF()  { return resource.data.get('status','open'); }
+      function stT()  { return request.resource.data.get('status','open'); }
+      allow update: if authed() && isActive() && (
+        // رفع الملف
+        ( can('session.create') && chk(['itemCount','uploadedAt']) )
+        // التكليف وبدء الجرد (قبل بدء العدّ فقط)
+        || ( can('session.assign') && resource.data.get('started',false)==false && stF()=='open'
+             && chk(['assignedCounters','assignedNames','started','startedBy','startedByName','startedAt']) )
+        // إغلاق للمراجعة
+        || ( can('session.close') && stF()=='open' && stT()=='review' && chk(['status','closedBy','closedByName','closedAt']) )
+        // إدارة المراجعة: تمّت / إرجاع للمراجعة / إرجاع للعدّ
+        || ( can('session.review')
+             && ( (stF()=='review' && (stT()=='reviewed'||stT()=='open')) || (stF()=='reviewed' && stT()=='review') )
+             && chk(['status','reviewedBy','reviewedByName','reviewedAt']) )
+        // الاعتماد وقفل الجلسة
+        || ( can('session.approve') && stF()=='reviewed' && stT()=='approved'
+             && chk(['status','approvedBy','approvedByName','approvedByTitle','approvedChairman','approvedAt']) )
+        // الفتح الاستثنائي (يعيد للتجهيز)
+        || ( can('session.reopen') && stF()=='approved' && stT()=='open'
+             && chk(['status','started','reopenReason','reopenedBy','reopenedByName','reopenedAt']) )
+        // نقل إلى سلة المهملات (حذف ناعم) — قبل بدء العدّ فقط
+        || ( can('session.delete') && resource.data.get('started',false)==false && stF()=='open'
+             && request.resource.data.get('deleted',false)==true
+             && chk(['deleted','deletedBy','deletedByName','deletedAt']) )
+        // استرجاع من السلة
+        || ( can('trash.restore') && resource.data.get('deleted',false)==true
+             && request.resource.data.get('deleted',false)==false && chk(['deleted']) )
+      );
+
+      // العدّات — قراءة بالنطاق، كتابة للمكلَّف في جلسة مفتوحة مبدوءة، وحذفٌ له أو للحذف النهائي من السلة فقط
+      match /counts/{cid} {
+        allow read: if canReadSession(sess(sid));
+        allow create, update: if countable(sess(sid));
+        allow delete: if countable(sess(sid)) || ( can('trash.purge') && sess(sid).get('deleted', false) == true );
+      }
+      // لقطة الأصناف — قراءة بالنطاق، كتابة عند الرفع، حذف عند الحذف النهائي
+      match /snapshot/{chunk} {
+        allow read: if canReadSession(sess(sid));
+        allow create, update: if can('session.create');
+        allow delete: if can('trash.purge') || can('session.create');
+      }
+      // الأصناف المُضافة يدوياً — كالعدّات
+      match /extraItems/{iid} {
+        allow read: if canReadSession(sess(sid));
+        allow create, update: if countable(sess(sid));
+        allow delete: if countable(sess(sid)) || ( can('trash.purge') && sess(sid).get('deleted', false) == true );
+      }
+      // سجل الحركة — قراءة بالنطاق، إضافة فقط بواسطة الفاعل، لا تعديل؛ الحذف للحذف النهائي من السلة فقط
+      match /activity/{aid} {
+        allow read: if canReadSession(sess(sid));
+        allow create: if authed() && isActive() && ( can('count') || canManageSessions() )
+                        && request.resource.data.get('by','') == uid();
+        allow update: if false;
+        allow delete: if can('trash.purge') && sess(sid).get('deleted', false) == true; // لا يُمحى سجل جلسةٍ حيّة — فقط عند الحذف النهائي من السلة
+      }
+    }
+
+    // ---------- منع كل ما سوى ذلك ----------
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
