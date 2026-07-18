@@ -1,0 +1,5 @@
+node_modules/
+harness.html
+_site/
+*.log
+preview-perms.png
