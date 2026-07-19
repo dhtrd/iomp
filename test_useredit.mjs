@@ -18,10 +18,10 @@ async function usersTab(page){ await page.evaluate(()=>window.__setTab('users'))
 // E1 — edit button for non-owner, protected chip for owner
 { const page=await ctx.newPage(); await load(page,{profile:OWNER,users:USERS}); await usersTab(page);
   const fmBtn=await page.evaluate(()=>!!document.querySelector('[data-euser="u_fm"]'));
-  const ownerBtn=await page.evaluate(()=>!!document.querySelector('[data-euser="u_owner"]'));
+  const ownerBtn=await page.evaluate(()=>{ const b=document.querySelector('[data-euser="u_owner"]'); return b?b.textContent.trim():''; });
   const ownerProtected=await page.evaluate(()=>window.__contentHtml().includes('🔒 محميّ'));
   ok('E1 زر تعديل لغير المالك', fmBtn);
-  ok('E1 لا زر تعديل للمالك (محميّ)', !ownerBtn&&ownerProtected);
+  ok('E1 للمالك زر «تعديل الاسم» مع بقاء شارة الحماية', ownerBtn==='تعديل الاسم'&&ownerProtected, ownerBtn);
   await page.close(); }
 // E2 — opening edit shows role/status controls
 { const page=await ctx.newPage(); await load(page,{profile:OWNER,users:USERS}); await usersTab(page);
@@ -60,6 +60,25 @@ async function usersTab(page){ await page.evaluate(()=>window.__setTab('users'))
   await page.evaluate(()=>window.__editUser('u_ct')); await page.waitForTimeout(300);
   const hasOverrides=await page.evaluate(()=>window.__has('permUserBox')&&document.querySelectorAll('.ucap').length>0);
   ok('E6 قسم الصلاحيات الفردية متاح (مع إدارة الصلاحيات)', hasOverrides);
+  await page.close(); }
+
+// E7 — هوية المالك: الاسم/المسمى قابلان للتحرير فقط، والدور/الحالة غائبان، والحفظ يحدّث الوثيقة والشريط الجانبي
+{ const page=await ctx.newPage(); await load(page,{profile:OWNER,users:USERS});
+  await page.evaluate(()=>window.__editUser('u_owner')); await page.waitForTimeout(300);
+  const form=await page.evaluate(()=>({ name:window.__has('oe_name'), title:window.__has('oe_title'), save:window.__has('oeSave'),
+    role:window.__has('ue_role'), active:window.__has('ue_active'), lock:window.__contentHtml().includes('المالك محميّ') }));
+  ok('E7 نموذج هوية المالك: اسم/مسمى/حفظ ظاهرة، والدور والحالة غائبتان، ورسالة الحماية باقية',
+     form.name&&form.title&&form.save&&!form.role&&!form.active&&form.lock, JSON.stringify(form));
+  await page.evaluate(()=>{ document.getElementById('oe_name').value='أحمد الضبيبي'; document.getElementById('oe_title').value='المدير العام'; document.getElementById('oeSave').click(); });
+  await page.waitForTimeout(300);
+  const after=await page.evaluate(()=>({ u:window.__store['users/u_owner'], av:document.getElementById('whoAv').textContent }));
+  ok('E7 الحفظ يحدّث الاسم والمسمى فقط (الدور/الحالة كما هما)',
+     after.u.name==='أحمد الضبيبي'&&after.u.title==='المدير العام'&&after.u.role==='مدير'&&after.u.active===true, JSON.stringify(after.u));
+  ok('E7 الحرف الأول في الشريط الجانبي يتحدّث فورًا', after.av==='أ', 'av='+after.av);
+  // الاسم الفارغ مرفوض
+  await page.evaluate(()=>{ document.getElementById('oe_name').value='  '; document.getElementById('oeSave').click(); }); await page.waitForTimeout(200);
+  const err=await page.evaluate(()=>({ msg:(document.getElementById('oeStatus')||{}).textContent||'', name:window.__store['users/u_owner'].name }));
+  ok('E7 الاسم الفارغ مرفوض ولا يمسّ المحفوظ', err.msg.includes('الاسم مطلوب')&&err.name==='أحمد الضبيبي', JSON.stringify(err));
   await page.close(); }
 
 await browser.close();

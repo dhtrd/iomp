@@ -3,6 +3,10 @@
   "private": true,
   "description": "نظام إدارة الجرد متعدد المستخدمين — شركة الضبيبي التجارية",
   "type": "commonjs",
-  "scripts": { "test": "node run_all_tests.mjs" },
-  "devDependencies": { "playwright-core": "^1.54.1" }
+  "scripts": {
+    "test": "node run_all_tests.mjs"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.61.1"
+  }
 }

@@ -148,6 +148,20 @@ const lsPrefs=(page,uid)=>page.evaluate((u)=>{ try{ return JSON.parse(localStora
   ok('N12 حالة فارغة مطمئنة في المركز', empty);
   await page.close(); }
 
+// ===== N13 — تصميم الدرج: لوحة مصمتة (لا شفافة) بترويسة مصمتة — يمنع عودة تسرّب المحتوى خلف الدرج =====
+{ const page=await ctx.newPage(); await page.setViewportSize({width:412,height:915});
+  await load(page,{profile:OWNER,users:[OWNER],sessions:[
+    { id:'s1', name:'جرد مؤقت', status:'review', started:true, closedAt:H(1), location:'مستودع', createdBy:'u_owner' },
+  ]});
+  await openBell(page);
+  const st2=await page.evaluate(()=>{ const p=document.querySelector('#notifDrawer .npanel'), h=document.querySelector('#notifDrawer .nhead');
+    const pb=getComputedStyle(p).backgroundColor, hb=getComputedStyle(h).backgroundColor;
+    const opaque=c=>!!c && c!=='transparent' && !/rgba\([^)]*,\s*0\)$/.test(c);
+    return { pb, hb, pOk:opaque(pb), hOk:opaque(hb) }; });
+  ok('N13 لوحة الدرج مصمتة الخلفية (لا rgba(0,0,0,0))', st2.pOk, JSON.stringify(st2));
+  ok('N13 ترويسة الدرج مصمتة فوق أي محتوى', st2.hOk, JSON.stringify(st2));
+  await page.close(); }
+
 await browser.close();
 let pass=0, fail=0;
 for (const r of results){ console.log(`${r.pass?'✓':'✗'} ${r.n}${r.pass?'':'  << '+r.d}`); r.pass?pass++:fail++; }

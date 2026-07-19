@@ -59,10 +59,13 @@ function doc(db, ...segs){ const path=segs.join('/'); return {__doc:true, path, 
 function collection(db, ...segs){ const path=segs.join('/'); return {__col:true, path}; }
 function query(col, ...cs){ return {__query:true, col, cs}; }
 function orderBy(f,d){ return {__ob:f,d}; }
+function where(f,op,v){ return {__where:f,op,v}; } // إصلاح-٣ (بند ٢ب): دعم where في المحاكي (يُطبَّق فعليًّا في getDocs)
 function limit(n){ return {__limit:n}; }
 function __refPath(r){ return r.__query? r.col.path : r.path; }
 function getDoc(ref){ return Promise.resolve(__docSnap(ref.path)); }
-function getDocs(ref){ return Promise.resolve(__colSnap(__refPath(ref))); }
+function getDocs(ref){ let docs=__colSnap(__refPath(ref)).docs;
+  if(ref&&ref.__query&&Array.isArray(ref.cs)){ ref.cs.forEach(c=>{ if(c&&c.__where){ docs=docs.filter(d=>{ const v=(d.data()||{})[c.__where]; if(c.op==='==')return v===c.v; if(c.op==='in')return Array.isArray(c.v)&&c.v.indexOf(v)>=0; if(c.op==='!=')return v!==c.v; return true; }); } }); }
+  return Promise.resolve({forEach:cb=>docs.forEach(cb), docs, size:docs.length, empty:docs.length===0}); }
 function __deepMerge(t,s){ for(const k in s){ const v=s[k]; if(v&&typeof v==='object'&&!Array.isArray(v)&&!v.__ts){ if(!t[k]||typeof t[k]!=='object')t[k]={}; __deepMerge(t[k],v);} else t[k]=v; } return t; }
 function setDoc(ref, data, opts){ const path=ref.path; if(opts&&opts.merge){ const cur=__store[path]||{}; __store[path]=__deepMerge(__clone(cur), __clone(data)); } else { __store[path]=__clone(data); } __afterWrite(path); return Promise.resolve(); }
 function updateDoc(ref, data){ const path=ref.path; if(__store[path]==null) return Promise.reject({code:'not-found'}); const cur=__store[path];
@@ -138,6 +141,12 @@ window.__brxActive = bid=>brxBranchActive(bid);
 window.__brxSetActive = (bid,a)=>brxSetActive(bid,a);
 window.__brxCanCreate = bid=>brxCanCreateInBranch(bid);
 window.__brxSessSum = ()=>brxSessSum.map(x=>Object.assign({},x));
+// إصلاح-٣ (بند ٢): خطّافات إنشاء/تحرير الفرع + حارس الفرع المعطّل + قائمة المستخدمين
+window.__brxCreate = (d)=>brxCreateBranch(d);
+window.__brxUpdate = (id,d)=>brxUpdateBranch(id,d);
+window.__brxUsers = ()=>brxUsers.map(u=>Object.assign({},u));
+window.__locDisabled = (loc)=>locationInDisabledBranch(loc);
+window.__createSession = ()=>createSession();
 // ر٩: خطاطيف كتالوج المنتجات (م١٥) — إضافية بجانب __brx*
 window.__featuresProductCatalogOn = ()=>featuresProductCatalogOn();
 window.__pxReady = ()=>_pxReady;
@@ -164,11 +173,49 @@ window.__pxPid = sku=>pxPid(sku);
 window.__pxRender = ()=>{ try{ pxRenderAll(); }catch(e){} };
 // م١٨: خطاطيف مركز الإدارة والإعدادات والنسخ/السلامة وتسوية العدّ
 window.__appSettings = ()=>appSettings();
+window.__printCfg = ()=>printCfg(); // المحطّة ٢: إعدادات المخرجات المركزية
+window.__exportCfg = ()=>exportCfg();
+window.__reportCfg = ()=>reportCfg();
+window.__acSaveOutput = ()=>acSaveOutput();
+window.__docSignatories = ()=>docSignatories(); // المحطّة ٥
+window.__docColumns = ()=>docColumns(); // المحطّة ٣
+window.__docTemplate = (k)=>docTemplate(k); // المحطّة ٤
+window.__docSubst = (t,rk)=>docSubst(t, docVarCtx(rk||'committee', [])); // المحطّة ٤
+window.__acSaveDocTpl = ()=>acSaveDocTemplate();
+window.__sysDefaults = ()=>sysDefaults(); // المحطّة ٦
+window.__acSavePersonalize = ()=>acSavePersonalize();
+// الهوية والشعار: خطاطيف اختبار الشعار (افتراضي/مخصّص) والترويسة والحفظ والطبع على العلامات
+window.__brandingCfg = ()=>brandingCfg();
+window.__brandMarkHtml = ()=>brandMarkHtml();
+window.__printLogoHtml = ()=>printLogoHtml();
+window.__defaultLogoSvg = (s,px)=>defaultLogoSvg(s,px);
+window.__applyBrandMarks = ()=>{ try{ applyBrandMarks(); }catch(e){} };
+window.__setBrandingLogo = (v)=>{ _brandingLogoData=v; };
+window.__acSaveBranding = ()=>acSaveBranding();
+window.__acClearLogo = ()=>acClearLogo();
+window.__fmtDateTimeAr = (v)=>fmtDateTimeAr(v); // إصلاح خلل «:٦٠»: تنسيق وقت حتمي
+// الموقّعون في بداية الجلسة + المحاضر الجديدة + تصدير إكسل
+window.__sigRoster = ()=>sigRoster();
+window.__setSessSig = (a)=>{ _sessSig=a; };
+window.__sessSigCollect = ()=>sessSigCollect();
+window.__createSession = ()=>createSession();
+window.__handoverReady = ()=>handoverReady();
+window.__exportAoa = (reason)=>{ const R=EXPORT_REASONS[reason]; return R&&R.cols?excelSheetFromCols(exportRowsFor(R),R.cols):null; };
+window.__repxXlsxAoa = (name)=>repxXlsxAoa(name);
+window.__openPrintDialog = ()=>{ try{ openPrintDialog(); }catch(e){} };
+window.__openExportDialog = ()=>{ try{ openExportDialog(); }catch(e){} };
+window.__disp = (id)=>{ const e=document.getElementById(id); return e?getComputedStyle(e).display:'ABSENT'; };
+window.__buildReasonPrint = (k)=>{ buildPrintReport(k); return document.getElementById('repPrintArea').innerHTML; };
 window.__acBuildBackup = ()=>acBuildBackup();
+window.__acChecksum = (s)=>acChecksum(s); // إصلاح-٥ (بند ١١): بناء بصمة صحيحة في الاختبار
+window.__safeId = (c)=>safeId(c); // إصلاح-٥ (بند ٨)
+window.__repxCsvEsc = (v)=>repxCsvEsc(v); // إصلاح-٥ (بند ١٠)
+window.__acIntegrity2 = ()=>acRunIntegrity(); // إصلاح-٥ (بند ١٨)
 window.__acRestore = j=>acRestoreBackup(j);
 window.__acIntegrity = ()=>acRunIntegrity();
 window.__acLoadActivity = ()=>acLoadActivity(100);
 window.__deriveNotifs = ()=>deriveNotifs(_notifCache);
+window.__deriveNotifsList = (list)=>deriveNotifs(list); // إصلاح-٥ (بند ٧)
 window.__resetItem = code=>resetItem(code);
 window.__removeEntry = (code,i)=>removeEntry(code,i);
 window.__addEntry = (code,v)=>addEntry(code,v);
@@ -186,6 +233,10 @@ window.__offline = {
   syncStatus:()=>offlineGetSyncStatus(),
   setSyncStatus:(s)=>offlineSetSyncStatus(s),
   failNext:(b)=>{ _offlineForceFail = !!b; },
+  rejectNext:(b)=>{ _offlineForceReject = !!b; }, // إصلاح-٢ (بند ٣أ): محاكاة رفض صلاحية/قاعدة
+  rejected:()=>offlineStore.get(OFFLINE_REJECTED_KEY),
+  clearRejected:()=>offlineStore.set(OFFLINE_REJECTED_KEY,[]),
+  setOnlineNoFlush:(b)=>{ _forcedOnline=(b===null?null:!!b); offlineUpdateChip(); }, // إصلاح-٢ (بند ٣ب): اتصال بلا مزامنة تلقائية — لاختبار السباق
   backend:()=>offlineStore.backend(),
   refreshLen:()=>offlineRefreshLen()
 };
@@ -208,6 +259,15 @@ window.__dbx = {
   handleRedirect:()=>dbxHandleRedirect()
 };
 window.__syncStrip = ()=>{ try{ syncStripRefresh(); return true; }catch(e){ return false; } };
+// إصلاح-٤: خطاطيف ملخّص الجلسة والكفاءة (بند ٤ + بند ٦)
+window.__featuresSessionSummaryOn = ()=>featuresSessionSummaryOn();
+window.__computeSessionSummary = (items,counts)=>computeSessionSummary(items,counts);
+window.__sessWriteSummary = (sid,items,counts)=>sessWriteSummary(sid,items,counts);
+window.__notifEnrichVariance = (list)=>notifEnrichVariance(list);
+window.__sessVariancePct = (items,counts)=>sessVariancePct(items,counts);
+window.__ledLoadCatalog = ()=>ledLoadCatalog();
+window.__ledCatalog = ()=>Object.assign({},ledCatalog);
+window.__ledSetCatalog = (c)=>{ ledCatalog=c||{}; };
 window.__ready = true;
 `;
 

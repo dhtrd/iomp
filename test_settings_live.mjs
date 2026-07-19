@@ -65,7 +65,8 @@ async function openBell(page){ await page.evaluate(()=>document.getElementById('
 
 // ===== A5 — الاستعادة: تحليل JSON وكتابة الإعدادات إلى config/permissions =====
 { const page=await ctx.newPage(); await load(page,{profile:OWNER,users:[OWNER]});
-  const restoreJson=JSON.stringify({ app:'IOMP', kind:'config-backup', data:{ settings:{varianceThreshold:9,blindDefault:true}, features:{branches:true} } });
+  const rdata={ settings:{varianceThreshold:9,blindDefault:true}, features:{branches:true} };
+  const restoreJson=await page.evaluate(d=>JSON.stringify({ app:'IOMP', kind:'config-backup', data:d, checksum:window.__acChecksum(JSON.stringify(d)) }), rdata); // إصلاح-٥ (بند ١١): البصمة إلزامية الآن
   const res=await page.evaluate((j)=>window.__acRestore(j), restoreJson);
   ok('A5 الاستعادة تنجح وتُبلِغ عدد الحقول', res&&res.ok===true&&res.count>=2, JSON.stringify(res));
   const st=await page.evaluate(()=>window.__store['config/permissions']);

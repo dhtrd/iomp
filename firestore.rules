@@ -1,9 +1,9 @@
 rules_version = '2';
 
-// ⚠️ معلّق قبل النشر (الدفعة ٢ من الربط): أضِف سماحَين —
-// (١) users/{uid}: السماح للمستخدم بتحديث حقل appearance في ملفّه هو فقط.
-// (٢) config/appearance: قراءة لكل مصادَق، وكتابة لحامل perms.manage.
-// ثم تحقّق المحاكي (firestore-rules.test.mjs) والنشر. — 18 يوليو 2026
+// ✓ إصلاح-١ (بند ٥) منفّذ: سماحا المظهر —
+// (١) users/{uid}: المستخدم يحدّث حقل appearance في ملفّه هو فقط.
+// (٢) config/appearance: قراءة لكل مصادَق نشط، وكتابة لحامل perms.manage.
+// — 19 يوليو 2026
 
 // ============================================================================
 // قواعد أمان Firestore — نظام الجرد متعدد المستخدمين (IOMP)
@@ -38,7 +38,7 @@ service cloud.firestore {
     // الافتراضات المدمجة — تطابق DEFAULT_CAPS في التطبيق (محسوبة خفيفة بدل بناء خريطة كبيرة)
     function defCap(role, cap) {
       return role == 'مدير' ? true
-        : role == 'مدير مخزون' ? !(['session.reopen','report.view.own','report.view.location','branch.manage','users.manage','perms.manage','trash.purge'].hasAny([cap]))
+        : role == 'مدير مخزون' ? !(['session.approve.finance','session.approve.gm','session.reopen','report.view.own','report.view.location','branch.manage','users.manage','perms.manage','trash.purge'].hasAny([cap]))
         : role == 'عدّاد' ? (cap == 'count')
         : role == 'مطّلع' ? (cap == 'report.view' || cap == 'report.export' || cap == 'pw.change' || cap == 'pw.request')
         : false;
@@ -103,6 +103,12 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // إصلاح-١ (بند ٥): مظهر المؤسسة الافتراضي — قراءة لكل نشط، كتابة لحامل perms.manage
+    match /config/appearance {
+      allow read:  if authed() && isActive();
+      allow write: if can('perms.manage');
+    }
+
     // ---------- المستخدمون ----------
     match /users/{userId} {
       allow read: if authed();
@@ -111,11 +117,16 @@ service cloud.firestore {
         || ( uid() == userId && request.resource.data.get('email','') == OWNER() );
       // تحديث: مدير المستخدمين لغير المالك؛ أو المستخدم نفسه لحقل «تغيير كلمة المرور» فقط؛
       // أو المستخدم نفسه لرفع «طلب إعادة تعيين» إذا كان يملك صلاحية pw.request فقط
-      allow update: if ( can('users.manage') && resource.data.get('email','') != OWNER() )
+      // وثيقة المالك: الاسم الظاهر والمسمى الوظيفي فقط (الدور/الحالة/البريد تبقى محمية بـ hasOnly)
+      allow update: if ( can('users.manage') && resource.data.get('email','') == OWNER()
+             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name','title']) )
+        || ( can('users.manage') && resource.data.get('email','') != OWNER() )
         || ( uid() == userId
              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['mustChangePassword']) )
         || ( uid() == userId && can('pw.request')
-             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pwResetRequested','pwResetRequestedAt']) );
+             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pwResetRequested','pwResetRequestedAt']) )
+        || ( uid() == userId
+             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['appearance']) ); // إصلاح-١ (بند ٥): المستخدم يزامن مظهره لنفسه
       allow delete: if false; // لا حذف — التعطيل بدل الحذف
     }
 
@@ -142,8 +153,8 @@ service cloud.firestore {
              && ( (stF()=='review' && (stT()=='reviewed'||stT()=='open')) || (stF()=='reviewed' && stT()=='review') )
              && chk(['status','reviewedBy','reviewedByName','reviewedAt']) )
         // الاعتماد وقفل الجلسة (التوقيع الواحد — الوضع الافتراضي، يبقى كما هو)
-        || ( can('session.approve') && stF()=='reviewed' && stT()=='approved'
-             && chk(['status','approvedBy','approvedByName','approvedByTitle','approvedChairman','approvedAt']) )
+        || ( can('session.approve') && ( !pExists() || pData().get('approvalChain', false) == false ) && stF()=='reviewed' && stT()=='approved'
+             && chk(['status','approvedBy','approvedByName','approvedByTitle','approvedChairman','approvedAt']) ) // إصلاح-١ (بند ١): الاعتماد الأحادي مقفل عند تفعيل السلسلة
         // سلسلة م١٤ — اعتماد مالي: «تمت المراجعة» → «اعتماد مالي» حصراً (لا قفز)، بتوقيع رقمي
         || ( can('session.approve.finance') && stF()=='reviewed' && stT()=='fin_approved'
              && chk(['status','finApprovedBy','finApprovedByName','finApprovedByTitle','finApprovedAt','finSig']) )
@@ -163,6 +174,9 @@ service cloud.firestore {
         // استرجاع من السلة
         || ( can('trash.restore') && resource.data.get('deleted',false)==true
              && request.resource.data.get('deleted',false)==false && chk(['deleted']) )
+        // إصلاح-٤ (الكفاءة): كتابة ملخّص الجلسة المشتقّ (حقل summary فقط) — لِمن يملك حوكمة الجلسة (إقفال/مراجعة/اعتماد)؛ بيانات غير حسّاسة تُحسب في الواجهة عند الحوكمة، فتُقرأ بدل طيّ اللقطات كل مرة
+        || ( ( can('session.close') || can('session.review') || can('session.approve') || can('session.approve.finance') || can('session.approve.gm') )
+             && chk(['summary']) )
       );
 
       // العدّات — قراءة بالنطاق، كتابة للمكلَّف في جلسة مفتوحة مبدوءة، وحذفٌ له أو للحذف النهائي من السلة فقط
@@ -197,7 +211,7 @@ service cloud.firestore {
     // ترقيم متسلسل ذرّي عبر معاملة runTransaction على counters/movements ({seq:N}).
     // القراءة لأي مصادَق (كي تعمل المعاملة)، والزيادة لحاملي «قيد حركات المخزون» فقط.
     match /counters/movements {
-      allow read:   if authed();
+      allow read:   if authed() && isActive(); // إصلاح-١ (بند ١٦): القراءة لمصادَق نشط فقط (لا معطَّل)
       allow create, update: if authed() && isActive() && can('stock.move');
       allow delete: if false;
     }
@@ -205,7 +219,7 @@ service cloud.firestore {
     // ---------- دفتر الحركات (م١٦) — مجموعة عليا، إلحاق فقط (append-only) ----------
     // المصدر الوحيد للأرصدة (لا حقل رصيد مخزّن). يتبع نمط سجل الحركة activity المُثبَت:
     // قراءة لحاملي المخزون/التقارير النشطين؛ إنشاء فقط بواسطة الفاعل نفسه (by==uid) ولحامل stock.move؛
-    // لا تعديل، ولا حذف إلا الحذف النهائي لحامل trash.purge.
+    // لا تعديل، ولا حذف إطلاقًا (التصحيح بقيد عكسي — إصلاح-١ بند ١٥).
     match /movements/{mid} {
       allow read:   if authed() && isActive() && (
                         can('stock.move') || can('warehouse.manage')
@@ -213,7 +227,7 @@ service cloud.firestore {
       allow create: if authed() && isActive() && can('stock.move')
                       && request.resource.data.get('by','') == uid();
       allow update: if false;
-      allow delete: if can('trash.purge');
+      allow delete: if false; // إصلاح-١ (بند ١٥): لا حذف لقيود الدفتر إطلاقًا — التصحيح بقيد عكسي (حفظ «ملحق-فقط» والتسلسل والأثر المالي)
     }
 
     // ---------- الفروع (م١٧) — خلف علم features.branches في التطبيق ----------
@@ -256,12 +270,12 @@ service cloud.firestore {
     //   لا حذف صلب إلا الحذف النهائي لحامل trash.purge. التاريخ products/{pid}/history ملحق-فقط بنمط activity المعتمد:
     //   إنشاء بواسطة الفاعل نفسه (by==uid) ولحامل warehouse.manage، لا تعديل، وحذف فقط للحذف النهائي.
     match /products/{pid} {
-      allow read:   if authed() && isActive();
+      allow read:   if authed() && isActive() && ( can('warehouse.manage') || can('stock.move') || can('report.view') || can('report.view.location') || can('report.view.own') ); // إصلاح-١ (بند ١٧): الكتالوج فيه التكلفة — قراءته للمخوّلين لا العدّادين
       allow create, update: if can('warehouse.manage');
       allow delete: if can('trash.purge');
 
       match /history/{hid} {
-        allow read:   if authed() && isActive();
+        allow read:   if authed() && isActive() && ( can('warehouse.manage') || can('report.view') || can('report.view.location') || can('report.view.own') );
         allow create: if authed() && isActive() && can('warehouse.manage')
                         && request.resource.data.get('by','') == uid();
         allow update: if false;
