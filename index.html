@@ -49,7 +49,7 @@ body{font-family:'IBM Plex Sans Arabic','Segoe UI',Tahoma,Arial,sans-serif;backg
 .field{margin-bottom:16px}
 .field label{display:block;font-size:13px;font-weight:500;color:var(--tsec);margin-bottom:6px}
 .field input,.field select{width:100%;padding:12px 14px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit;font-size:15px;background:var(--card);color:var(--tprimary)}
-.field input:focus,.field select:focus{outline:none;border-color:var(--navy700);box-shadow:0 0 0 3px rgba(79,70,229,.18)}
+.field input:focus,.field select:focus{outline:none;border-color:var(--navy700);box-shadow:0 0 0 3px color-mix(in srgb,var(--navy700) 18%,transparent)}
 .btn{padding:11px 18px;border:none;border-radius:var(--radius);background:var(--navy700);color:var(--on-accent);font-family:inherit;font-size:15px;font-weight:600;cursor:pointer;box-shadow:0 1px 2px rgba(26,31,54,.12);transition:background .18s,box-shadow .2s,transform .1s,filter .15s}
 .btn:hover{filter:brightness(.93)}.btn:active{transform:scale(.98)}.btn:disabled{opacity:.5;cursor:not-allowed;box-shadow:none}
 .btn.block{width:100%}.btn.ghost{background:var(--card);color:var(--navy700);border:1px solid var(--border);box-shadow:none}.btn.ghost:hover{background:var(--navy100)}.btn.sm{padding:7px 12px;font-size:13px}
@@ -63,7 +63,7 @@ body{font-family:'IBM Plex Sans Arabic','Segoe UI',Tahoma,Arial,sans-serif;backg
 @keyframes s{to{transform:rotate(360deg)}}
 .appbar{background:var(--card);color:var(--tprimary);padding:12px 18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;border-bottom:1px solid var(--hair);box-shadow:0 1px 2px rgba(26,31,54,.04)}
 .appbar .logo{font-weight:700;display:flex;align-items:center;gap:8px;color:var(--navy900)}
-.appbar .logo .m{background:var(--navy700);color:var(--on-accent);width:30px;height:30px;border-radius:8px;display:grid;place-items:center;font-weight:700;box-shadow:0 1px 2px rgba(79,70,229,.4)}
+.appbar .logo .m{background:var(--navy700);color:var(--on-accent);width:30px;height:30px;border-radius:8px;display:grid;place-items:center;font-weight:700;box-shadow:0 1px 2px color-mix(in srgb,var(--navy700) 40%,transparent)}
 .appbar .sp{flex:1}
 .appbar .who{font-size:13px;color:var(--tmuted);text-align:left}
 .appbar .who .r{background:var(--navy100);color:var(--navy700);padding:2px 9px;border-radius:20px;font-size:11px;font-weight:600}
@@ -74,7 +74,7 @@ body{font-family:'IBM Plex Sans Arabic','Segoe UI',Tahoma,Arial,sans-serif;backg
 .navov{display:none;position:fixed;inset:0;background:rgba(10,15,25,.45);z-index:40}
 .side{width:252px;flex:none;background:var(--card);border-inline-start:1px solid var(--hair);display:flex;flex-direction:column;padding:14px 12px;position:sticky;top:0;height:100vh;transition:width .28s cubic-bezier(.22,.61,.36,1),transform .3s cubic-bezier(.22,.61,.36,1)}
 .side-brand{display:flex;align-items:center;gap:10px;padding:6px 8px 14px;white-space:nowrap;overflow:hidden}
-.side-brand .m{background:var(--navy700);color:var(--on-accent);width:34px;height:34px;border-radius:9px;display:grid;place-items:center;font-weight:700;flex:none;box-shadow:0 1px 3px rgba(79,70,229,.4)}
+.side-brand .m{background:var(--navy700);color:var(--on-accent);width:34px;height:34px;border-radius:9px;display:grid;place-items:center;font-weight:700;flex:none;box-shadow:0 1px 3px color-mix(in srgb,var(--navy700) 40%,transparent)}
 /* الشعار: مقاس رمز SVG داخل مربّعات الهوية + عرض الشعار المخصّص (صورة) */
 .brand .mark svg{width:38px;height:38px;display:block}
 .side-brand .m svg{width:23px;height:23px;display:block}
@@ -126,7 +126,7 @@ th{background:var(--navy100);color:var(--navy900);font-weight:600}
 .tag.open{background:rgba(12,163,12,.12);color:var(--success)}
 .muted{color:var(--tmuted);font-size:12.5px}
 .sess{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:16px;border:1px solid var(--hair);border-radius:14px;margin-bottom:11px;transition:box-shadow .25s,border-color .25s,transform .25s}
-.sess:hover{box-shadow:0 8px 24px -12px rgba(79,70,229,.28);border-color:var(--border);transform:translateY(-1px)}
+.sess:hover{box-shadow:0 8px 24px -12px color-mix(in srgb,var(--navy700) 28%,transparent);border-color:var(--border);transform:translateY(-1px)}
 .sess .info{flex:1;min-width:180px}
 .sess .nm{font-weight:600}
 /* ===== تقرير الفروقات (المرحلة 5) ===== */
@@ -212,7 +212,7 @@ td.num,th.num{text-align:center;font-variant-numeric:tabular-nums}
 .utoolbar select{font-family:inherit;font-size:13px;font-weight:600;color:var(--tsec);background:var(--card);border:1px solid var(--border);border-radius:10px;padding:8px 11px;cursor:pointer;outline:none}
 .utoolbar select:focus,.utoolbar .usearch:focus-within{border-color:var(--navy700)}
 .urow{display:flex;align-items:center;gap:13px;padding:13px 14px;border:1px solid var(--hair);border-radius:14px;margin-bottom:10px;transition:box-shadow .2s,transform .2s,border-color .2s}
-.urow:hover{box-shadow:0 8px 24px -12px rgba(79,70,229,.25);transform:translateY(-1px)}
+.urow:hover{box-shadow:0 8px 24px -12px color-mix(in srgb,var(--navy700) 25%,transparent);transform:translateY(-1px)}
 .urow .uav{width:40px;height:40px;border-radius:50%;background:var(--navy100);color:var(--navy700);display:grid;place-items:center;font-weight:700;font-size:15px;flex:none}
 .urow .uwho{min-width:0;flex:1}
 .urow .uwho .un{font-weight:600;font-size:14.5px}
@@ -246,12 +246,12 @@ td.num,th.num{text-align:center;font-variant-numeric:tabular-nums}
 .rtable-wrap tbody tr:nth-child(even) td:first-child{background:var(--surface-2)}
 .rtable-wrap tbody tr:hover td:first-child{background:linear-gradient(var(--navy100),var(--navy100)) var(--card)}
 .rlabel,#newRoleName,#newTaskLabel{background:var(--card);color:var(--tprimary)}
-.rlabel:focus,#newRoleName:focus,#newTaskLabel:focus{outline:none;border-color:var(--navy700);box-shadow:0 0 0 3px rgba(79,70,229,.18)}
+.rlabel:focus,#newRoleName:focus,#newTaskLabel:focus{outline:none;border-color:var(--navy700);box-shadow:0 0 0 3px color-mix(in srgb,var(--navy700) 18%,transparent)}
 /* لوحة المعلومات (٥): ترحيب + مركز «بانتظار إجرائك» + شارات الحالة */
 .hellorow{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px}
 .hellorow b{font-size:20px;color:var(--navy900)}
 .acrow{display:flex;align-items:center;gap:12px;padding:12px 13px;border:1px solid var(--hair);border-radius:12px;margin-bottom:9px;transition:box-shadow .2s,transform .2s}
-.acrow:hover{box-shadow:0 8px 24px -12px rgba(79,70,229,.25);transform:translateY(-1px)}
+.acrow:hover{box-shadow:0 8px 24px -12px color-mix(in srgb,var(--navy700) 25%,transparent);transform:translateY(-1px)}
 .acrow .aico{width:36px;height:36px;border-radius:9px;display:grid;place-items:center;font-size:16px;flex:none}
 .aico.ok{background:rgba(12,163,12,.12)}.aico.rev{background:rgba(250,178,25,.16)}.aico.go{background:var(--navy100)}.aico.up{background:rgba(208,59,59,.10)}
 .acrow .at{flex:1;min-width:0}.acrow .at b{font-size:14px}.acrow .at div{font-size:12px;color:var(--tmuted)}
@@ -353,7 +353,7 @@ select,.field select,.rtools select,.utoolbar select{
   padding-inline-end:40px;
 }
 select:hover,.field select:hover,.rtools select:hover,.utoolbar select:hover{border-color:var(--navy500)}
-select:focus,select:focus-visible,.field select:focus,.rtools select:focus,.utoolbar select:focus{outline:none;border-color:var(--navy700);box-shadow:0 0 0 3px rgba(79,70,229,.18)}
+select:focus,select:focus-visible,.field select:focus,.rtools select:focus,.utoolbar select:focus{outline:none;border-color:var(--navy700);box-shadow:0 0 0 3px color-mix(in srgb,var(--navy700) 18%,transparent)}
 select:disabled{opacity:.6;cursor:not-allowed;background-color:var(--hair);color:var(--tmuted)}
 select option{background:var(--card);color:var(--tprimary)}
 select option:disabled{color:var(--tmuted)}
@@ -371,13 +371,13 @@ select option:disabled{color:var(--tmuted)}
 .selx-btn .selx-label.ph{color:var(--tmuted)}
 .selx-btn .selx-chev{flex:none;color:var(--tmuted);transition:transform .18s}
 .selx-btn:hover{border-color:var(--navy500)}
-.selx.open .selx-btn{border-color:var(--navy700);box-shadow:0 0 0 3px rgba(79,70,229,.18)}
+.selx.open .selx-btn{border-color:var(--navy700);box-shadow:0 0 0 3px color-mix(in srgb,var(--navy700) 18%,transparent)}
 .selx.open .selx-chev{transform:rotate(180deg)}
 .selx-pop{position:absolute;z-index:70;top:calc(100% + 6px);inset-inline:0;background:var(--card);border:1px solid var(--border);border-radius:12px;box-shadow:0 14px 30px -10px rgba(26,31,54,.30),0 3px 8px rgba(26,31,54,.10);padding:8px;max-height:300px;display:flex;flex-direction:column}
 .selx-pop[hidden]{display:none}
 .selx-swrap{padding:2px 2px 8px}
 .selx-search{width:100%;font-family:inherit;font-size:14px;color:var(--tprimary);background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:9px 12px;outline:none}
-.selx-search:focus{border-color:var(--navy700);box-shadow:0 0 0 3px rgba(79,70,229,.15)}
+.selx-search:focus{border-color:var(--navy700);box-shadow:0 0 0 3px color-mix(in srgb,var(--navy700) 15%,transparent)}
 .selx-list{list-style:none;margin:0;padding:0;overflow-y:auto;max-height:220px}
 .selx-opt{padding:9px 12px;border-radius:8px;font-size:14px;color:var(--tprimary);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .selx-opt:hover,.selx-opt.active{background:var(--navy100)}
@@ -507,6 +507,86 @@ td{font-size:13.5px}
 .apop{border-radius:16px}
 /* — تفاصيل داكنة: زجاج الترويسة يبقى مقروءًا — */
 [data-theme="dark"] .topbar{background:color-mix(in srgb,var(--card) 74%,transparent)}
+/* ═══ الحزمة أ (بعد الموافقة): الإتاحة — لمس/تباين/جزر داكنة ═══ */
+:root{--success:#086C47} /* أ٢: تعميق النجاح الفاتح 4.48→~4.9 (AA بهامش) */
+[data-theme="dark"]{--success:#3FBE8A}
+@media (max-width:820px),(pointer:coarse){ /* أ١: أهداف لمس ≥40px والاختيار ≥24px (min-* تتغلب على الأبعاد المضمّنة) */
+  .btn,.btn.sm,button.out,.iconbtn,.topbar .iconbtn,.ntab,.nfilt,.ck-filters button,.aseg button,.selx-btn{min-height:40px}
+  .linklike{min-height:40px;display:inline-flex;align-items:center;justify-content:center;margin-inline:auto}
+  select{min-height:44px}
+  .nav button{min-height:44px}
+  input[type="checkbox"]:not(.rcap):not(.rtask),input[type="radio"]{min-width:24px;min-height:24px}
+  .rcap,.rtask{min-width:24px;min-height:24px}
+  .rcap:checked::after,.rtask:checked::after{inset-inline-start:8px;top:3px;width:5px;height:12px}
+}
+/* أ٣: الجزر غير المكيَّفة للداكن — شرائح/لوحات/أيقونات بنسخ داكنة متجانسة */
+[data-theme="dark"] .st.uncounted{background:rgba(227,169,78,.16);color:var(--warn)}
+[data-theme="dark"] #notifDrawer .nitem.critical{background:rgba(240,106,130,.10);border-color:rgba(240,106,130,.32)}
+[data-theme="dark"] #notifDrawer .nitem.critical .ntitle{color:var(--danger)}
+[data-theme="dark"] .nico.assign{background:rgba(99,102,241,.20)}
+[data-theme="dark"] .nico.review{background:rgba(227,169,78,.20)}
+[data-theme="dark"] .nico.approve{background:rgba(63,190,138,.20)}
+[data-theme="dark"] .nico.variance{background:rgba(240,106,130,.20)}
+[data-theme="dark"] .nico.sync{background:rgba(99,102,241,.20)}
+[data-theme="dark"] .aico.ok{background:rgba(63,190,138,.16)}
+[data-theme="dark"] .aico.rev{background:rgba(227,169,78,.16)}
+[data-theme="dark"] .aico.go{background:rgba(99,102,241,.18)}
+[data-theme="dark"] .aico.up{background:rgba(240,106,130,.14)}
+/* ═══ الحزمة ب (بعد الموافقة): الاتساق — سُلَّم الأقطار والخط وربط الظلال ═══ */
+/* ب٢: توحيد الأقطار الشاذة إلى السُلَّم {6،8،10،12،16،20، حبوب/دوائر} */
+.kbd,.acustom-grid span,.acustom-prev{border-radius:6px}
+.aseg{border-radius:10px}.aseg button{border-radius:8px}
+.side-brand .m,.topbar .iconbtn,.udrawer-head .iconbtn,.acrow .aico,#notifDrawer .nico,.ck-row{border-radius:10px}
+/* ب٣: السُلَّم الطباعي — توحيد الكسور النصفية في المكوّنات الأساسية */
+.kbd,.ck-g{font-size:11px}
+.tag,.st,.aseg button,.ck-filters button,#notifDrawer .ntab,#notifDrawer .nfilt{font-size:12px}
+.muted,.ap-lbl,.urow .uwho .ue,.field label{font-size:13px}
+.toast,.status,.topsearch,#notifDrawer .ntitle{font-size:14px}
+.urow .uwho .un{font-size:15px}
+#notifDrawer .nhead h2{font-size:16.5px}
+/* ب٤: بقايا الظلال اليدوية → رموز الارتفاع */
+.apop{box-shadow:var(--e3)}
+.ck{box-shadow:var(--e4)}
+/* ═══ تدقيق المكوّنات (بعد الموافقة): م١+م٢+م٣+م٤ ═══ */
+/* م١+م٢: نظام إغلاق موحّد — منطقة نقر ≥26px، توسيط، تحويم بلون الخطر، دوران خفيف */
+.toast .tx{min-width:26px;min-height:26px;display:grid;place-items:center;border-radius:8px;transition:background var(--tr),color var(--tr),transform var(--tr)}
+.toast .tx:hover,button[aria-label="إغلاق"]:hover{color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,transparent)}
+button[aria-label="إغلاق"]{transition:background var(--tr),color var(--tr),border-color var(--tr),transform var(--tr)}
+button[aria-label="إغلاق"]:active,.toast .tx:active{transform:scale(.88)}
+@media (max-width:820px),(pointer:coarse){.toast .tx{min-width:32px;min-height:32px}}
+/* م٣: زر طيّ القائمة — تغذية حركية GPU خالصة (transform فقط) تقرأ حالة data-nav القائمة؛ RTL محايد */
+#menuToggle{transition:transform .3s var(--ease),background var(--tr),border-color var(--tr)}
+#appView[data-nav="collapsed"] #menuToggle{transform:rotate(90deg)}
+#appView[data-nav="drawer"] #menuToggle{transform:rotate(90deg)}
+#menuToggle:active{transform:scale(.88)}
+#appView[data-nav="collapsed"] #menuToggle:active,#appView[data-nav="drawer"] #menuToggle:active{transform:rotate(90deg) scale(.88)}
+#menuToggle:hover{border-color:color-mix(in srgb,var(--navy700) 40%,var(--border));color:var(--navy700)}
+/* م٤: إيقاع الحقول — طبقتان مقصودتان: نماذج 12px / أشرطة مدمجة 9px */
+.utoolbar .usearch{padding:9px 12px}
+#cfOverlay .cfinput,#ppOverlay .cfinput{padding:12px 13px}
+/* ═══ صقل تفاعلي (ملاحظات العميل): درج منزلق، ☰→×، إغلاق مرسوم، عروض منسدلات ═══ */
+/* ١) درج الإشعارات: دخول منزلق ناعم (اللوحة من اليسار RTL + تعتيم متدرج) — transform/opacity فقط */
+@keyframes drwIn{from{transform:translateX(-102%)}}
+@keyframes fadeIn{from{opacity:0}}
+#notifDrawer.open .npanel{animation:drwIn .34s var(--ease)}
+#notifDrawer.open #notifOverlay{animation:fadeIn .28s linear}
+/* ٢) زر القائمة: ☰ يتحوّل إلى × عند الفتح/الطيّ — SVG يتلاشى بدوران وتحلّ محله شرطتا × مرسومتان */
+#menuToggle{position:relative}
+#menuToggle svg{transition:transform .3s var(--ease),opacity .22s linear}
+#menuToggle::before,#menuToggle::after{content:"";position:absolute;top:50%;inset-inline-start:50%;width:15px;height:1.8px;border-radius:2px;background:currentColor;opacity:0;transform:translate(50%,-50%) rotate(0deg);transition:transform .3s var(--ease),opacity .22s linear}
+#appView[data-nav="collapsed"] #menuToggle svg,#appView[data-nav="drawer"] #menuToggle svg{transform:rotate(90deg) scale(.4);opacity:0}
+#appView[data-nav="collapsed"] #menuToggle::before,#appView[data-nav="drawer"] #menuToggle::before{opacity:1;transform:translate(50%,-50%) rotate(45deg)}
+#appView[data-nav="collapsed"] #menuToggle::after,#appView[data-nav="drawer"] #menuToggle::after{opacity:1;transform:translate(50%,-50%) rotate(-45deg)}
+#appView[data-nav="collapsed"] #menuToggle{transform:none}
+#appView[data-nav="drawer"] #menuToggle{transform:none}
+/* ٣) أزرار الإغلاق: × مرسومة حادّة بدل المحرف النصّي — نفس المظهر في الدرج والإشعارات والتوست */
+button[aria-label="إغلاق"]{position:relative;font-size:0!important}
+button[aria-label="إغلاق"]::before,button[aria-label="إغلاق"]::after{content:"";position:absolute;top:50%;inset-inline-start:50%;width:13px;height:1.7px;border-radius:2px;background:currentColor;transform:translate(50%,-50%) rotate(45deg);transition:background var(--tr)}
+button[aria-label="إغلاق"]::after{transform:translate(50%,-50%) rotate(-45deg)}
+button[aria-label="إغلاق"]:hover::before,button[aria-label="إغلاق"]:hover::after{background:var(--danger)}
+/* ٤) عروض القوائم المنسدلة: معرّفة بملء الحاوية في النماذج، ومضغوطة في أشرطة الفلاتر فقط */
+select:not(.selx-native){width:100%}
+.rtools select,.utoolbar select{width:auto;min-width:130px}
 </style>
 </head>
 <body>
