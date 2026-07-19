@@ -1,0 +1,20 @@
+{
+  "name": "نظام الجرد متعدد المستخدمين — شركة الضبيبي التجارية",
+  "short_name": "جرد الضبيبي",
+  "description": "نظام إدارة الجرد متعدد المستخدمين لشركة الضبيبي التجارية",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "dir": "rtl",
+  "lang": "ar",
+  "theme_color": "#1F3864",
+  "background_color": "#F6F9FC",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
