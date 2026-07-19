@@ -55,6 +55,21 @@ async function load(page,sc){ await page.goto(HARNESS+'?s='+encodeURIComponent(b
   ok('DB4 لا نائب خام متبقٍّ + الإجماليات أرقام', !/\{[a-zA-Z]+\}/.test(sub), sub);
   await page.close(); }
 
+// ===== DB5 — المحضران الملخّصان منفصلان وبموقّعي الجلسة المسجّلين (مسمى+اسم) =====
+{ const page=await ctx.newPage(); await load(page,{profile:OWNER,users:[OWNER],
+    sessions:[{id:'sv',name:'جرد التسليم',status:'approved',location:'فرع أ',itemCount:2,approvedByName:'المالك',
+      signatories:[{title:'رئيس لجنة الجرد',name:'خالد العتيبي'},{title:'عضو اللجنة',name:'نورة السالم'}],
+      custodyPrev:{name:'سالم',title:'أمين سابق'},custodyNext:{name:'ماجد',title:'أمين جديد'},__chunks:EXI,__counts:EXC}]});
+  await page.evaluate(()=>window.__openReport('sv')); await page.waitForTimeout(450);
+  const v=await page.evaluate(()=>window.__buildReasonPrint('varianceSummary'));
+  const h=await page.evaluate(()=>window.__buildReasonPrint('handover'));
+  ok('DB5 محضر ملخّص الفروقات مستقل وبعنوانه', v.includes('محضر ملخّص الفروقات')&&!v.includes('محضر استلام مخزون'), '');
+  ok('DB5 محضر الاستلام مستقل وفيه المسلِّم/المستلِم', h.includes('محضر استلام مخزون')&&h.includes('سالم')&&h.includes('ماجد'), '');
+  ok('DB5 كلاهما يوقَّع بموقّعي الجلسة المسجّلين (اسم+مسمى)', v.includes('خالد العتيبي')&&v.includes('رئيس لجنة الجرد')&&h.includes('نورة السالم'), '');
+  const c=await page.evaluate(()=>window.__docSubst('{committee}','committee'));
+  ok('DB5 متغيّر {committee} يعرض المسجّلين بالجلسة (مسمى: اسم)', c.includes('رئيس لجنة الجرد: خالد العتيبي'), c);
+  await page.close(); }
+
 await browser.close();
 let pass=0; for(const r of results){ console.log((r.pass?'✓':'✗')+' '+r.n+(r.d&&!r.pass?('  << '+r.d):'')); if(r.pass)pass++; }
 console.log(`\nRECON ${pass}/${results.length} ${pass===results.length?'passed':'FAILED'}`);

@@ -2561,7 +2561,7 @@ function docVarCtx(reasonKey,rows){ const s2=summarize(rows||[]); const R=PRINT_
   const qty=(rows||[]).reduce((a,r)=>a+(Number(r.counted)||0),0);
   return { '{company}':'شركة الضبيبي التجارية','{document}':R.label,'{session}':(repSess&&repSess.name)||'','{location}':(repSess&&repSess.location)||'—',
     '{date}':new Date().toLocaleDateString('en-GB'),'{items}':fmt((rows||[]).length),'{counted}':fmt(s2.counted),'{netVar}':fmt(round2(s2.netVar)),'{approver}':((repSess&&repSess.approvedByName)||'—'),
-    '{committee}':docSignatories().map(x=>x.label).join('، ')||'—',
+    '{committee}':docSignatories().map(x=>x.name?(x.label+': '+x.name):x.label).join('، ')||'—', // موقّعو الجلسة المسجّلون (مسمى: اسم) لهم الأولوية
     '{newResp}':who(cn),'{oldResp}':who(cp),
     '{branchMgr}':((repSess&&repSess.branchManagerName)||'—'),
     '{totalCost}':fmt(round2(s2.bookVal)),'{totalActual}':fmt(round2(s2.countedVal)),'{onHand}':fmt(round2(qty)) }; }
