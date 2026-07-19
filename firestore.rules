@@ -43,20 +43,22 @@ service cloud.firestore {
         : role == 'مطّلع' ? (cap == 'report.view' || cap == 'report.export' || cap == 'pw.change' || cap == 'pw.request')
         : false;
     }
+    // قيمة الدور من الإعداد إن وُجد المفتاح، وإلا الافتراض المدمج — الشرط الثلاثي يمنع تقييم defCap
+    // إلا عند الحاجة (وسائط الدوال تُقيَّم قبليًّا في لغة القواعد، فالـ get(cap, defCap(..)) كانت تدفع كلفة الافتراضات دائمًا)
     function roleCap(role, cap) {
-      return pExists()
-        ? pData().get('roles', {}).get(role, {}).get(cap, defCap(role, cap))
-        : defCap(role, cap);
+      return pExists() && pData().get('roles', {}).get(role, {}).keys().hasAny([cap])
+        ? pData().get('roles', {}).get(role, {}).get(cap, false) == true
+        : defCap(role, cap) == true;
     }
     // القرار النهائي لصلاحية — يطابق can() في التطبيق:
     // المالك=كل شيء ← استثناء الفرد ← إعداد الدور ← الافتراضي. ويشترط أن يكون الحساب نشطاً.
+    // (مُقتصدة في التعابير احترامًا لحدّ Firestore ١٠٠٠ تعبير/عملية: كل مستوى يُقيَّم فقط إن لزم)
     function can(cap) {
-      // مُبسَّطة: تقرأ مستند المستخدم مباشرةً بلا دوال وسيطة متكرّرة (حدّ Firestore ١٠٠٠ تعبير/عملية)
       return meExists() && me().get('active', true) == true && (
         me().get('email','') == OWNER() ||
-        ( pExists()
-          ? ( pData().get('users', {}).get(uid(), {}).get(cap, pData().get('roles', {}).get(me().get('role',''), {}).get(cap, defCap(me().get('role',''), cap))) == true )
-          : ( defCap(me().get('role',''), cap) == true )
+        ( pExists() && pData().get('users', {}).get(uid(), {}).keys().hasAny([cap])
+          ? pData().get('users', {}).get(uid(), {}).get(cap, false) == true
+          : roleCap(me().get('role',''), cap)
         )
       );
     }
@@ -98,8 +100,8 @@ service cloud.firestore {
       allow read:   if authed();
       allow create: if isOwner() || can('perms.manage');
       allow update: if isOwner() || can('perms.manage')
-        || ( can('warehouse.manage')
-             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['warehouses','updatedBy','updatedByName','updatedAt']) );
+        || ( request.resource.data.diff(resource.data).affectedKeys().hasOnly(['warehouses','updatedBy','updatedByName','updatedAt'])
+             && can('warehouse.manage') );
       allow delete: if false;
     }
 
@@ -112,21 +114,23 @@ service cloud.firestore {
     // ---------- المستخدمون ----------
     match /users/{userId} {
       allow read: if authed();
-      // إنشاء: مدير المستخدمين، أو تهيئة المالك لنفسه أوّل دخول
-      allow create: if can('users.manage')
-        || ( uid() == userId && request.resource.data.get('email','') == OWNER() );
-      // تحديث: مدير المستخدمين لغير المالك؛ أو المستخدم نفسه لحقل «تغيير كلمة المرور» فقط؛
-      // أو المستخدم نفسه لرفع «طلب إعادة تعيين» إذا كان يملك صلاحية pw.request فقط
-      // وثيقة المالك: الاسم الظاهر والمسمى الوظيفي فقط (الدور/الحالة/البريد تبقى محمية بـ hasOnly)
-      allow update: if ( can('users.manage') && resource.data.get('email','') == OWNER()
-             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name','title']) )
-        || ( can('users.manage') && resource.data.get('email','') != OWNER() )
-        || ( uid() == userId
+      // إنشاء: تهيئة المالك لنفسه أوّل دخول (الفحص الرخيص أولًا)، أو مدير المستخدمين
+      allow create: if ( uid() == userId && request.resource.data.get('email','') == OWNER() )
+        || can('users.manage');
+      // تحديث — الفروع الذاتية الرخيصة أولًا ثم فرع الإدارة (استدعاء can() واحد كحدّ أقصى):
+      // المستخدم نفسه: «تغيير كلمة المرور» / مظهره / «طلب إعادة تعيين» (مع pw.request)؛
+      // مدير المستخدمين: غير المالك بحرّية، ووثيقة المالك للاسم الظاهر والمسمى الوظيفي فقط
+      // (الدور/الحالة/البريد تبقى محمية بـ hasOnly)
+      allow update: if ( uid() == userId
              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['mustChangePassword']) )
-        || ( uid() == userId && can('pw.request')
-             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pwResetRequested','pwResetRequestedAt']) )
         || ( uid() == userId
-             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['appearance']) ); // إصلاح-١ (بند ٥): المستخدم يزامن مظهره لنفسه
+             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['appearance']) ) // إصلاح-١ (بند ٥): المستخدم يزامن مظهره لنفسه
+        || ( uid() == userId
+             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pwResetRequested','pwResetRequestedAt'])
+             && can('pw.request') )
+        || ( ( resource.data.get('email','') != OWNER()
+               || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name','title']) )
+             && can('users.manage') );
       allow delete: if false; // لا حذف — التعطيل بدل الحذف
     }
 
@@ -134,56 +138,66 @@ service cloud.firestore {
     match /sessions/{sid} {
       // المستند الوصفي مقروء لأي مستخدم نشط (كي تعمل القوائم)؛ النطاق يُفرَض على البيانات الحسّاسة أدناه
       allow read:   if authed() && isActive();
-      allow create: if can('session.create') && request.resource.data.get('createdBy','') == uid();
-      allow delete: if can('trash.purge') && resource.data.get('deleted', false) == true; // الحذف النهائي — من السلة فقط
+      allow create: if request.resource.data.get('createdBy','') == uid() && can('session.create');
+      allow delete: if resource.data.get('deleted', false) == true && can('trash.purge'); // الحذف النهائي — من السلة فقط
 
       function chk(kk) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(kk); }
       function stF()  { return resource.data.get('status','open'); }
       function stT()  { return request.resource.data.get('status','open'); }
+      // ملاحظة أداء (حدّ ١٠٠٠ تعبير/عملية): كل فرع يبدأ بفحوص الحالة/الحقول الرخيصة وينتهي بـ can()
+      // — فلا تُدفع كلفة قراءة الصلاحيات إلا للفرع المطابق بنيويًّا (المنطق مطابق للسابق تمامًا)
       allow update: if authed() && isActive() && (
         // رفع الملف
-        ( can('session.create') && chk(['itemCount','uploadedAt']) )
+        ( chk(['itemCount','uploadedAt']) && can('session.create') )
         // التكليف وبدء الجرد (قبل بدء العدّ فقط)
-        || ( can('session.assign') && resource.data.get('started',false)==false && stF()=='open'
-             && chk(['assignedCounters','assignedNames','started','startedBy','startedByName','startedAt']) )
+        || ( resource.data.get('started',false)==false && stF()=='open'
+             && chk(['assignedCounters','assignedNames','started','startedBy','startedByName','startedAt'])
+             && can('session.assign') )
         // إغلاق للمراجعة
-        || ( can('session.close') && stF()=='open' && stT()=='review' && chk(['status','closedBy','closedByName','closedAt']) )
+        || ( stF()=='open' && stT()=='review' && chk(['status','closedBy','closedByName','closedAt']) && can('session.close') )
         // إدارة المراجعة: تمّت / إرجاع للمراجعة / إرجاع للعدّ
-        || ( can('session.review')
-             && ( (stF()=='review' && (stT()=='reviewed'||stT()=='open')) || (stF()=='reviewed' && stT()=='review') )
-             && chk(['status','reviewedBy','reviewedByName','reviewedAt']) )
+        || ( ( (stF()=='review' && (stT()=='reviewed'||stT()=='open')) || (stF()=='reviewed' && stT()=='review') )
+             && chk(['status','reviewedBy','reviewedByName','reviewedAt'])
+             && can('session.review') )
         // الاعتماد وقفل الجلسة (التوقيع الواحد — الوضع الافتراضي، يبقى كما هو)
-        || ( can('session.approve') && ( !pExists() || pData().get('approvalChain', false) == false ) && stF()=='reviewed' && stT()=='approved'
-             && chk(['status','approvedBy','approvedByName','approvedByTitle','approvedChairman','approvedAt']) ) // إصلاح-١ (بند ١): الاعتماد الأحادي مقفل عند تفعيل السلسلة
+        || ( stF()=='reviewed' && stT()=='approved'
+             && chk(['status','approvedBy','approvedByName','approvedByTitle','approvedChairman','approvedAt'])
+             && ( !pExists() || pData().get('approvalChain', false) == false )
+             && can('session.approve') ) // إصلاح-١ (بند ١): الاعتماد الأحادي مقفل عند تفعيل السلسلة
         // سلسلة م١٤ — اعتماد مالي: «تمت المراجعة» → «اعتماد مالي» حصراً (لا قفز)، بتوقيع رقمي
-        || ( can('session.approve.finance') && stF()=='reviewed' && stT()=='fin_approved'
-             && chk(['status','finApprovedBy','finApprovedByName','finApprovedByTitle','finApprovedAt','finSig']) )
+        || ( stF()=='reviewed' && stT()=='fin_approved'
+             && chk(['status','finApprovedBy','finApprovedByName','finApprovedByTitle','finApprovedAt','finSig'])
+             && can('session.approve.finance') )
         // سلسلة م١٤ — اعتماد عام وقفل: «اعتماد مالي» → «معتمدة» حصراً (لا يسبق المالي)، بتوقيع ثانٍ وحقول approved* للتوافق
-        || ( can('session.approve.gm') && stF()=='fin_approved' && stT()=='approved'
-             && chk(['status','approvedBy','approvedByName','approvedByTitle','approvedChairman','approvedAt','gmSig']) )
+        || ( stF()=='fin_approved' && stT()=='approved'
+             && chk(['status','approvedBy','approvedByName','approvedByTitle','approvedChairman','approvedAt','gmSig'])
+             && can('session.approve.gm') )
         // سلسلة م١٤ — رفض/إرجاع مالي: «اعتماد مالي» → «تمت المراجعة» (الرفض يعيد للخطوة السابقة)
-        || ( ( can('session.approve.finance') || can('session.review') ) && stF()=='fin_approved' && stT()=='reviewed'
-             && chk(['status']) )
+        || ( stF()=='fin_approved' && stT()=='reviewed' && chk(['status'])
+             && ( can('session.approve.finance') || can('session.review') ) )
         // الفتح الاستثنائي (يعيد للتجهيز)
-        || ( can('session.reopen') && stF()=='approved' && stT()=='open'
-             && chk(['status','started','reopenReason','reopenedBy','reopenedByName','reopenedAt']) )
+        || ( stF()=='approved' && stT()=='open'
+             && chk(['status','started','reopenReason','reopenedBy','reopenedByName','reopenedAt'])
+             && can('session.reopen') )
         // نقل إلى سلة المهملات (حذف ناعم) — قبل بدء العدّ فقط
-        || ( can('session.delete') && resource.data.get('started',false)==false && stF()=='open'
+        || ( resource.data.get('started',false)==false && stF()=='open'
              && request.resource.data.get('deleted',false)==true
-             && chk(['deleted','deletedBy','deletedByName','deletedAt']) )
+             && chk(['deleted','deletedBy','deletedByName','deletedAt'])
+             && can('session.delete') )
         // استرجاع من السلة
-        || ( can('trash.restore') && resource.data.get('deleted',false)==true
-             && request.resource.data.get('deleted',false)==false && chk(['deleted']) )
+        || ( resource.data.get('deleted',false)==true && request.resource.data.get('deleted',false)==false
+             && chk(['deleted']) && can('trash.restore') )
         // إصلاح-٤ (الكفاءة): كتابة ملخّص الجلسة المشتقّ (حقل summary فقط) — لِمن يملك حوكمة الجلسة (إقفال/مراجعة/اعتماد)؛ بيانات غير حسّاسة تُحسب في الواجهة عند الحوكمة، فتُقرأ بدل طيّ اللقطات كل مرة
-        || ( ( can('session.close') || can('session.review') || can('session.approve') || can('session.approve.finance') || can('session.approve.gm') )
-             && chk(['summary']) )
+        || ( chk(['summary'])
+             && ( can('session.close') || can('session.review') || can('session.approve')
+                  || can('session.approve.finance') || can('session.approve.gm') ) )
       );
 
       // العدّات — قراءة بالنطاق، كتابة للمكلَّف في جلسة مفتوحة مبدوءة، وحذفٌ له أو للحذف النهائي من السلة فقط
       match /counts/{cid} {
         allow read: if canReadSession(sess(sid));
         allow create, update: if countable(sess(sid));
-        allow delete: if countable(sess(sid)) || ( can('trash.purge') && sess(sid).get('deleted', false) == true );
+        allow delete: if countable(sess(sid)) || ( sess(sid).get('deleted', false) == true && can('trash.purge') );
       }
       // لقطة الأصناف — قراءة بالنطاق، كتابة عند الرفع، حذف عند الحذف النهائي
       match /snapshot/{chunk} {
@@ -195,15 +209,15 @@ service cloud.firestore {
       match /extraItems/{iid} {
         allow read: if canReadSession(sess(sid));
         allow create, update: if countable(sess(sid));
-        allow delete: if countable(sess(sid)) || ( can('trash.purge') && sess(sid).get('deleted', false) == true );
+        allow delete: if countable(sess(sid)) || ( sess(sid).get('deleted', false) == true && can('trash.purge') );
       }
       // سجل الحركة — قراءة بالنطاق، إضافة فقط بواسطة الفاعل، لا تعديل؛ الحذف للحذف النهائي من السلة فقط
       match /activity/{aid} {
         allow read: if canReadSession(sess(sid));
-        allow create: if authed() && isActive() && ( can('count') || canManageSessions() )
-                        && request.resource.data.get('by','') == uid();
+        allow create: if authed() && isActive() && request.resource.data.get('by','') == uid()
+                        && ( can('count') || canManageSessions() );
         allow update: if false;
-        allow delete: if can('trash.purge') && sess(sid).get('deleted', false) == true; // لا يُمحى سجل جلسةٍ حيّة — فقط عند الحذف النهائي من السلة
+        allow delete: if sess(sid).get('deleted', false) == true && can('trash.purge'); // لا يُمحى سجل جلسةٍ حيّة — فقط عند الحذف النهائي من السلة
       }
     }
 
@@ -224,8 +238,8 @@ service cloud.firestore {
       allow read:   if authed() && isActive() && (
                         can('stock.move') || can('warehouse.manage')
                         || can('report.view') || can('report.view.location') || can('report.view.own') );
-      allow create: if authed() && isActive() && can('stock.move')
-                      && request.resource.data.get('by','') == uid();
+      allow create: if authed() && isActive() && request.resource.data.get('by','') == uid()
+                      && can('stock.move');
       allow update: if false;
       allow delete: if false; // إصلاح-١ (بند ١٥): لا حذف لقيود الدفتر إطلاقًا — التصحيح بقيد عكسي (حفظ «ملحق-فقط» والتسلسل والأثر المالي)
     }
@@ -239,25 +253,26 @@ service cloud.firestore {
     match /branches/{bid} {
       allow read: if authed() && isActive() && (
         can('users.manage')
-        || ( can('branch.manage') && resource.data.get('managerUid','') == uid() )
+        || ( resource.data.get('managerUid','') == uid() && can('branch.manage') )
         || can('report.view')
         || ( can('report.view.location') && myLocations().hasAny(resource.data.get('warehouses', [])) )
       );
       allow create: if isOwner() || can('users.manage');
       allow update: if isOwner() || can('users.manage')
-        || ( can('branch.manage') && resource.data.get('managerUid','') == uid()
-             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['counters','warehouses','updatedBy','updatedByName','updatedAt']) );
+        || ( resource.data.get('managerUid','') == uid()
+             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['counters','warehouses','updatedBy','updatedByName','updatedAt'])
+             && can('branch.manage') );
       allow delete: if can('trash.purge'); // لا حذف صلب — التعطيل بدل الحذف؛ الحذف النهائي لحامل trash.purge فقط
 
       // سجلّ التحكّم المركزي (تفعيل/تعطيل) — إلحاقيّ فقط
       match /activity/{aid} {
         allow read: if authed() && isActive() && (
           can('users.manage')
-          || ( can('branch.manage') && get(/databases/$(database)/documents/branches/$(bid)).data.get('managerUid','') == uid() )
+          || ( get(/databases/$(database)/documents/branches/$(bid)).data.get('managerUid','') == uid() && can('branch.manage') )
           || can('report.view')
         );
-        allow create: if authed() && isActive() && ( can('users.manage') || can('branch.manage') )
-                        && request.resource.data.get('by','') == uid();
+        allow create: if authed() && isActive() && request.resource.data.get('by','') == uid()
+                        && ( can('users.manage') || can('branch.manage') );
         allow update: if false;
         allow delete: if can('trash.purge');
       }
@@ -276,8 +291,8 @@ service cloud.firestore {
 
       match /history/{hid} {
         allow read:   if authed() && isActive() && ( can('warehouse.manage') || can('report.view') || can('report.view.location') || can('report.view.own') );
-        allow create: if authed() && isActive() && can('warehouse.manage')
-                        && request.resource.data.get('by','') == uid();
+        allow create: if authed() && isActive() && request.resource.data.get('by','') == uid()
+                        && can('warehouse.manage');
         allow update: if false;
         allow delete: if can('trash.purge');
       }
