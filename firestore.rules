@@ -208,6 +208,12 @@ service cloud.firestore {
         allow create, update: if countable(sess(sid));
         allow delete: if countable(sess(sid)) || ( sess(sid).get('deleted', false) == true && can('trash.purge') );
       }
+      // ملاحظات العدّ لكل صنف (طلب العميل) — قراءة بالنطاق؛ كتابتها لمن يعدّ فعليًّا (مكلَّف والجلسة مفتوحة)
+      match /itemNotes/{nid} {
+        allow read: if canReadSession(sess(sid));
+        allow create, update: if countable(sess(sid));
+        allow delete: if countable(sess(sid)) || ( sess(sid).get('deleted', false) == true && can('trash.purge') );
+      }
       // لقطة الأصناف — قراءة بالنطاق، كتابة عند الرفع، حذف عند الحذف النهائي
       match /snapshot/{chunk} {
         allow read: if canReadSession(sess(sid));

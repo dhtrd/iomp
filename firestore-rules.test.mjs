@@ -76,6 +76,10 @@ await T('العدّاد: يُمنع من تعديل الإعدادات', assertF
 await T('مدير مخزون: يعدّل المستودعات فقط', assertSucceeds(updateDoc(doc(db('u_wh'), 'config/permissions'), { warehouses: [{id:'w2',name:'فرع ب'}], updatedBy:'u_wh' })));
 await T('مدير مخزون: يُمنع من تعديل الأدوار', assertFails(updateDoc(doc(db('u_wh'), 'config/permissions'), { roles: { 'عدّاد': { 'perms.manage': true } } })));
 
+// ---- وصلة Dropbox المركزية ----
+await T('وصلة Dropbox المركزية: المدير يكتبها ويقرؤها', assertSucceeds(setDoc(doc(db('u_owner'), 'config/dropbox'), { link:{rt:'x'} })));
+await T('وصلة Dropbox المركزية: العدّاد ممنوع من قراءتها', assertFails(getDoc(doc(db('u_ct'), 'config/dropbox'))));
+
 // ---- المستخدمون ----
 await T('مدير المستخدمين (المالك): ينشئ مستخدماً', assertSucceeds(setDoc(doc(db('u_owner'), 'users/u_new'), { email:'n@x.com', role:'عدّاد', active:true })));
 await T('العدّاد: يُمنع من إنشاء مستخدم', assertFails(setDoc(doc(db('u_ct'), 'users/u_new2'), { email:'n2@x.com', role:'عدّاد', active:true })));
@@ -91,6 +95,12 @@ await T('المستخدم: يُمنع من ترقية دوره لنفسه', asse
 await T('العدّاد المكلَّف: يعدّ في جلسة مفتوحة مبدوءة', assertSucceeds(setDoc(doc(db('u_ct'), 'sessions/s_open/counts/c2'), { code:'B', qty:1 })));
 await T('العدّاد غير المكلَّف: يُمنع من العدّ', assertFails(setDoc(doc(db('u_ct'), 'sessions/s_openB/counts/c2'), { code:'B', qty:1 })));
 await T('العدّ في جلسة قيد المراجعة: مُنع', assertFails(setDoc(doc(db('u_ct'), 'sessions/s_rev/counts/c2'), { code:'B', qty:1 })));
+
+// ---- ملاحظات العدّ (itemNotes) — نفس نطاق العدّ ----
+await T('الملاحظات: العدّاد المكلَّف يسجّل ملاحظة في جلسته المفتوحة', assertSucceeds(setDoc(doc(db('u_ct'), 'sessions/s_open/itemNotes/A'), { code:'A', notes:[{id:'n1',text:'تالف',by:'u_ct',byName:'عدّاد',at:1}] })));
+await T('الملاحظات: غير المكلَّف يُمنع من التسجيل', assertFails(setDoc(doc(db('u_ct'), 'sessions/s_openB/itemNotes/A'), { code:'A', notes:[] })));
+await T('الملاحظات: ممنوعة والجلسة قيد المراجعة', assertFails(setDoc(doc(db('u_ct'), 'sessions/s_rev/itemNotes/A'), { code:'A', notes:[] })));
+await T('الملاحظات: المطّلع «الكل» يقرؤها', assertSucceeds(getDocs(collection(db('u_vw'), 'sessions/s_open/itemNotes'))));
 
 // ---- إدارة ما نُسي (بعد البدء) ----
 await T('ما نُسي: المدير يضيف عدّادين وموقّعين بعد البدء', assertSucceeds(updateDoc(doc(db('u_owner'), 'sessions/s_open'), { assignedCounters:['u_ct','u_x2'], assignedNames:['عدّاد','إضافي'], signatories:[{title:'رئيس اللجنة',name:'خالد'}] })));

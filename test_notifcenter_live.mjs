@@ -1,4 +1,5 @@
 // اختبارات ر٦ — مركز الإشعارات (م٢٠): جرس بعدّاد، درج مجمّع، تبويب/فلترة، فعلٌ يُقرئ، تمييز الكل، تفضيلات، نطاق الدور، توافق السلسلة، حالة فارغة.
+// + حزمة الإشعارات المعتمدة: إشعار إنشاء الجلسة بنمط OriginUI (فاعل+فعل+هدف)، بحث فوري، تثبيت، نقر الصف يُقرئ.
 // النموذج مشتقّ من الجلسات المرئية؛ التفضيلات/القراءة في localStorage (تُمسح لكل اختبار).
 import { chromium } from 'playwright-core';
 import { execSync } from 'node:child_process';
@@ -160,6 +161,61 @@ const lsPrefs=(page,uid)=>page.evaluate((u)=>{ try{ return JSON.parse(localStora
     return { pb, hb, pOk:opaque(pb), hOk:opaque(hb) }; });
   ok('N13 لوحة الدرج مصمتة الخلفية (لا rgba(0,0,0,0))', st2.pOk, JSON.stringify(st2));
   ok('N13 ترويسة الدرج مصمتة فوق أي محتوى', st2.hOk, JSON.stringify(st2));
+  await page.close(); }
+
+// ===== N14 — إشعار إنشاء الجلسة: يصدر لغير المنشئ بصيغة OriginUI (فاعل بارز + وقت نسبي + نقطة) =====
+{ const page=await ctx.newPage(); await load(page,{profile:OWNER,users:[OWNER,CT],sessions:[
+    { id:'s_new', name:'جرد جديد', status:'open', started:false, createdAt:H(1), createdBy:'u_other', createdByName:'أحمد الفهد', location:'فرع د' },
+  ]});
+  const bg=await badge(page); await openBell(page);
+  const row=await page.evaluate(()=>{ const t=document.querySelector('#notifList .ntitle'); const b=t?t.querySelector('b'):null; const tm=document.querySelector('#notifList .ntime'); const av=document.querySelector('#notifList .nico.nava');
+    return { txt:t?t.textContent:'', bold:b?b.textContent:'', time:tm?tm.textContent:'', ava:av?av.textContent.trim():'', dot:!!document.querySelector('#notifList .ndot') }; });
+  ok('N14 إنشاء جلسة يولّد إشعارًا (شارة ١)', bg.shown&&bg.text==='1', JSON.stringify(bg));
+  ok('N14 صيغة OriginUI: فاعل بارز + «أنشأ» + اسم الجلسة', row.txt.includes('أحمد الفهد')&&row.txt.includes('أنشأ')&&row.txt.includes('جرد جديد')&&row.bold==='أحمد الفهد', JSON.stringify(row));
+  ok('N14 حرف الفاعل في كتلة الصورة + وقت نسبي + نقطة غير مقروء', row.ava==='أ'&&row.time.indexOf('منذ')===0&&row.dot, JSON.stringify(row));
+  await page.close(); }
+{ const page=await ctx.newPage(); await load(page,{profile:OWNER,users:[OWNER],sessions:[
+    { id:'s_own', name:'جردي أنا', status:'open', started:false, createdAt:H(1), createdBy:'u_owner', createdByName:'المالك' } ]});
+  const n=await page.evaluate(()=>window.__deriveNotifs().length);
+  ok('N14 لا يُشعَر المنشئ بإنشائه هو', n===0, String(n));
+  await page.close(); }
+
+// ===== N15 — البحث الفوري داخل المركز =====
+{ const page=await ctx.newPage(); await load(page,{profile:OWNER,users:[OWNER,CT],sessions:OWN_SESS});
+  await openBell(page);
+  await page.evaluate(()=>{ const i=document.getElementById('notifSearch'); i.value='المقفل'; i.dispatchEvent(new Event('input')); }); await page.waitForTimeout(150);
+  const one=await nItems(page);
+  const hit=await page.evaluate(()=>document.querySelector('#notifList .ntitle').textContent.includes('جرد المقفل'));
+  await page.evaluate(()=>document.getElementById('notifSearchClear').click()); await page.waitForTimeout(150);
+  const all=await nItems(page); const cleared=await page.evaluate(()=>document.getElementById('notifSearch').value==='');
+  ok('N15 البحث يرشّح فوريًّا إلى البند المطابق', one===1&&hit, `n=${one}`);
+  ok('N15 زر المسح يعيد الكل ويفرغ الحقل', all===3&&cleared, `n=${all} cleared=${cleared}`);
+  await page.evaluate(()=>{ const i=document.getElementById('notifSearch'); i.value='قسطنطينية'; i.dispatchEvent(new Event('input')); }); await page.waitForTimeout(120);
+  const empty=await page.evaluate(()=>document.getElementById('notifList').textContent.includes('لا نتائج'));
+  ok('N15 لا نتائج ⇒ رسالة إرشادية', empty);
+  await page.close(); }
+
+// ===== N16 — التثبيت: يطفو في قسم «مثبّت» ويُحفظ لكل مستخدم =====
+{ const page=await ctx.newPage(); await load(page,{profile:OWNER,users:[OWNER,CT],sessions:OWN_SESS});
+  await openBell(page);
+  await page.evaluate(()=>{ const ps=document.querySelectorAll('#notifList [data-npin]'); ps[ps.length-1].click(); }); await page.waitForTimeout(250);
+  const st=await page.evaluate(()=>{ const g=document.querySelector('#notifList .ngrp'); const first=document.querySelector('#notifList .nitem');
+    return { grp:g?g.textContent:'', pinnedFirst:first?first.classList.contains('pinned'):false, on:!!document.querySelector('#notifList .npin.on') }; });
+  const pr=await lsPrefs(page,'u_owner');
+  ok('N16 التثبيت: قسم «مثبّت» أولًا والبند المثبَّت يعلو القائمة', st.grp.includes('مثبّت')&&st.pinnedFirst&&st.on, JSON.stringify(st));
+  ok('N16 التثبيت محفوظ في تفضيلات المستخدم', pr.pins&&Object.keys(pr.pins).length===1, JSON.stringify(pr.pins));
+  await page.evaluate(()=>document.querySelector('#notifList .npin.on').click()); await page.waitForTimeout(250);
+  const after=await page.evaluate(()=>({ grp:(document.querySelector('#notifList .ngrp')||{}).textContent||'', pins:document.querySelectorAll('#notifList .npin.on').length }));
+  ok('N16 إلغاء التثبيت يعيد الترتيب الزمني', !after.grp.includes('مثبّت')&&after.pins===0, JSON.stringify(after));
+  await page.close(); }
+
+// ===== N17 — نقر الصف كاملًا يُقرئ البند (سلوك OriginUI) =====
+{ const page=await ctx.newPage(); await load(page,{profile:OWNER,users:[OWNER,CT],sessions:OWN_SESS});
+  await openBell(page);
+  await page.evaluate(()=>document.querySelector('#notifList .nitem').click()); await page.waitForTimeout(250);
+  const bg=await badge(page);
+  const dots=await page.evaluate(()=>document.querySelectorAll('#notifList .ndot').length);
+  ok('N17 نقر الصف يُقرئ (الشارة ٢ ونقطتان متبقيتان)', bg.text==='2'&&dots===2, JSON.stringify({b:bg.text,dots}));
   await page.close(); }
 
 await browser.close();

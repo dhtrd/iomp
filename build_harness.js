@@ -27,6 +27,7 @@ function __seed(){
     (s.__chunks||[]).forEach((ch,i)=>{ __store['sessions/'+id+'/snapshot/chunk_'+String(i).padStart(4,'0')]={items:ch}; });
     (s.__counts||[]).forEach(cn=>{ __store['sessions/'+id+'/counts/'+(cn.code)]=cn; });
     (s.__extras||[]).forEach(x=>{ __store['sessions/'+id+'/extraItems/'+(x.code)]=x; }); // الأصناف اليدوية
+    (s.__notes||[]).forEach(n=>{ __store['sessions/'+id+'/itemNotes/'+(n.code)]={code:n.code,notes:n.notes||[]}; }); // ملاحظات العدّ
     (s.__activity||[]).forEach((a,i)=>{ __store['sessions/'+id+'/activity/act_'+String(i).padStart(4,'0')]=__clone(a); });
   });
   (__SC.branches||[]).forEach(b=>{ const id=b.id||('b'+(__uidSeq++)); __store['branches/'+id]=__clone(Object.assign({},b)); }); // ر٨-ب: بذر الفروع (م١٧)
@@ -187,6 +188,11 @@ window.__sysDefaults = ()=>sysDefaults(); // المحطّة ٦
 window.__acSavePersonalize = ()=>acSavePersonalize();
 // مهلة السكون: خطاطيف الاختبار — إظهار التنبيه فورًا دون انتظار المهلة
 window.__idleCfg = ()=>idleCfg();
+window.__curNotes = ()=>curNotes; // ملاحظات العدّ الحيّة
+window.__noteSave = (c)=>noteSave(c);
+window.__noteDraftSet = (c,t)=>{ _noteDraft[String(c)]=t; };
+window.__snapCacheGet = (sid)=>snapCacheGet(sid);
+window.__snapCacheSet = (sid,items)=>snapCacheSet(sid,items);
 window.__idleWarnNow = ()=>idleWarn();
 window.__idleActive = ()=>!!document.getElementById('idleWarn');
 window.__idleReset = ()=>idleReset();
