@@ -101,10 +101,14 @@ async function load(page,sc){ await page.addInitScript(()=>{ try{ localStorage.c
     __extras:[{code:'MX9',name:'صنف يدوي زائد',category:'ك',cost:3}]})]});
   await page.evaluate(()=>window.__openReport('sz')); await page.waitForTimeout(500);
   const tile=await page.evaluate(()=>{ const t=[...document.querySelectorAll('#repTiles .tile')].find(x=>x.textContent.includes('زيادة')&&!x.textContent.includes('خارج')); return t?{v:t.querySelector('.v').textContent.trim(),f:t.getAttribute('data-f')}:null; });
-  ok('CN8 بلاطة «زيادة» = زيادة + خارج الدفتر + دفتري سالب (٣)', tile&&tile.v==='3'&&tile.f==='surplusAll', JSON.stringify(tile));
-  await page.evaluate(()=>{ document.getElementById('repStatus').value='surplusAll'; document.getElementById('repStatus').onchange(); }); await page.waitForTimeout(200);
+  ok('CN8 بلاطة «زيادة» = زيادة + خارج الدفتر + دفتري سالب (٣)', tile&&tile.v==='3'&&tile.f==='surplus', JSON.stringify(tile));
+  await page.evaluate(()=>{ document.getElementById('repStatus').value='surplus'; document.getElementById('repStatus').onchange(); }); await page.waitForTimeout(200);
   const rows=await page.evaluate(()=>[...document.querySelectorAll('#repTable tbody tr')].map(r=>r.textContent));
-  ok('CN8 مرشّح «كل الزيادات» يعرض الثلاثة فقط', rows.length===3&&rows.some(r=>r.includes('صنف زائد'))&&rows.some(r=>r.includes('دفتري سالب'))&&rows.some(r=>r.includes('يدوي زائد')), String(rows.length));
+  ok('CN8 مرشّح «الزيادات» نفسه يعرض الثلاثة (وهذا هو المطلوب الضروري)', rows.length===3&&rows.some(r=>r.includes('صنف زائد'))&&rows.some(r=>r.includes('دفتري سالب'))&&rows.some(r=>r.includes('يدوي زائد')), String(rows.length));
+  const negTag=await page.evaluate(()=>document.getElementById('repTable').textContent.includes('دفتري سالب'));
+  ok('CN8 وسم «دفتري سالب» ظاهر في عمود الحالة', negTag===true);
+  const pr=await page.evaluate(()=>{ try{ return window.__buildReasonPrint('detailed'); }catch(e){ return 'ERR:'+e.message; } });
+  ok('CN8 شريحة «زيادة» في الطباعة شاملة أيضًا', pr.includes('زيادة: <b>3</b>')||/زيادة: <b>3<\/b>/.test(pr), pr.slice(0,60));
   await page.close(); }
 { const page=await ctx.newPage(); await load(page,{profile:OWNER,users:[OWNER],sessions:[OPEN({
     __counts:[{code:'MX9',qty:2,entries:[{by:'المالك',qty:2}]}], __extras:[{code:'MX9',name:'رف يدوي',category:'ك',cost:3}]})]});
