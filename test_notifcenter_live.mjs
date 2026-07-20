@@ -218,6 +218,63 @@ const lsPrefs=(page,uid)=>page.evaluate((u)=>{ try{ return JSON.parse(localStora
   ok('N17 نقر الصف يُقرئ (الشارة ٢ ونقطتان متبقيتان)', bg.text==='2'&&dots===2, JSON.stringify({b:bg.text,dots}));
   await page.close(); }
 
+// ===== N18 — تصميم الفيديو: بطاقات مدوّرة بحدود، صورة دائرية، وقت بأيقونة ساعة، سطر ملخّص، وزر «تمييز الكل» عريض أسفل اللوحة =====
+{ const page=await ctx.newPage(); await load(page,{profile:OWNER,users:[OWNER,CT],sessions:OWN_SESS});
+  await openBell(page);
+  const st=await page.evaluate(()=>{ const it=document.querySelector('#notifList .nitem'); const ic=document.querySelector('#notifList .nico'); const cs=getComputedStyle(it), ci=getComputedStyle(ic);
+    const ma=document.getElementById('notifMarkAll'); const foot=ma&&ma.closest('.nfootbar'); const sub=document.getElementById('notifSub');
+    return { radius:cs.borderRadius, borderW:cs.borderTopWidth, icoRad:ci.borderRadius, clock:!!document.querySelector('#notifList .ntime svg'),
+      footerBtn:!!foot, btnW:ma?ma.getBoundingClientRect().width:0, panelW:document.querySelector('#notifDrawer .npanel').getBoundingClientRect().width,
+      sub:sub?sub.textContent:'', headHasBtn:!!document.querySelector('#notifDrawer .nhead #notifMarkAll') }; });
+  ok('N18 البطاقة مدوّرة 12px وبحد ظاهر', st.radius==='12px'&&st.borderW==='1px', JSON.stringify({r:st.radius,b:st.borderW}));
+  ok('N18 الصورة الرمزية دائرية + وقت بأيقونة ساعة', (parseFloat(st.icoRad)>=18||st.icoRad==='50%')&&st.clock, JSON.stringify({i:st.icoRad,c:st.clock}));
+  ok('N18 زر «تمييز الكل» عريض أسفل اللوحة (لا في الترويسة)', st.footerBtn&&!st.headHasBtn&&st.btnW>st.panelW*0.8, JSON.stringify({w:Math.round(st.btnW),p:Math.round(st.panelW)}));
+  ok('N18 سطر الملخّص يعرض عدد غير المقروء', st.sub.includes('3'), st.sub);
+  await page.evaluate(()=>document.getElementById('notifMarkAll').click()); await page.waitForTimeout(250);
+  const sub2=await page.evaluate(()=>document.getElementById('notifSub').textContent);
+  ok('N18 بعد التمييز يتحول الملخّص إلى «كل إشعاراتك مقروءة»', sub2.includes('مقروءة'), sub2);
+  await page.close(); }
+
+// ===== N19 — زر البحث الشامل على الجوال: أيقونة مربّعة تفتح لوحة Ctrl+K =====
+{ const page=await ctx.newPage(); await page.setViewportSize({width:412,height:915});
+  await load(page,{profile:OWNER,users:[OWNER],sessions:[]});
+  const m=await page.evaluate(()=>{ const b=document.getElementById('ckBtn'); const r=b.getBoundingClientRect(); const cs=getComputedStyle(b);
+    return { w:Math.round(r.width), h:Math.round(r.height), tHidden:getComputedStyle(b.querySelector('.ts-t')).display==='none', kHidden:getComputedStyle(b.querySelector('.kbd')).display==='none' }; });
+  ok('N19 على الجوال: زر أيقونة مربّع (~40px) بلا نص ولا Ctrl K', m.w>=38&&m.w<=46&&m.h>=38&&m.tHidden&&m.kHidden, JSON.stringify(m));
+  await page.evaluate(()=>document.getElementById('ckBtn').click()); await page.waitForTimeout(250);
+  const open=await page.evaluate(()=>{ const p=document.getElementById('ckPanel'); return !!(p&&(p.classList.contains('open')||getComputedStyle(p).display!=='none')); });
+  ok('N19 نقرة الزر تفتح البحث الشامل', open===true);
+  await page.close(); }
+
+// ===== N20 — زر × بإطار، والانسحاب عكس الدخول (طور closing ثم إخفاء تام) =====
+{ const page=await ctx.newPage(); await load(page,{profile:OWNER,users:[OWNER,CT],sessions:OWN_SESS});
+  await openBell(page);
+  const b=await page.evaluate(()=>{ const c=document.getElementById('notifClose'); const cs=getComputedStyle(c); const r=c.getBoundingClientRect(); return { bw:cs.borderTopWidth, br:cs.borderRadius, w:Math.round(r.width) }; });
+  ok('N20 زر × للإشعارات بإطار ومقاس زرّ حقيقي', b.bw==='1px'&&b.w>=34, JSON.stringify(b));
+  await page.evaluate(()=>document.getElementById('notifClose').click());
+  const mid=await page.evaluate(()=>{ const d=document.getElementById('notifDrawer'); return { open:d.classList.contains('open'), closing:d.classList.contains('closing'), disp:getComputedStyle(d).display }; });
+  ok('N20 عند الإغلاق: حركة انسحاب عكسية (closing ظاهر مؤقتًا)', !mid.open&&mid.closing&&mid.disp==='block', JSON.stringify(mid));
+  await page.waitForTimeout(550);
+  const end=await page.evaluate(()=>{ const d=document.getElementById('notifDrawer'); return { closing:d.classList.contains('closing'), disp:getComputedStyle(d).display }; });
+  ok('N20 بعد الانسحاب يختفي الدرج تمامًا', !end.closing&&end.disp==='none', JSON.stringify(end));
+  await page.close(); }
+
+// ===== N21 — زر إغلاق البحث الشامل على الجوال (لا Esc على اللمس) =====
+{ const page=await ctx.newPage(); await page.setViewportSize({width:412,height:915});
+  await load(page,{profile:OWNER,users:[OWNER],sessions:[]});
+  await page.evaluate(()=>document.getElementById('ckBtn').click()); await page.waitForTimeout(250);
+  const v=await page.evaluate(()=>{ const c=document.getElementById('ckClose'); return { disp:c?getComputedStyle(c).display:'missing', kbd:getComputedStyle(document.querySelector('.ck-in .kbd')).display, open:document.getElementById('ckPanel').classList.contains('open') }; });
+  ok('N21 على الجوال: زر إغلاق ظاهر بدل شارة Esc', v.open&&v.disp!=='none'&&v.disp!=='missing'&&v.kbd==='none', JSON.stringify(v));
+  await page.evaluate(()=>document.getElementById('ckClose').click()); await page.waitForTimeout(200);
+  const closed=await page.evaluate(()=>!document.getElementById('ckPanel').classList.contains('open'));
+  ok('N21 نقرة الزر تغلق البحث', closed===true);
+  await page.close(); }
+{ const page=await ctx.newPage(); await load(page,{profile:OWNER,users:[OWNER],sessions:[]});
+  await page.evaluate(()=>document.getElementById('ckBtn').click()); await page.waitForTimeout(200);
+  const d=await page.evaluate(()=>getComputedStyle(document.getElementById('ckClose')).display);
+  ok('N21 على المكتب: يبقى Esc ويُخفى الزر', d==='none', d);
+  await page.close(); }
+
 await browser.close();
 let pass=0, fail=0;
 for (const r of results){ console.log(`${r.pass?'✓':'✗'} ${r.n}${r.pass?'':'  << '+r.d}`); r.pass?pass++:fail++; }
