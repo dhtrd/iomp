@@ -82,6 +82,37 @@ async function load(page,sc){ await page.addInitScript(()=>{ try{ localStorage.c
   ok('CN6 ملاحظات الجميع ظاهرة، والحذف لملاحظتي فقط', d.both&&d.mine&&!d.other, JSON.stringify(d));
   await page.close(); }
 
+// ===== CN7 — انعكاس فوري للكمية: تظهر قبل ردّ الخادم بوسم ⏳ ثم يثبتها التأكيد =====
+{ const page=await ctx.newPage(); await load(page,{profile:OWNER,users:[OWNER],sessions:[OPEN()]});
+  await page.evaluate(()=>window.__openSession('sx')); await page.waitForTimeout(500);
+  const im=await page.evaluate(()=>{ window.__addEntry('A1',3); // بلا انتظار — نقرأ في نفس اللحظة
+    const cc=window.__countsMap()['A1']; return { qty:cc?cc.qty:null, pend:!!(cc&&cc.entries&&cc.entries[0]&&cc.entries[0].pending), badge:document.getElementById('clist').innerHTML.includes('⏳') }; });
+  ok('CN7 الكمية تظهر لحظيًّا قبل أي ردّ من الخادم (⏳)', im.qty===3&&im.pend&&im.badge, JSON.stringify(im));
+  await page.waitForTimeout(300);
+  const fin=await page.evaluate(()=>{ const st=window.__store['sessions/sx/counts/A1']; const cc=window.__countsMap()['A1'];
+    return { server:st&&st.qty===3, pendLeft:Object.keys(window.__pendingAdds()).length, stillPend:!!(cc&&cc.entries&&cc.entries[0]&&cc.entries[0].pending), badge:document.getElementById('clist').innerHTML.includes('⏳') }; });
+  ok('CN7 تأكيد الخادم يزيل ⏳ ويثبّت الكمية', fin.server&&fin.pendLeft===0&&!fin.stillPend&&!fin.badge, JSON.stringify(fin));
+  await page.close(); }
+
+// ===== CN8 — بلاطة «زيادة» الشاملة: زيادة + خارج الدفتر + دفتري سالب، ووسم «زيادة» أمام اليدوي وقت العد =====
+{ const page=await ctx.newPage(); await load(page,{profile:OWNER,users:[OWNER],sessions:[OPEN({id:'sz',name:'جرد الزيادات',status:'approved',approvedByName:'المالك',
+    __chunks:[[{code:'P1',name:'صنف زائد',category:'ك',book:10,cost:1},{code:'N1',name:'صنف دفتري سالب',category:'ك',book:-5,cost:1},{code:'M1',name:'صنف مطابق',category:'ك',book:4,cost:1}]],
+    __counts:[{code:'P1',qty:12},{code:'M1',qty:4},{code:'MX9',qty:2,entries:[{by:'مجاهد',qty:2}]}],
+    __extras:[{code:'MX9',name:'صنف يدوي زائد',category:'ك',cost:3}]})]});
+  await page.evaluate(()=>window.__openReport('sz')); await page.waitForTimeout(500);
+  const tile=await page.evaluate(()=>{ const t=[...document.querySelectorAll('#repTiles .tile')].find(x=>x.textContent.includes('زيادة')&&!x.textContent.includes('خارج')); return t?{v:t.querySelector('.v').textContent.trim(),f:t.getAttribute('data-f')}:null; });
+  ok('CN8 بلاطة «زيادة» = زيادة + خارج الدفتر + دفتري سالب (٣)', tile&&tile.v==='3'&&tile.f==='surplusAll', JSON.stringify(tile));
+  await page.evaluate(()=>{ document.getElementById('repStatus').value='surplusAll'; document.getElementById('repStatus').onchange(); }); await page.waitForTimeout(200);
+  const rows=await page.evaluate(()=>[...document.querySelectorAll('#repTable tbody tr')].map(r=>r.textContent));
+  ok('CN8 مرشّح «كل الزيادات» يعرض الثلاثة فقط', rows.length===3&&rows.some(r=>r.includes('صنف زائد'))&&rows.some(r=>r.includes('دفتري سالب'))&&rows.some(r=>r.includes('يدوي زائد')), String(rows.length));
+  await page.close(); }
+{ const page=await ctx.newPage(); await load(page,{profile:OWNER,users:[OWNER],sessions:[OPEN({
+    __counts:[{code:'MX9',qty:2,entries:[{by:'المالك',qty:2}]}], __extras:[{code:'MX9',name:'رف يدوي',category:'ك',cost:3}]})]});
+  await page.evaluate(()=>window.__openSession('sx')); await page.waitForTimeout(500);
+  const chip=await page.evaluate(()=>{ const rows=[...document.querySelectorAll('#clist .sess')]; const r=rows.find(x=>x.textContent.includes('رف يدوي')); return r?r.textContent:''; });
+  ok('CN8 اليدوي وقت العد يوسم «زيادة» نفس غيره', chip.includes('زيادة +2')&&chip.includes('خارج الدفتر'), chip.slice(0,80));
+  await page.close(); }
+
 await browser.close();
 let pass=0; for(const r of results){ console.log((r.pass?'✓':'✗')+' '+r.n+(r.d&&!r.pass?('  << '+r.d):'')); if(r.pass)pass++; }
 console.log(`\nRECON ${pass}/${results.length} ${pass===results.length?'passed':'FAILED'}`);

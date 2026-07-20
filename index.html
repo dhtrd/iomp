@@ -2480,23 +2480,23 @@ async function openSession(sid){
     }
     if(notStarted&&!mayReadData){
       // طور التجهيز فقط: لا نقرأ اللقطة/العدّات (القواعد تمنعها لغير المطّلعين) — نعرض لوحة التكليف اعتماداً على بيانات الجلسة الوصفية
-      curBaseItems=[]; curExtra=[]; curItems=[]; curCounts={}; curNotes={};
+      curBaseItems=[]; curExtra=[]; curItems=[]; curCounts={}; curNotes={}; _pendingAdds={};
       renderCountingShell();
       sessUnsub=onSnapshot(doc(db,'sessions',sid),(sd)=>{ if(!sd.exists())return; const ns=sd.data(); if(ns.started===true||sessStatusOf(ns)!=='open'){ openSession(sid); } },(err)=>{});
       return;
     }
     const snapLoad=async()=>{ const snap=await getDocs(collection(db,'sessions',sid,'snapshot')); const chunks=[]; snap.forEach(d=>chunks.push(d)); chunks.sort((a,b)=>a.id<b.id?-1:1); let items=[]; chunks.forEach(d=>{items=items.concat(d.data().items||[]);}); return items; };
     const attach=()=>{ // البثّ الحيّ: اليدوي + الملاحظات + العدّات + الحركة + حالة الجلسة
-      extraUnsub=onSnapshot(collection(db,'sessions',sid,'extraItems'),(qs)=>{ const ex=[]; qs.forEach(d=>{const x=d.data(); if(x&&x.code!=null)ex.push(x);}); curExtra=ex; curItems=curBaseItems.concat(curExtra); if($('clist'))renderCountList(); },(err)=>{});
+      extraUnsub=onSnapshot(collection(db,'sessions',sid,'extraItems'),(qs)=>{ const ex=[]; qs.forEach(d=>{const x=d.data(); if(x&&x.code!=null)ex.push(Object.assign({},x,{manual:true}));}); curExtra=ex; curItems=curBaseItems.concat(curExtra); if($('clist'))renderCountList(); },(err)=>{}); // اليدوي يُوسَم manual دائمًا ⇒ شارة «يدوي» ووسم «زيادة» وقت العد
       notesUnsub=onSnapshot(collection(db,'sessions',sid,'itemNotes'),(qs)=>{ curNotes={}; qs.forEach(d=>{const x=d.data(); if(x&&x.code!=null)curNotes[String(x.code)]=x;}); if($('clist'))renderCountList(); },(err)=>{});
-      countsUnsub=onSnapshot(collection(db,'sessions',sid,'counts'),(qs)=>{curCounts={};qs.forEach(d=>{const x=d.data();if(x&&x.code!=null)curCounts[x.code]=x;});renderCountList();},(err)=>{});
+      countsUnsub=onSnapshot(collection(db,'sessions',sid,'counts'),(qs)=>{curCounts={};qs.forEach(d=>{const x=d.data();if(x&&x.code!=null)curCounts[x.code]=x;});pendReapply();renderCountList();},(err)=>{}); // دمج المعلَّق ⇒ لا يختفي عدّك أثناء تأكيد الخادم
       actUnsub=onSnapshot(query(collection(db,'sessions',sid,'activity'),orderBy('at','desc'),limit(40)),(qs)=>renderActivity(qs),(err)=>{});
       // تجميد فوري: أي تغيّر لحالة الجلسة (إغلاق/اعتماد…) يُقفل شاشات كل العدّادين لحظياً
       sessUnsub=onSnapshot(doc(db,'sessions',sid),(sd)=>{ if(!sd.exists())return; const ns=sd.data(); const changed=(sessStatusOf(ns)!==sessStatusOf(curSess)); curSess=ns; if(changed){ scanMode=false; stopCamera(); renderCountingShell(); } },(err)=>{});
     };
     const cached=snapCacheGet(sid);
     if(cached){ // عرض فوري من نسخة الجهاز (بلا انتظار للشبكة) ثم تحديث خلفي صامت من الخادم
-      curBaseItems=cached; curExtra=[]; curItems=cached.slice(); curCounts={}; curNotes={};
+      curBaseItems=cached; curExtra=[]; curItems=cached.slice(); curCounts={}; curNotes={}; _pendingAdds={};
       renderCountingShell(); attach();
       snapLoad().then(items=>{ if(curSid!==sid)return; if(items.length)snapCacheSet(sid,items);
         if(items.length&&items.length!==curBaseItems.length){ curBaseItems=items; curItems=curBaseItems.concat(curExtra); if($('clist'))renderCountList(); }
@@ -2506,7 +2506,7 @@ async function openSession(sid){
     c.innerHTML='<div class="card"><p class="muted">⏳ جارٍ تحميل قائمة الأصناف من الخادم…</p><p class="muted" style="font-size:12.5px;margin-top:6px">مع اتصال ضعيف قد يستغرق هذا قليلًا — <b>لا تُحدِّث الصفحة</b> (التحديث يُعيد التحميل من الصفر). بعد اكتمال أول تحميل تُحفَظ القائمة على جهازك فيصبح الدخول لهذه الجلسة فوريًّا حتى مع ضعف الاتصال.</p></div>';
     const items=await snapLoad();
     if(items.length)snapCacheSet(sid,items); // من الآن: الدخول لهذه الجلسة فوري من الجهاز
-    curBaseItems=items; curExtra=[]; curItems=items.slice(); curCounts={}; curNotes={};
+    curBaseItems=items; curExtra=[]; curItems=items.slice(); curCounts={}; curNotes={}; _pendingAdds={};
     renderCountingShell(); attach();
   }catch(err){c.innerHTML='<div class="card"><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost sm" id="errBack">→ رجوع</button><button class="btn sm" id="errRetry">↻ إعادة المحاولة</button></div><p class="status show err" style="margin-top:12px">تعذّر تحميل الجلسة: '+errAr(err.code||err.message)+' — غالبًا ضعف اتصال؛ اضغط «إعادة المحاولة» بدل تحديث الصفحة.</p></div>'; if($('errBack'))$('errBack').onclick=()=>route(); if($('errRetry'))$('errRetry').onclick=()=>openSession(sid);}
 }
@@ -2706,9 +2706,10 @@ function renderCountList(){
     const book=showBook?('الدفتري: '+fmt(it.book)+(counted?' • ':'')):''; // إصلاح-٦ (بند ٥): الفاصل «•» يظهر فقط حين يتبعه الإجمالي (لا يتعلّق في غير المعدود)
     let diffChip='';
     if(showBook&&counted){const d=total-it.book;const cls=(d>1e-9?'dpos':(d<-1e-9?'dneg':''));const lbl=(Math.abs(d)<1e-9?'مطابق':(d>0?'زيادة +'+fmt(d):'عجز '+fmt(d)));diffChip=' • <b class="'+cls+'">الفرق: '+lbl+'</b>';}
+    else if(counted&&it.book==null&&it.manual){diffChip=' • <b class="dpos">الفرق: زيادة +'+fmt(total)+' (خارج الدفتر)</b>';} // الصنف اليدوي يُوسَم «زيادة» وقت العد نفس غيره (طلب العميل)
     let box='';
     if(counted&&cc.entries&&cc.entries.length){
-      box='<div style="flex-basis:100%;margin-top:8px;padding-top:8px;border-top:1px dashed var(--hair)"><div class="muted" style="font-size:11.5px;margin-bottom:2px">الإضافات ('+cc.entries.length+')'+(frozen?':':' — اضغط × لحذف كمية:')+'</div>'+cc.entries.map((e,i)=>'<span style="display:inline-flex;align-items:center;gap:5px;background:var(--navy100);border-radius:20px;padding:3px 10px;margin:3px;font-size:13px"><b>'+fmt(e.q)+'</b>'+(e.byName?' <span class="muted">'+esc(e.byName)+'</span>':'')+(frozen?'':' <button data-delc="'+esc(it.code)+'" data-deli="'+i+'" title="حذف هذه الكمية" style="border:none;background:none;color:var(--danger);cursor:pointer;font-weight:700;font-size:15px">×</button>')+'</span>').join('')+'</div>';
+      box='<div style="flex-basis:100%;margin-top:8px;padding-top:8px;border-top:1px dashed var(--hair)"><div class="muted" style="font-size:11.5px;margin-bottom:2px">الإضافات ('+cc.entries.length+')'+(frozen?':':' — اضغط × لحذف كمية:')+'</div>'+cc.entries.map((e,i)=>'<span style="display:inline-flex;align-items:center;gap:5px;background:var(--navy100);border-radius:20px;padding:3px 10px;margin:3px;font-size:13px"><b>'+fmt(e.q)+'</b>'+(e.byName?' <span class="muted">'+esc(e.byName)+'</span>':'')+(e.pending?' <span title="قيد التأكيد — تُزامَن الآن">⏳</span>':'')+((frozen||e.pending)?'':' <button data-delc="'+esc(it.code)+'" data-deli="'+i+'" title="حذف هذه الكمية" style="border:none;background:none;color:var(--danger);cursor:pointer;font-weight:700;font-size:15px">×</button>')+'</span>').join('')+'</div>';
     }
     // ملاحظات العدّ (طلب العميل): الملاحظات المسجّلة ظاهرة دومًا؛ ومربّع «ملاحظة» يفتح محرّرًا يكتب فيه العدّاد نص الملاحظة
     const codeS=String(it.code); const nn=curNotes[codeS]; const notes=(nn&&nn.notes)||[]; const noteOpen=!frozen&&_noteOpen.has(codeS);
@@ -2900,14 +2901,29 @@ function offlineUpdateChip(){ const chip=$('offlineChip'); if(!chip)return; cons
 function offlineInit(){ offlineDeviceId(); offlineRefreshLen();
   if(!window.__offlineWired){ window.__offlineWired=1;
     try{ window.addEventListener('online',()=>{ offlineUpdateChip(); if(featuresOfflineOn())offlineFlush(false); }); window.addEventListener('offline',()=>{ offlineUpdateChip(); }); }catch(e){} } }
+/* ===== انعكاس فوري للكمية (طلب العميل — نفس حل بطء عرض الأصناف): الكمية تظهر لحظيًّا بوسم ⏳،
+   ثم يؤكدها الخادم فيختفي الوسم. بثّ العدّات الحيّ يدمج المعلَّق فلا يختفي العدّ مؤقتًا مهما بطؤ الاتصال. ===== */
+let _pendingAdds={}; // code → أسطر بانتظار تأكيد الخادم
+function pendReapply(){ for(const code in _pendingAdds){ const list=_pendingAdds[code]||[]; if(!list.length)continue;
+  const cc=curCounts[code]||{code:code,qty:0,entries:[]}; const have=new Set((cc.entries||[]).map(e=>e&&e.id));
+  list.forEach(p=>{ if(!have.has(p.id)){ cc.entries=(cc.entries||[]).concat([{id:p.id,q:p.q,by:p.by,byName:p.byName,at:p.at,pending:true}]); cc.qty=(cc.qty||0)+p.q; } });
+  curCounts[code]=cc; } }
+function pendDrop(code,eid,confirmOk){ const l=_pendingAdds[code]||[]; const i=l.findIndex(x=>x.id===eid); if(i>=0)l.splice(i,1); if(!l.length)delete _pendingAdds[code];
+  const cc=curCounts[code];
+  if(cc&&cc.entries){ const j=cc.entries.findIndex(e=>e&&e.id===eid);
+    if(j>=0){ if(confirmOk){ delete cc.entries[j].pending; } else { cc.qty=(cc.qty||0)-(cc.entries[j].q||0); cc.entries.splice(j,1); if(!cc.entries.length){ delete curCounts[code]; } } } }
+  if($('clist'))renderCountList(); }
 async function addEntry(code,val){
   const d=numv(val); if(d==null||d===0)return; if(!assertOpen())return;
   if(featuresOfflineOn()&&!netOnline()){ await offlineEnqueueAndReflect({op:'add',code:code,val:d,sid:curSid}); return; } // دون اتصال ⇒ طابور + انعكاس تفاؤلي
+  const eid=entryId(), at=Date.now();
+  (_pendingAdds[code]=_pendingAdds[code]||[]).push({id:eid,q:d,by:auth.currentUser.uid,byName:myProfile.name||'',at:at});
+  pendReapply(); if($('clist'))renderCountList(); // ظهور لحظي قبل أي شبكة
   try{
-    const ref=doc(db,'sessions',curSid,'counts',safeId(code));
-    await runTransaction(db,async(tx)=>{const s=await tx.get(ref);const cur=s.exists()?s.data():{code:code,qty:0,entries:[]};const entries=(cur.entries||[]).concat([{id:entryId(),q:d,by:auth.currentUser.uid,byName:myProfile.name||'',at:Date.now()}]);tx.set(ref,{code:code,qty:(cur.qty||0)+d,entries:entries,lastByName:myProfile.name||'',lastAt:serverTimestamp()});});
+    await countWriteAdd(curSid,code,d,at,eid);
+    pendDrop(code,eid,true);
     logActivity('add',code,itemName(code),d);
-  }catch(err){ if(featuresOfflineOn()&&offlineIsConnErr(err)){ await offlineEnqueueAndReflect({op:'add',code:code,val:d,sid:curSid}); return; } toastErr('تعذّر الحفظ: '+errAr(err.code||err.message));}
+  }catch(err){ if(featuresOfflineOn()&&offlineIsConnErr(err)){ pendDrop(code,eid,false); await offlineEnqueueAndReflect({op:'add',code:code,val:d,sid:curSid}); return; } pendDrop(code,eid,false); toastErr('تعذّر الحفظ: '+errAr(err.code||err.message));}
 }
 /* ===== ملاحظات العدّ (طلب العميل): لكل صنف — تُسجَّل وقت العد وتظهر في التقرير والطباعة =====
    تُخزَّن في sessions/{sid}/itemNotes/{code} منفصلةً عن العدّات ⇒ ملاحظة على صنف غير معدود لا تجعله «معدودًا». */
@@ -3495,11 +3511,12 @@ function computeVariance(items,counts){
 }
 // ملخصات إجمالية (صافي الفروقات محسوب على المعدود فقط؛ غير المعدود يُفصح عنه منفصلاً).
 function summarize(rows){
-  const s={total:rows.length,counted:0,uncounted:0,match:0,surplus:0,deficit:0,nobook:0,extra:0,
+  const s={total:rows.length,counted:0,uncounted:0,match:0,surplus:0,deficit:0,nobook:0,extra:0,upTotal:0,
     withCost:0,bookVal:0,countedVal:0,netVar:0,surplusVal:0,deficitVal:0,uncountedBookVal:0};
   rows.forEach(r=>{
     if(r.isCounted)s.counted++; else s.uncounted++;
     if(r.status==='match')s.match++; else if(r.status==='surplus')s.surplus++; else if(r.status==='deficit')s.deficit++; else if(r.status==='nobook')s.nobook++; else if(r.status==='extra')s.extra++;
+    if(r.status==='surplus'||r.status==='extra'||(r.book!=null&&r.book<0))s.upTotal++; // بلاطة «زيادة» الشاملة (طلب العميل): زيادة + خارج الدفتر + دفتري سالب
     if(r.cost!=null)s.withCost++;
     if(r.bookValue!=null)s.bookVal+=r.bookValue;
     if(r.countedValue!=null)s.countedVal+=r.countedValue;
@@ -3568,7 +3585,7 @@ function renderReportShell(){
       '<div class="rtools">'+
         '<input id="repSearch" placeholder="بحث بالكود أو الاسم…">'+
         '<select id="repCat"><option value="">كل الفئات</option>'+cats.map(x=>'<option value="'+esc(x)+'">'+esc(x)+'</option>').join('')+'</select>'+
-        '<select id="repStatus"><option value="all">كل الحالات</option><option value="counted">المعدود فقط</option><option value="var">الفروقات فقط (عجز/زيادة)</option><option value="deficit">عجز</option><option value="surplus">زيادة</option><option value="extra">زيادة خارج الدفتر (يدوي)</option><option value="match">مطابق</option><option value="uncounted">غير معدود</option></select>'+
+        '<select id="repStatus"><option value="all">كل الحالات</option><option value="counted">المعدود فقط</option><option value="var">الفروقات فقط (عجز/زيادة)</option><option value="deficit">عجز</option><option value="surplus">زيادة</option><option value="surplusAll">كل الزيادات (زيادة + خارج الدفتر + دفتري سالب)</option><option value="extra">زيادة خارج الدفتر (يدوي)</option><option value="match">مطابق</option><option value="uncounted">غير معدود</option></select>'+
         '<label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--tsec);white-space:nowrap"><input type="checkbox" id="repWho" style="width:16px;height:16px"> إظهار «من أضاف»</label>'+
       '</div>'+
       '<div class="rtable-wrap"><div id="repTable"><p class="muted" style="padding:12px">جارٍ الحساب…</p></div></div>'+
@@ -3598,7 +3615,7 @@ function renderReportSummary(){
     ftile('لم تُعد بعد',fmt(s.uncounted)+(hasCost&&s.uncountedBookVal?' <span class="muted" style="font-size:12px;font-weight:500">('+money(s.uncountedBookVal)+')</span>':''),s.uncounted?'':'pos','uncounted')+
     ftile('مطابق',fmt(s.match),s.match?'pos':'','match')+
     ftile('عجز',fmt(s.deficit),s.deficit?'neg':'','deficit')+
-    ftile('زيادة',fmt(s.surplus),'','surplus')+
+    ftile('زيادة',fmt(s.upTotal),'','surplusAll')+
     ftile('خارج الدفتر',fmt(s.extra),'','extra')+
     vtile('إجمالي القيمة الدفترية',money(s.bookVal))+
     vtile('إجمالي القيمة الفعلية',money(s.countedVal))+
@@ -3615,6 +3632,7 @@ function filteredReportRows(){
   if(q){ const qn=arNorm(q); rows=rows.filter(r=>(r.code&&arNorm(r.code).indexOf(qn)>=0)||(r.name&&arNorm(r.name).indexOf(qn)>=0)||(r.barcode&&arNorm(r.barcode).indexOf(qn)>=0)||(r.notes&&r.notes.some(n=>arNorm(n.text||'').indexOf(qn)>=0))); }
   if(stf==='var')rows=rows.filter(r=>r.status==='deficit'||r.status==='surplus');
   else if(stf==='counted')rows=rows.filter(r=>r.isCounted);
+  else if(stf==='surplusAll')rows=rows.filter(r=>r.status==='surplus'||r.status==='extra'||(r.book!=null&&r.book<0)); // بلاطة الزيادة الشاملة
   else if(stf!=='all')rows=rows.filter(r=>r.status===stf);
   // ر٤: فرز بالنقر — نصّي بالتطبيع، رقمي بالقيمة
   if(repSortKey){ const numK={book:1,counted:1,diff:1,cost:1,bookValue:1,countedValue:1,varValue:1};

@@ -189,6 +189,9 @@ window.__acSavePersonalize = ()=>acSavePersonalize();
 // مهلة السكون: خطاطيف الاختبار — إظهار التنبيه فورًا دون انتظار المهلة
 window.__idleCfg = ()=>idleCfg();
 window.__curNotes = ()=>curNotes; // ملاحظات العدّ الحيّة
+window.__countsMap = ()=>curCounts; // الخريطة الكاملة (لا تلمس __curCounts القديم — يعيد المفاتيح فقط)
+window.__addEntry = (c,v)=>addEntry(c,v);
+window.__pendingAdds = ()=>_pendingAdds;
 window.__noteSave = (c)=>noteSave(c);
 window.__noteDraftSet = (c,t)=>{ _noteDraft[String(c)]=t; };
 window.__snapCacheGet = (sid)=>snapCacheGet(sid);
