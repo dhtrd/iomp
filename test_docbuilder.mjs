@@ -70,6 +70,15 @@ async function load(page,sc){ await page.goto(HARNESS+'?s='+encodeURIComponent(b
   ok('DB5 متغيّر {committee} يعرض المسجّلين بالجلسة (مسمى: اسم)', c.includes('رئيس لجنة الجرد: خالد العتيبي'), c);
   await page.close(); }
 
+// ===== DB6 — {branchMgr} = مسؤول الموقع المسجَّل إلزاميًّا بالجلسة (رأي العميل — بلا قسم الفروع) =====
+{ const page=await ctx.newPage(); await load(page,{profile:OWNER,users:[OWNER],
+    sessions:[{id:'sb',name:'جرد الموقع',status:'approved',location:'فرع أ',itemCount:2,approvedByName:'المالك',
+      responsible:{name:'ماجد الدوسري'},__chunks:EXI,__counts:EXC}]});
+  await page.evaluate(()=>window.__openReport('sb')); await page.waitForTimeout(450);
+  const sub=await page.evaluate(()=>window.__docSubst('مسؤول الموقع: {branchMgr}','committee'));
+  ok('DB6 {branchMgr} يطبع مسؤول الفرع/المستودع المسجَّل بالجلسة', sub.includes('ماجد الدوسري'), sub);
+  await page.close(); }
+
 await browser.close();
 let pass=0; for(const r of results){ console.log((r.pass?'✓':'✗')+' '+r.n+(r.d&&!r.pass?('  << '+r.d):'')); if(r.pass)pass++; }
 console.log(`\nRECON ${pass}/${results.length} ${pass===results.length?'passed':'FAILED'}`);

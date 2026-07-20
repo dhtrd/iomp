@@ -2156,12 +2156,15 @@ function renderSessions(c){
     '<button type="button" class="btn ghost sm" id="sessSigAdd">+ إضافة موقّع</button>'+
     '<div class="muted" style="font-size:12px;margin-top:6px">تُستخدَم في محضر لجنة الجرد ومحضر ملخّص الفروقات — تُحدَّد قبل بدء الجلسة وتُثبَّت عليها.</div></div>'+
     // المسؤول السابق/الجديد — عند تحديدهما يُتاح محضر استلام المخزون
-    '<div class="grid2"><div class="field"><label>المسؤول السابق — المُسلِّم (اختياري)</label><input id="s_custPrev" placeholder="اسم المسؤول المُسلِّم"></div>'+
-    '<div class="field"><label>المسؤول الجديد — المُستلِم (اختياري)</label><input id="s_custNext" placeholder="اسم المسؤول المُستلِم"></div></div>'+
-    '<div class="muted" style="font-size:12px;margin:-6px 0 12px">عند تحديد المُسلِّم والمُستلِم معًا يُتاح «محضر استلام مخزون» بعد الجرد.</div>'+
+    '<label style="display:flex;gap:9px;align-items:center;margin:0 0 10px"><input type="checkbox" id="s_ho" style="width:18px;height:18px"> <span>جرد تسليم/استلام (تغيير مسؤول الموقع)</span></label>'+
+    '<div id="s_hoBox" class="grid2" style="display:none"><div class="field"><label>المسؤول السابق — المُسلِّم (إلزامي)</label><input id="s_custPrev" placeholder="اسم المسؤول المُسلِّم"></div>'+
+    '<div class="field"><label>المسؤول الجديد — المُستلِم (إلزامي)</label><input id="s_custNext" placeholder="اسم المسؤول المُستلِم"></div></div>'+
+    '<div id="s_respBox" class="field"><label>مسؤول الفرع/المستودع (إلزامي)</label><input id="s_resp" placeholder="اسم مسؤول الموقع الحالي"></div>'+
+    '<div class="muted" style="font-size:12px;margin:-6px 0 12px">التسليم/الاستلام يُلزم بالطرفين ويضيفهما للموقّعين ويتيح «محضر استلام مخزون»؛ وبدونه يُلزم بمسؤول الموقع ويُضاف للموقّعين — ويظهر في صيغة المحاضر ({branchMgr}).</div>'+
     '<button class="btn" id="createSessBtn">إنشاء الجلسة</button><div class="status" id="sessStatus"></div></div>'):'';
   c.innerHTML=myTasksBanner()+createCard+'<div class="card"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><h2 style="margin:0;flex:1">جلسات الجرد</h2><button class="btn ghost sm" id="sessViewToggle">'+(sessByLoc?'📋 قائمة':'🗂 حسب الموقع')+'</button></div><div id="sessList" style="margin-top:10px"><p class="muted">جارٍ التحميل…</p></div></div>';
-  if($('createSessBtn')){ $('createSessBtn').onclick=createSession; sessSigBind(); if($('sessSigAdd'))$('sessSigAdd').onclick=()=>{ sessSigSync(); _sessSig.push({title:'',name:''}); const bx=$('sessSigRows'); if(bx){ bx.innerHTML=sessSigRowsHtml(); sessSigBind(); } }; }
+  if($('createSessBtn')){ $('createSessBtn').onclick=createSession; sessSigBind();
+    { const ho=$('s_ho'); if(ho)ho.onchange=()=>{ if($('s_hoBox'))$('s_hoBox').style.display=ho.checked?'':'none'; if($('s_respBox'))$('s_respBox').style.display=ho.checked?'none':''; }; } if($('sessSigAdd'))$('sessSigAdd').onclick=()=>{ sessSigSync(); _sessSig.push({title:'',name:''}); const bx=$('sessSigRows'); if(bx){ bx.innerHTML=sessSigRowsHtml(); sessSigBind(); } }; }
   if($('sessViewToggle'))$('sessViewToggle').onclick=()=>{ sessByLoc=!sessByLoc; renderSessions(c); };
   if($('s_loc'))$('s_loc').onchange=async function(){ if(this.value!=='__new')return; this.value='';
     const nm=await promptDialog({title:'مستودع جديد',placeholder:'اسم المستودع',confirmLabel:'إضافة',required:true}); if(!nm)return; const r=await addWarehouse(nm);
@@ -2222,14 +2225,20 @@ async function createSession(){
   if(!can('session.create')){st('sessStatus','err','ليست لديك صلاحية إنشاء الجلسات.');return;}
   const name=$('s_name').value.trim(),loc=$('s_loc').value.trim(),blind=$('s_blind').checked;
   if(!name){st('sessStatus','err','اكتب اسم الجلسة.');return;}
+  // قاعدة مسؤول الموقع (رأي العميل): تسليم/استلام ⇒ الطرفان إلزاميان؛ وإلا ⇒ مسؤول الفرع/المستودع إلزامي — ويُضافون للموقّعين تلقائيًّا
+  const _ho=!!($('s_ho')&&$('s_ho').checked);
+  const _cp=($('s_custPrev')?$('s_custPrev').value.trim():''), _cn=($('s_custNext')?$('s_custNext').value.trim():''), _rp=($('s_resp')?$('s_resp').value.trim():'');
+  if(_ho&&(!_cp||!_cn)){st('sessStatus','err','جرد التسليم/الاستلام يتطلب اسمَي المُسلِّم والمُستلِم معًا.');return;}
+  if(!_ho&&!_rp){st('sessStatus','err','اسم مسؤول الفرع/المستودع إلزامي (أو فعّل جرد التسليم/الاستلام).');return;}
   $('createSessBtn').disabled=true;st('sessStatus','info','جارٍ الإنشاء…',true);
   if(await locationInDisabledBranch(loc)){ st('sessStatus','err','هذا الموقع تابعٌ لفرعٍ معطَّل — لا يمكن بدء جلسات جرد جديدة فيه (الجلسات الحالية تبقى).'); $('createSessBtn').disabled=false; return; } // إصلاح-٣ (بند ٢ج): فرض تعطيل الفرع على مسار الإنشاء الحقيقي
   const sigs=sessSigCollect(); // موقّعو المحاضر (مسمى + اسم) — يُثبَّتون على الجلسة
-  const cp=($('s_custPrev')?$('s_custPrev').value.trim():''), cn=($('s_custNext')?$('s_custNext').value.trim():'');
+  const auto=_ho?[{title:'المسؤول المُسلِّم',name:_cp},{title:'المسؤول المُستلِم',name:_cn}]:[{title:'مسؤول الفرع/المستودع',name:_rp}];
+  const sigsAll=sigs.filter(s=>!auto.some(a=>a.title===(s.title||''))).concat(auto); // مسؤولو الموقع عناصر في الموقّعين حتمًا
   try{await addDoc(collection(db,'sessions'),{name,location:loc,blind,status:'open',itemCount:0,createdAt:serverTimestamp(),createdBy:auth.currentUser.uid,createdByName:myProfile.name||'',
-      signatories:sigs, custodyPrev:(cp?{name:cp}:null), custodyNext:(cn?{name:cn}:null)});
+      signatories:sigsAll, custodyPrev:(_ho?{name:_cp}:null), custodyNext:(_ho?{name:_cn}:null), responsible:(_ho?null:{name:_rp})});
     st('sessStatus','ok','تم إنشاء الجلسة ✓ — اضغط «رفع ملف الجرد» في القائمة.');$('s_name').value='';$('s_loc').value='';$('s_blind').checked=!!appSettings().blindDefault;
-    _sessSig=sigRoster(); if($('s_custPrev'))$('s_custPrev').value=''; if($('s_custNext'))$('s_custNext').value=''; const bx=$('sessSigRows'); if(bx){ bx.innerHTML=sessSigRowsHtml(); sessSigBind(); }}
+    _sessSig=sigRoster(); if($('s_custPrev'))$('s_custPrev').value=''; if($('s_custNext'))$('s_custNext').value=''; if($('s_resp'))$('s_resp').value=''; if($('s_ho')){$('s_ho').checked=false; if($('s_hoBox'))$('s_hoBox').style.display='none'; if($('s_respBox'))$('s_respBox').style.display='';} const bx=$('sessSigRows'); if(bx){ bx.innerHTML=sessSigRowsHtml(); sessSigBind(); }}
   catch(err){st('sessStatus','err',errAr(err.code||err.message));}
   finally{$('createSessBtn').disabled=false;}
 }
@@ -2412,7 +2421,9 @@ function renderLateAmend(){ const bx=$('lateAmendBox'); if(!bx)return;
     '<div style="font-weight:700;font-size:13px;margin:8px 0 4px">العدّادون المكلَّفون</div><div id="laList"><p class="muted">جارٍ التحميل…</p></div>'+
     '<div style="font-weight:700;font-size:13px;margin:12px 0 4px">المسؤولان — للاستلام (اختياري)</div>'+
     '<div style="display:flex;gap:8px;flex-wrap:wrap"><input id="laCustPrev" placeholder="المسؤول السابق — المُسلِّم" value="'+esc((curSess.custodyPrev&&curSess.custodyPrev.name)||'')+'" style="flex:1;min-width:170px;padding:9px 11px;border:1px solid var(--border);border-radius:8px;font-family:inherit;background:var(--card);color:var(--tprimary)"><input id="laCustNext" placeholder="المسؤول الجديد — المُستلِم" value="'+esc((curSess.custodyNext&&curSess.custodyNext.name)||'')+'" style="flex:1;min-width:170px;padding:9px 11px;border:1px solid var(--border);border-radius:8px;font-family:inherit;background:var(--card);color:var(--tprimary)"></div>'+
-    '<div class="muted" style="font-size:12px;margin-top:4px">عند تحديدهما معًا يُتاح «محضر استلام مخزون» بعد الجرد.</div>'+
+    '<div class="muted" style="font-size:12px;margin-top:4px">عند تحديدهما معًا يُتاح «محضر استلام مخزون» ويُضافان للموقّعين.</div>'+
+    '<div style="font-weight:700;font-size:13px;margin:12px 0 4px">مسؤول الفرع/المستودع</div>'+
+    '<input id="laResp" placeholder="اسم مسؤول الموقع الحالي (إلزامي إن لم يكن جرد تسليم)" value="'+esc((curSess.responsible&&curSess.responsible.name)||'')+'" style="width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:8px;font-family:inherit;background:var(--card);color:var(--tprimary)">'+
     '<div style="font-weight:700;font-size:13px;margin:12px 0 4px">الموقّعون (مسمى وظيفي + اسم)</div><div id="laSigs"></div>'+
     '<button type="button" class="btn ghost sm" id="laSigAdd" style="margin-top:6px">+ إضافة موقّع</button>'+
     '<div style="margin-top:10px"><button class="btn" id="laSave">حفظ الإضافات</button></div><div class="status" id="laStatus"></div>';
@@ -2432,10 +2443,15 @@ async function doLateAmend(){ if(!can('session.assign'))return;
   const sigs=[]; const ts=document.querySelectorAll('#laSigs .laT'), ns=document.querySelectorAll('#laSigs .laN');
   ts.forEach((t,i)=>{ const tv=(t.value||'').trim(), nv=((ns[i]&&ns[i].value)||'').trim(); if(tv||nv)sigs.push({title:tv,name:nv}); });
   st('laStatus','info','جارٍ الحفظ…',true);
-  const cpv=($('laCustPrev')?$('laCustPrev').value.trim():''), cnv=($('laCustNext')?$('laCustNext').value.trim():'');
+  const cpv=($('laCustPrev')?$('laCustPrev').value.trim():''), cnv=($('laCustNext')?$('laCustNext').value.trim():''), rpv=($('laResp')?$('laResp').value.trim():'');
+  if(cpv&&!cnv||cnv&&!cpv){ st('laStatus','err','التسليم يتطلب الطرفين معًا (المُسلِّم والمُستلِم).'); return; }
+  if(!cpv&&!cnv&&!rpv){ st('laStatus','err','سجّل مسؤول الفرع/المستودع، أو طرفَي التسليم معًا.'); return; }
   const custodyPrev=cpv?Object.assign({},curSess.custodyPrev||{},{name:cpv}):null, custodyNext=cnv?Object.assign({},curSess.custodyNext||{},{name:cnv}):null;
-  try{ await updateDoc(doc(db,'sessions',curSid),{assignedCounters:picked,assignedNames:names,signatories:sigs,custodyPrev:custodyPrev,custodyNext:custodyNext});
-    curSess.assignedCounters=picked; curSess.assignedNames=names; curSess.signatories=sigs; curSess.custodyPrev=custodyPrev; curSess.custodyNext=custodyNext;
+  const responsible=(cpv&&cnv)?null:(rpv?{name:rpv}:null);
+  const auto=(cpv&&cnv)?[{title:'المسؤول المُسلِّم',name:cpv},{title:'المسؤول المُستلِم',name:cnv}]:[{title:'مسؤول الفرع/المستودع',name:rpv}];
+  const sigsAll=sigs.filter(s=>!auto.some(a=>a.title===(s.title||''))).concat(auto);
+  try{ await updateDoc(doc(db,'sessions',curSid),{assignedCounters:picked,assignedNames:names,signatories:sigsAll,custodyPrev:custodyPrev,custodyNext:custodyNext,responsible:responsible});
+    curSess.assignedCounters=picked; curSess.assignedNames=names; curSess.signatories=sigsAll; curSess.custodyPrev=custodyPrev; curSess.custodyNext=custodyNext; curSess.responsible=responsible;
     logActivity('amend','','إدارة ما نُسي — العدّادون: '+(names.join('، ')||'—')+' • الموقّعون: '+(sigs.map(s=>s.title||s.name).join('، ')||'—'),null);
     st('laStatus','ok','حُفظت الإضافات ✓ — سرت فورًا على العدّ والمحاضر.');
   }catch(err){ st('laStatus','err','تعذّر: '+errAr(err.code||err.message)); } }
@@ -2604,7 +2620,7 @@ function docVarCtx(reasonKey,rows){ const s2=summarize(rows||[]); const R=PRINT_
     '{date}':officialDate(),'{items}':fmt((rows||[]).length),'{counted}':fmt(s2.counted),'{netVar}':fmt(round2(s2.netVar)),'{approver}':((repSess&&repSess.approvedByName)||'—'),
     '{committee}':docSignatories().map(x=>x.name?(x.label+': '+x.name):x.label).join('، ')||'—', // موقّعو الجلسة المسجّلون (مسمى: اسم) لهم الأولوية
     '{newResp}':who(cn),'{oldResp}':who(cp),
-    '{branchMgr}':((repSess&&repSess.branchManagerName)||'—'),
+    '{branchMgr}':((repSess&&repSess.responsible&&repSess.responsible.name)||(repSess&&repSess.custodyNext&&repSess.custodyNext.name)||'—'), // مسؤول الموقع المسجَّل بالجلسة (وبعد الاستلام: المستلم الجديد)
     '{totalCost}':fmt(round2(s2.bookVal)),'{totalActual}':fmt(round2(s2.countedVal)),'{onHand}':fmt(round2(qty)) }; }
 function docSubst(text,ctx){ let t=String(text==null?'':text); Object.keys(ctx).forEach(k=>{ t=t.split(k).join(ctx[k]); }); return t; }
 function docTemplate(reasonKey){ return (appSettings().docTemplates||{})[reasonKey]||{}; }

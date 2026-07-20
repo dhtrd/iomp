@@ -144,7 +144,7 @@ async function openBell(page){ await page.evaluate(()=>document.getElementById('
   await page.evaluate(()=>window.__setTab('sessions')); await page.waitForTimeout(250);
   const preChecked=await page.evaluate(()=>document.getElementById('s_blind').checked);
   ok('A11 مربّع «الوضع الأعمى» مُفعّل مسبقًا عند الإنشاء', preChecked===true, 'checked='+preChecked);
-  await page.evaluate(()=>{ document.getElementById('s_name').value='جرد أعمى'; document.getElementById('createSessBtn').click(); });
+  await page.evaluate(()=>{ document.getElementById('s_name').value='جرد أعمى'; const r=document.getElementById('s_resp'); if(r)r.value='مسؤول الموقع'; document.getElementById('createSessBtn').click(); });
   await page.waitForTimeout(300);
   const sess=await page.evaluate(()=>{ const s=window.__store; for(const k in s){ if(k.indexOf('sessions/')===0&&k.slice(9).indexOf('/')<0){ const d=s[k]; if(d&&d.name==='جرد أعمى')return d; } } return null; });
   ok('A11 الجلسة المُنشأة عمياء (blind===true)', sess&&sess.blind===true, JSON.stringify(sess&&{name:sess.name,blind:sess.blind}));
@@ -155,7 +155,7 @@ async function openBell(page){ await page.evaluate(()=>document.getElementById('
   await page.evaluate(()=>window.__setTab('sessions')); await page.waitForTimeout(250);
   const preChecked=await page.evaluate(()=>document.getElementById('s_blind').checked);
   ok('A12 مربّع «الوضع الأعمى» غير مُفعّل افتراضيًا', preChecked===false, 'checked='+preChecked);
-  await page.evaluate(()=>{ document.getElementById('s_name').value='جرد عادي'; document.getElementById('createSessBtn').click(); });
+  await page.evaluate(()=>{ document.getElementById('s_name').value='جرد عادي'; const r=document.getElementById('s_resp'); if(r)r.value='مسؤول الموقع'; document.getElementById('createSessBtn').click(); });
   await page.waitForTimeout(300);
   const sess=await page.evaluate(()=>{ const s=window.__store; for(const k in s){ if(k.indexOf('sessions/')===0&&k.slice(9).indexOf('/')<0){ const d=s[k]; if(d&&d.name==='جرد عادي')return d; } } return null; });
   ok('A12 الجلسة المُنشأة غير عمياء (blind falsy)', sess&&!sess.blind, JSON.stringify(sess&&{name:sess.name,blind:sess.blind}));

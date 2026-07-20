@@ -39,7 +39,7 @@ async function load(page,sc){ await page.goto(HARNESS+'?s='+encodeURIComponent(b
   await page.evaluate(()=>{ const t=document.querySelectorAll('#sessSigRows .ssig-t'), n=document.querySelectorAll('#sessSigRows .ssig-n');
     if(t[0]){t[0].value='مدير الجرد'; t[0].dispatchEvent(new Event('input'));} if(n[0]){n[0].value='أحمد'; n[0].dispatchEvent(new Event('input'));}
     document.getElementById('s_name').value='جلسة اختبار'; document.getElementById('s_custPrev').value='سعد'; document.getElementById('s_custNext').value='فهد'; });
-  await page.evaluate(()=>window.__createSession()); await page.waitForTimeout(300);
+  await page.evaluate(()=>{ const h=document.getElementById('s_ho'); if(h)h.checked=true; }); await page.evaluate(()=>window.__createSession()); await page.waitForTimeout(300);
   const created=await page.evaluate(()=>{ const st=window.__store; for(const k in st){ if(k.indexOf('sessions/')===0 && st[k] && st[k].name==='جلسة اختبار') return st[k]; } return null; });
   ok('M3 نموذج الموقّعين وحقلا المسؤول ظاهرة في بدء الجلسة', hasUI===true);
   ok('M3 الجلسة تُخزّن الموقّع (مدير الجرد/أحمد)', created&&Array.isArray(created.signatories)&&created.signatories.some(s=>s.title==='مدير الجرد'&&s.name==='أحمد'), JSON.stringify(created&&created.signatories));

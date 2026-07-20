@@ -75,14 +75,14 @@ async function load(page,sc){ await page.goto(HARNESS+'?s='+encodeURIComponent(b
   const before=await page.evaluate(()=>Object.keys(window.__store).filter(k=>/^sessions\/[^/]+$/.test(k)).length);
   // محاولة الإنشاء في موقع فرع معطّل
   await page.evaluate((loc)=>{ if(document.getElementById('s_name'))document.getElementById('s_name').value='جلسة معطّلة'; if(document.getElementById('s_loc'))document.getElementById('s_loc').value=loc; }, WH_DIS);
-  await page.evaluate(()=>window.__createSession()); await page.waitForTimeout(250);
+  await page.evaluate(()=>{ const r=document.getElementById('s_resp'); if(r)r.value='مسؤول الموقع'; }); await page.evaluate(()=>window.__createSession()); await page.waitForTimeout(250);
   const afterDis=await page.evaluate(()=>Object.keys(window.__store).filter(k=>/^sessions\/[^/]+$/.test(k)).length);
   const errTxt=await page.evaluate(()=>{ const s=document.getElementById('sessStatus'); return s?s.textContent:''; });
   ok('G6 لم تُنشأ جلسة في موقع فرع معطّل', afterDis===before, 'before='+before+' after='+afterDis);
   ok('G6 ظهرت رسالة «فرع معطّل»', /معطَّل|معطّل/.test(errTxt), errTxt);
   // الإنشاء في موقع نشط ينجح
   await page.evaluate((loc)=>{ document.getElementById('s_name').value='جلسة سليمة'; document.getElementById('s_loc').value=loc; }, WH_RY);
-  await page.evaluate(()=>window.__createSession()); await page.waitForTimeout(250);
+  await page.evaluate(()=>{ const r=document.getElementById('s_resp'); if(r)r.value='مسؤول الموقع'; }); await page.evaluate(()=>window.__createSession()); await page.waitForTimeout(250);
   const afterAct=await page.evaluate(()=>Object.keys(window.__store).filter(k=>/^sessions\/[^/]+$/.test(k)).length);
   ok('G6 أُنشئت الجلسة في موقع نشط', afterAct===before+1, 'afterAct='+afterAct);
   await page.close(); }
