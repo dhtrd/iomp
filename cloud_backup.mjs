@@ -1,12 +1,13 @@
 // النسخ الاحتياطي السحابي التلقائي — يعمل في GitHub Actions مجدولًا (بلا جهاز، بلا فتح التطبيق)
 // يقرأ Firestore كاملًا بحساب خدمة، ويرفع JSON موقّتًا إلى Dropbox عبر refresh token دائم.
 // الأسرار المطلوبة (Settings → Secrets → Actions): FIREBASE_SERVICE_ACCOUNT، DROPBOX_APP_KEY، DROPBOX_APP_SECRET، DROPBOX_REFRESH_TOKEN
-import admin from 'firebase-admin';
+import { initializeApp, cert } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
 
 const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT || '{}');
 if (!sa.project_id) { console.error('سرّ FIREBASE_SERVICE_ACCOUNT مفقود/غير صالح'); process.exit(1); }
-admin.initializeApp({ credential: admin.credential.cert(sa) });
-const db = admin.firestore();
+initializeApp({ credential: cert(sa) });
+const db = getFirestore();
 
 // تفريغ متكرر: كل مجموعة عليا + مجموعاتها الفرعية (counts/snapshot/extraItems/activity/history…)
 async function dumpDoc(ref) {
