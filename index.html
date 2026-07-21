@@ -794,19 +794,86 @@ input[type="checkbox"]:not(.rcap):not(.rtask){width:18px!important;min-width:18p
 [data-theme="dark"] .tag.notetag{background:rgba(201,162,39,.2);color:#e3ba3c}
 [data-theme="dark"] #notifDrawer .nico.create{background:rgba(201,162,39,.20)}
 [data-theme="dark"] #notifDrawer .nico.nava{color:var(--tprimary)}
+/* ═══════════ م٦-٤: شاشة الدخول الجديدة (اختيار العميل: أ٣ زجاجية + ب٥ فقاعات + ج٥ أيقونات/عين + د٢ زر متدرج + هـ٤ اهتزاز + هـ٥ نجاح + هـ٦ عين) ═══════════
+   كل شيء مقصور على .auth-modern / #loginBtn / #pwBtn — لا يمسّ أي .card أو .btn في بقية التطبيق. */
+.auth-modern{position:relative;overflow:hidden;background:linear-gradient(150deg,#142440 0%,#1F3864 48%,#4F46E5 100%)}
+/* ب٥: فقاعات ضبابية طافية خلف البطاقة */
+.auth-modern .authbg{position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+.auth-modern .authbg span{position:absolute;border-radius:50%;filter:blur(60px);opacity:.55;will-change:transform}
+.auth-modern .authbg span:nth-child(1){width:320px;height:320px;background:#8DA6F5;top:-90px;inset-inline-end:-70px;animation:auFloat1 13s ease-in-out infinite alternate}
+.auth-modern .authbg span:nth-child(2){width:280px;height:280px;background:#C9A7F2;bottom:-80px;inset-inline-start:-60px;animation:auFloat2 16s ease-in-out infinite alternate}
+.auth-modern .authbg span:nth-child(3){width:200px;height:200px;background:#F2D9A7;bottom:12%;inset-inline-end:14%;opacity:.4;animation:auFloat3 11s ease-in-out infinite alternate}
+@keyframes auFloat1{to{transform:translate(-26px,32px) scale(1.08)}}
+@keyframes auFloat2{to{transform:translate(30px,-24px) scale(1.1)}}
+@keyframes auFloat3{to{transform:translate(-18px,-20px)}}
+.auth-modern .wrap{position:relative;z-index:2}
+/* العلامة فاتحة فوق التدرج */
+.auth-modern .brand .mark{background:rgba(255,255,255,.16);box-shadow:none;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.auth-modern .brand h1{color:#fff}
+.auth-modern .brand p{color:#D5DCF7}
+/* أ٣: بطاقة زجاجية */
+.auth-modern .card{background:rgba(255,255,255,.60);border:1px solid rgba(255,255,255,.6);backdrop-filter:blur(16px) saturate(1.4);-webkit-backdrop-filter:blur(16px) saturate(1.4);box-shadow:0 24px 60px -24px rgba(10,15,35,.55);animation:auReveal .6s cubic-bezier(.34,1.35,.5,1) both}
+@supports not (backdrop-filter:blur(1px)){.auth-modern .card{background:rgba(255,255,255,.96)}}
+@keyframes auReveal{from{opacity:0;transform:translateY(16px) scale(.97);filter:blur(6px)}to{opacity:1;transform:none;filter:blur(0)}}
+[data-theme="dark"] .auth-modern .card{background:rgba(22,27,41,.55);border-color:rgba(255,255,255,.12)}
+@supports not (backdrop-filter:blur(1px)){[data-theme="dark"] .auth-modern .card{background:rgba(22,27,41,.97)}}
+.auth-modern .hint{color:rgba(255,255,255,.82)}
+.auth-modern .diag{color:rgba(255,255,255,.5)}
+.auth-modern .linklike{color:#fff;opacity:.92}
+.auth-modern .linklike:hover{opacity:1;color:#fff}
+/* ج٥: أيقونات داخل الحقول + زر العين */
+.auth-modern .inwrap{position:relative;display:flex;align-items:center}
+.auth-modern .inwrap .fic{position:absolute;inset-inline-start:13px;width:17px;height:17px;color:var(--tmuted);pointer-events:none;display:grid;place-items:center}
+.auth-modern .inwrap .fic svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;display:block}
+.auth-modern .inwrap input{padding-inline-start:40px}
+.auth-modern .field input:focus~.fic,.auth-modern .inwrap:focus-within .fic{color:var(--navy700)}
+.auth-modern .eyebtn{position:absolute;inset-inline-end:8px;width:34px;height:34px;border:none;background:none;color:var(--tmuted);cursor:pointer;display:grid;place-items:center;padding:0;border-radius:8px;transition:color .2s,background .2s}
+.auth-modern .eyebtn:hover{color:var(--navy700);background:color-mix(in srgb,var(--navy700) 8%,transparent)}
+.auth-modern .eyebtn svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;display:block}
+.auth-modern .inwrap input#password{padding-inline-end:44px}
+/* حقول أوضح فوق الزجاج */
+.auth-modern .field input{background:color-mix(in srgb,var(--card) 82%,transparent);transition:border-color .25s,box-shadow .3s,transform .2s cubic-bezier(.34,1.35,.5,1),background .2s}
+.auth-modern .field input:focus{transform:translateY(-1px)}
+/* د٢: زر «دخول» بتدرج نيلي→بنفسجي وظل ملون */
+#loginBtn,#pwBtn{background:linear-gradient(120deg,#4F46E5,#7C3AED)!important;box-shadow:0 10px 24px -10px rgba(99,60,235,.7);border:none;position:relative;overflow:hidden;transition:filter .2s,transform .22s cubic-bezier(.34,1.35,.5,1),box-shadow .3s,border-radius .35s,width .35s}
+#loginBtn:hover,#pwBtn:hover{filter:brightness(1.02);transform:translateY(-1.5px);box-shadow:0 16px 30px -12px rgba(99,60,235,.8)}
+#loginBtn:active,#pwBtn:active{transform:translateY(0) scale(.98)}
+#loginBtn:disabled{transform:none}
+/* هـ٤: اهتزاز البطاقة عند خطأ الدخول */
+.auth-modern .card.au-shake{animation:auShake .45s cubic-bezier(.36,.07,.19,.97)}
+@keyframes auShake{20%{transform:translateX(-9px)}40%{transform:translateX(8px)}60%{transform:translateX(-5px)}80%{transform:translateX(3px)}100%{transform:none}}
+/* هـ٥: تحوّل الزر إلى دائرة نجاح ✓ عند الدخول الصحيح */
+#loginBtn.au-loading .lbtxt{opacity:0}
+#loginBtn.au-loading::before{content:'';position:absolute;top:50%;right:50%;width:16px;height:16px;margin:-8px -8px 0 0;border:2.4px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:auSpin .7s linear infinite}
+@keyframes auSpin{to{transform:rotate(360deg)}}
+#loginBtn.au-done{width:44px!important;min-width:44px;border-radius:50%!important;margin:0 auto;background:linear-gradient(120deg,#0A7D55,#12A971)!important;box-shadow:0 10px 24px -10px rgba(10,125,85,.75);pointer-events:none}
+#loginBtn.au-done .lbtxt{opacity:0}
+#loginBtn.au-done::after{content:'✓';position:absolute;inset:0;display:grid;place-items:center;color:#fff;font-size:19px;font-weight:800;animation:auPop .4s cubic-bezier(.34,1.6,.5,1)}
+@keyframes auPop{from{transform:scale(0)}to{transform:scale(1)}}
+.btn.block#loginBtn{display:block}
+/* توافق الجوال: خط ≥16px يمنع تكبير iOS، ولمسة أوضح */
+@media(max-width:820px){.auth-modern .field input{font-size:16px}}
 </style>
 </head>
 <body>
+<!-- م٦-٤: أيقونات شاشة الدخول (اختيار العميل ج٥/هـ٦) -->
+<svg style="display:none" aria-hidden="true">
+  <symbol id="au-mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 7 8 6 8-6"/></symbol>
+  <symbol id="au-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol>
+  <symbol id="au-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="2.6"/></symbol>
+  <symbol id="au-eyeoff" viewBox="0 0 24 24"><path d="M3 4l18 16"/><path d="M10.6 6c.5-.1.9-.1 1.4-.1 6.5 0 10 6.1 10 6.1a17 17 0 0 1-2.7 3.2M6.6 7.4A16.7 16.7 0 0 0 2 12s3.5 6.5 10 6.5c1.5 0 2.8-.3 4-.8"/></symbol>
+</svg>
 
 <!-- LOGIN -->
-<div class="center" id="loginView">
+<div class="center auth-modern" id="loginView">
+  <div class="authbg" aria-hidden="true"><span></span><span></span><span></span></div>
   <div class="wrap">
     <div class="brand"><div class="mark"><svg viewBox="0 0 48 48" fill="none" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><path d="M24 6.5 L39.5 14.5 V31 L24 39.5 L8.5 31 V14.5 Z" stroke="#fff" stroke-width="2.5"/><path d="M8.5 14.5 L24 22.5 L39.5 14.5" stroke="#fff" stroke-width="2.5"/><path d="M24 22.5 V39.5" stroke="#fff" stroke-width="2.5"/><circle cx="35.5" cy="12.5" r="8.5" fill="#C9A227"/><path d="M31.4 12.7 l2.7 2.7 L39.6 10" stroke="#142440" stroke-width="2.6"/></svg></div><h1>نظام الجرد متعدد المستخدمين</h1><p>شركة الضبيبي التجارية</p></div>
     <div class="card">
       <form id="loginForm">
-        <div class="field"><label for="email">البريد الإلكتروني</label><input type="email" id="email" autocomplete="username" placeholder="name@dhtrd.com" required></div>
-        <div class="field"><label for="password">كلمة المرور</label><input type="password" id="password" autocomplete="current-password" placeholder="كلمة المرور" required></div>
-        <button type="submit" class="btn block" id="loginBtn">دخول</button>
+        <div class="field"><label for="email">البريد الإلكتروني</label><div class="inwrap"><span class="fic"><svg aria-hidden="true"><use href="#au-mail"/></svg></span><input type="email" id="email" autocomplete="username" placeholder="name@dhtrd.com" required></div></div>
+        <div class="field"><label for="password">كلمة المرور</label><div class="inwrap"><span class="fic"><svg aria-hidden="true"><use href="#au-lock"/></svg></span><input type="password" id="password" autocomplete="current-password" placeholder="كلمة المرور" required><button type="button" class="eyebtn" id="pwEye" aria-label="إظهار كلمة المرور" title="إظهار كلمة المرور"><svg aria-hidden="true"><use href="#au-eye"/></svg></button></div></div>
+        <button type="submit" class="btn block" id="loginBtn"><span class="lbtxt">دخول</span></button>
       </form>
       <div class="status" id="loginStatus"></div>
       <button type="button" class="linklike" id="forgotBtn">نسيت كلمة المرور؟</button>
@@ -817,7 +884,8 @@ input[type="checkbox"]:not(.rcap):not(.rtask){width:18px!important;min-width:18p
 </div>
 
 <!-- FORCE CHANGE PASSWORD -->
-<div class="center" id="changePwView" style="display:none">
+<div class="center auth-modern" id="changePwView" style="display:none">
+  <div class="authbg" aria-hidden="true"><span></span><span></span><span></span></div>
   <div class="wrap">
     <div class="brand"><div class="mark"><svg viewBox="0 0 48 48" fill="none" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><path d="M24 6.5 L39.5 14.5 V31 L24 39.5 L8.5 31 V14.5 Z" stroke="#fff" stroke-width="2.5"/><path d="M8.5 14.5 L24 22.5 L39.5 14.5" stroke="#fff" stroke-width="2.5"/><path d="M24 22.5 V39.5" stroke="#fff" stroke-width="2.5"/><circle cx="35.5" cy="12.5" r="8.5" fill="#C9A227"/><path d="M31.4 12.7 l2.7 2.7 L39.6 10" stroke="#142440" stroke-width="2.6"/></svg></div><h1>تعيين كلمة مرور جديدة</h1><p>لأول دخول، اختر كلمة مرور خاصة بك</p></div>
     <div class="card">
@@ -1211,14 +1279,21 @@ function numv(v){var n=parseFloat(String(v==null?'':v).replace(/[,٬\s]/g,'').re
 function errAr(code){const m={'auth/invalid-email':'البريد غير صحيح.','auth/user-not-found':'لا يوجد حساب بهذا البريد.','auth/wrong-password':'كلمة المرور غير صحيحة.','auth/invalid-credential':'بيانات الدخول غير صحيحة.','auth/email-already-in-use':'هذا البريد مسجّل مسبقاً.','auth/weak-password':'كلمة المرور ضعيفة (٦ أحرف على الأقل).','auth/too-many-requests':'محاولات كثيرة — انتظر قليلاً.','auth/network-request-failed':'تعذّر الاتصال بالإنترنت.','auth/requires-recent-login':'سجّل الدخول من جديد ثم غيّر كلمة المرور.','auth/operation-not-allowed':'فعّل Email/Password في Firebase.','permission-denied':'رُفض الوصول (تحقّق من قواعد Firestore).'};return m[code]||('خطأ: '+code);}
 
 // ===== LOGIN =====
-$('loginForm').onsubmit=async(e)=>{e.preventDefault();if(!auth)return;$('loginBtn').disabled=true;st('loginStatus','info','جارٍ تسجيل الدخول…',true);
-  try{const cr=await signInWithEmailAndPassword(auth,$('email').value.trim(),$('password').value); try{ localStorage.setItem('iomp-idle-last-'+cr.user.uid,String(Date.now())); }catch(e2){} } // ختم دخول جديد ⇒ لا يُحتسب غياب ما قبل الدخول
-  catch(err){st('loginStatus','err',errAr(err.code||err.message));$('loginBtn').disabled=false;}};
+// م٦-٤ (هـ٦/ج٥): زر العين يكشف/يُخفي كلمة المرور
+function pwEyeToggle(){ const inp=$('password'), b=$('pwEye'); if(!inp||!b)return; const show=inp.type==='password'; inp.type=show?'text':'password';
+  b.innerHTML='<svg aria-hidden="true"><use href="#'+(show?'au-eyeoff':'au-eye')+'"/></svg>'; b.setAttribute('aria-label',show?'إخفاء كلمة المرور':'إظهار كلمة المرور'); b.title=b.getAttribute('aria-label'); }
+if($('pwEye'))$('pwEye').onclick=pwEyeToggle;
+// م٦-٤ (هـ٤): اهتزاز بطاقة الدخول عند الخطأ
+function loginShake(){ const c=document.querySelector('#loginView .card'); if(!c)return; c.classList.remove('au-shake'); void c.offsetWidth; c.classList.add('au-shake'); }
+$('loginForm').onsubmit=async(e)=>{e.preventDefault();if(!auth)return;const lb=$('loginBtn');lb.disabled=true;lb.classList.remove('au-done');lb.classList.add('au-loading');st('loginStatus','info','جارٍ تسجيل الدخول…',true);
+  try{const cr=await signInWithEmailAndPassword(auth,$('email').value.trim(),$('password').value); try{ localStorage.setItem('iomp-idle-last-'+cr.user.uid,String(Date.now())); }catch(e2){} // ختم دخول جديد ⇒ لا يُحتسب غياب ما قبل الدخول
+    lb.classList.remove('au-loading');lb.classList.add('au-done');hideSt('loginStatus'); } // هـ٥: تحوّل نجاح — يبقى حتى ينتقل onAuthStateChanged إلى التطبيق
+  catch(err){lb.classList.remove('au-loading','au-done');st('loginStatus','err',errAr(err.code||err.message));lb.disabled=false;loginShake();}};
 $('forgotBtn').onclick=()=>{ st('loginStatus','info','إعادة تعيين كلمة المرور يتولّاها مدير النظام. تواصل معه ليُرسل إليك رابط التعيين.'); };
 
 // ===== AUTH STATE =====
 onAuthStateChanged(auth, async(user)=>{
-  if(!user){myProfile=null;idleStop();stopPermListener();show('loginView');$('loginBtn').disabled=false;hideSt('loginStatus');return;}
+  if(!user){myProfile=null;idleStop();stopPermListener();show('loginView');const lb=$('loginBtn');lb.disabled=false;lb.classList.remove('au-loading','au-done');hideSt('loginStatus');return;}
   try{
     const ref=doc(db,'users',user.uid); let snap=await getDoc(ref);
     if(!snap.exists()){

@@ -51,8 +51,9 @@ const getFirestore=()=>({}), getAuth=()=>__auth;
 const initializeFirestore=(a,o)=>({}), persistentLocalCache=(o)=>({}), persistentMultipleTabManager=()=>({}); // بدائل كاش Firestore الدائم
 const __user = __SC.user || {uid:(__SC.profile&&__SC.profile.uid)||'u_owner', email:(__SC.profile&&__SC.profile.email)||'a2@dhtrd.com'};
 const __auth = { currentUser: {uid:__user.uid, email:__user.email} };
-function onAuthStateChanged(a, cb){ setTimeout(()=>cb(__auth.currentUser), 0); return ()=>{}; }
-function signInWithEmailAndPassword(a,e,p){ return Promise.resolve({user:{uid:__user.uid}}); }
+let __signInFail=false; // م٦-٤: التحكم في نجاح/فشل الدخول لاختبار شاشة الدخول
+function onAuthStateChanged(a, cb){ setTimeout(()=>cb(__SC.loggedOut?null:__auth.currentUser), 0); return ()=>{}; }
+function signInWithEmailAndPassword(a,e,p){ if(__signInFail) return Promise.reject({code:'auth/invalid-credential'}); return Promise.resolve({user:{uid:__user.uid}}); }
 function createUserWithEmailAndPassword(a,e,p){ const uid='u'+(__uidSeq++); return Promise.resolve({user:{uid}}); }
 function signOut(){ return Promise.resolve(); }
 function updatePassword(){ return Promise.resolve(); }
@@ -88,6 +89,7 @@ __seed();
 // Introspection hooks appended at the very end of the module (before </script>).
 const HOOKS = `
 ;window.__can = can; window.__roleCapVal = roleCapVal; window.__canManageSessions = canManageSessions; window.__isOwner = isOwner;
+window.__failSignIn = (b)=>{ __signInFail=!!b; }; // م٦-٤: التحكم في فشل الدخول لاختبار الاهتزاز
 window.__nav = ()=>{ const n=document.getElementById('appNav'); return {display:n.style.display, html:n.innerHTML}; };
 window.__contentHtml = ()=>document.getElementById('appContent').innerHTML;
 window.__has = id=>!!document.getElementById(id);
