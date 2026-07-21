@@ -78,19 +78,22 @@ service cloud.firestore {
     }
     // من يقرأ البيانات الحسّاسة للجلسة: عدّاد مكلَّف، أو منشئها، أو ضمن نطاق التقارير، أو فريق المراجعة/الإغلاق/الاعتماد، أو للحذف النهائي.
     // «تكليف العدّادين» و«إنشاء الجلسة» وحدهما لا يمنحان قراءة العدّات/اللقطة (المنشئ يُغطّى بـ createdBy).
-    // إعداد «الاطلاع بعد الإغلاق فقط»: يحجب بيانات الجلسة المفتوحة عمّن نطاقه تقارير فقط (المكلَّف/المنشئ/الحوكمة لا يتأثرون)
-    function vGate(s) {
-      return s.get('status','open') == 'open' && pExists() && pData().get('viewersAfterClose', false) == true;
-    }
-    function canReadSession(s) {
+    // قراءة بيانات الجلسة — مقسومة إلى قاعدتين مستقلتين كي تبقى كل شجرة تقييم تحت سقف الألف تعبير:
+    // (أ) النواة: المكلَّف/المنشئ/فريق الحوكمة — لا تتأثر بإعداد «بعد الإغلاق فقط»
+    function readCore(s) {
       return authed() && isActive() && (
         s.get('assignedCounters', []).hasAny([uid()]) || s.get('createdBy','') == uid()   // المسار الرخيص أولاً
-        || ( !vGate(s) && canViewSession(s) )
         || can('session.review') || can('session.close') || can('session.approve')
         || can('session.approve.finance') || can('session.approve.gm')   // موقّعا السلسلة يطّلعان على البيانات قبل التوقيع
         || can('session.reopen')
         || can('trash.purge')
       );
+    }
+    // (ب) نطاق التقارير: تسري عليه بوابة «الاطلاع بعد الإغلاق فقط» — الفحص الرخيص (الحالة) أولًا
+    function readScope(s) {
+      return authed() && isActive()
+        && ( s.get('status','open') != 'open' || !pExists() || pData().get('viewersAfterClose', false) != true )
+        && canViewSession(s);
     }
     // شرط العدّ: مفتوحة + بدأ الجرد + مُكلَّف + صلاحية العدّ + غير محذوفة
     function countable(s) {
@@ -208,31 +211,36 @@ service cloud.firestore {
 
       // العدّات — قراءة بالنطاق، كتابة للمكلَّف في جلسة مفتوحة مبدوءة، وحذفٌ له أو للحذف النهائي من السلة فقط
       match /counts/{cid} {
-        allow read: if canReadSession(sess(sid));
+        allow read: if readCore(sess(sid));
+        allow read: if readScope(sess(sid));
         allow create, update: if countable(sess(sid));
         allow delete: if countable(sess(sid)) || ( sess(sid).get('deleted', false) == true && can('trash.purge') );
       }
       // ملاحظات العدّ لكل صنف (طلب العميل) — قراءة بالنطاق؛ كتابتها لمن يعدّ فعليًّا (مكلَّف والجلسة مفتوحة)
       match /itemNotes/{nid} {
-        allow read: if canReadSession(sess(sid));
+        allow read: if readCore(sess(sid));
+        allow read: if readScope(sess(sid));
         allow create, update: if countable(sess(sid));
         allow delete: if countable(sess(sid)) || ( sess(sid).get('deleted', false) == true && can('trash.purge') );
       }
       // لقطة الأصناف — قراءة بالنطاق، كتابة عند الرفع، حذف عند الحذف النهائي
       match /snapshot/{chunk} {
-        allow read: if canReadSession(sess(sid));
+        allow read: if readCore(sess(sid));
+        allow read: if readScope(sess(sid));
         allow create, update: if can('session.create');
         allow delete: if can('trash.purge') || can('session.create');
       }
       // الأصناف المُضافة يدوياً — كالعدّات
       match /extraItems/{iid} {
-        allow read: if canReadSession(sess(sid));
+        allow read: if readCore(sess(sid));
+        allow read: if readScope(sess(sid));
         allow create, update: if countable(sess(sid));
         allow delete: if countable(sess(sid)) || ( sess(sid).get('deleted', false) == true && can('trash.purge') );
       }
       // سجل الحركة — قراءة بالنطاق، إضافة فقط بواسطة الفاعل، لا تعديل؛ الحذف للحذف النهائي من السلة فقط
       match /activity/{aid} {
-        allow read: if canReadSession(sess(sid));
+        allow read: if readCore(sess(sid));
+        allow read: if readScope(sess(sid));
         allow create: if authed() && isActive() && request.resource.data.get('by','') == uid()
                         && ( can('count') || canManageSessions() );
         allow update: if false;
