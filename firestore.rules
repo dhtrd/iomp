@@ -78,35 +78,35 @@ service cloud.firestore {
     }
     // من يقرأ البيانات الحسّاسة للجلسة: عدّاد مكلَّف، أو منشئها، أو ضمن نطاق التقارير، أو فريق المراجعة/الإغلاق/الاعتماد، أو للحذف النهائي.
     // «تكليف العدّادين» و«إنشاء الجلسة» وحدهما لا يمنحان قراءة العدّات/اللقطة (المنشئ يُغطّى بـ createdBy).
-    // حلّ سقف الألف تعبير جذريًّا: وسائط الدوال تُقيَّم مرة واحدة قبليًّا — نمرّر (استثناءات الفرد، خريطة الأدوار،
-    // الدور) مرة واحدة، فتنخفض كلفة كل صلاحية من ~مئة تعبير إلى نحو خمسة عشر، والقراءة المرفوضة تبقى بعيدة عن السقف.
-    // نفس تسلسل can() تمامًا: استثناء الفرد ← إعداد الدور ← الافتراض المدمج.
-    function capOf(ov, roles, role, cap) {
-      return ov.keys().hasAny([cap]) ? ov.get(cap, false) == true
-        : ( roles.get(role, {}).keys().hasAny([cap]) ? roles.get(role, {}).get(cap, false) == true
-            : defCap(role, cap) == true );
+    // حلّ سقف الألف تعبير (الدوال تُدمج نصيًّا، والرفض يمشي على كل فروع OR):
+    // صلاحية مقتصدة capDef: استثناء الفرد ← إعداد الدور ← «بديل افتراضي مُمرَّر» dv —
+    // وdv ثابتة متخصصة لكل صلاحية (قيم defCap معروفة سلفًا لكل دور) فتسقط كلفة defCap العامة من مسار القراءة.
+    function capDef(cap, dv) {
+      return !pExists() ? dv
+        : ( pData().get('users', {}).get(uid(), {}).keys().hasAny([cap])
+            ? pData().get('users', {}).get(uid(), {}).get(cap, false) == true
+            : ( pData().get('roles', {}).get(me().get('role',''), {}).keys().hasAny([cap])
+                ? pData().get('roles', {}).get(me().get('role',''), {}).get(cap, false) == true
+                : dv ) );
     }
-    function readEval(s, role, ov, roles, vg, locs) {
-      return s.get('assignedCounters', []).hasAny([uid()]) || s.get('createdBy','') == uid()   // المسار الرخيص أولاً
-        || me().get('email','') == OWNER()
-        || ( ( s.get('status','open') != 'open' || vg != true )   // بوابة «الاطلاع بعد الإغلاق فقط» على نطاق التقارير وحده
-             && ( capOf(ov, roles, role, 'report.view')
-               || ( capOf(ov, roles, role, 'report.view.own') && ( s.get('assignedCounters', []).hasAny([uid()]) || s.get('createdBy','') == uid() ) )
-               || ( capOf(ov, roles, role, 'report.view.location') && locs.hasAny([ s.get('location','') ]) ) ) )
-        || capOf(ov, roles, role, 'session.review') || capOf(ov, roles, role, 'session.close') || capOf(ov, roles, role, 'session.approve')
-        || capOf(ov, roles, role, 'session.approve.finance') || capOf(ov, roles, role, 'session.approve.gm')   // موقّعا السلسلة يطّلعان قبل التوقيع
-        || capOf(ov, roles, role, 'session.reopen')
-        || capOf(ov, roles, role, 'trash.purge');
-    }
-    // قراءة بيانات الجلسة — قاعدة واحدة: البادئة (النشاط) والخرائط تُدفع مرة واحدة ثم التقييم كله رخيص
+    // ثوابت الافتراض المتخصصة (مطابقة defCap حرفيًّا لكل دور):
+    function dRCA()  { return me().get('role','') == 'مدير' || me().get('role','') == 'مدير مخزون'; } // review/close/approve
+    function dMgr()  { return me().get('role','') == 'مدير'; }                                        // finance/gm/reopen/purge/own/location
+    function dView() { return me().get('role','') == 'مدير' || me().get('role','') == 'مدير مخزون' || me().get('role','') == 'مطّلع'; } // report.view
+    // قراءة بيانات الجلسة — قاعدة واحدة: المكلَّف/المنشئ/المالك أولًا، ثم نطاق التقارير (وعليه بوابة
+    // «الاطلاع بعد الإغلاق فقط»)، ثم صلاحيات الحوكمة السبع — كل فرع يبدأ بالرخيص وينتهي بالنادر
     function readData(s) {
-      return authed() && isActive() && readEval(
-        s,
-        me().get('role',''),
-        pExists() ? pData().get('users', {}).get(uid(), {}) : {},
-        pExists() ? pData().get('roles', {}) : {},
-        pExists() ? pData().get('viewersAfterClose', false) : false,
-        pExists() ? pData().get('userLocations', {}).get(uid(), []) : []
+      return authed() && isActive() && (
+        s.get('assignedCounters', []).hasAny([uid()]) || s.get('createdBy','') == uid()   // المسار الرخيص أولاً
+        || me().get('email','') == OWNER()
+        || ( ( s.get('status','open') != 'open' || !pExists() || pData().get('viewersAfterClose', false) != true )
+             && ( capDef('report.view', dView())
+               || ( capDef('report.view.own', dMgr()) && ( s.get('assignedCounters', []).hasAny([uid()]) || s.get('createdBy','') == uid() ) )
+               || ( capDef('report.view.location', dMgr()) && myLocations().hasAny([ s.get('location','') ]) ) ) )
+        || capDef('session.review', dRCA()) || capDef('session.close', dRCA()) || capDef('session.approve', dRCA())
+        || capDef('session.approve.finance', dMgr()) || capDef('session.approve.gm', dMgr())   // موقّعا السلسلة يطّلعان قبل التوقيع
+        || capDef('session.reopen', dMgr())
+        || capDef('trash.purge', dMgr())
       );
     }
     // شرط العدّ: مفتوحة + بدأ الجرد + مُكلَّف + صلاحية العدّ + غير محذوفة
