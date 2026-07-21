@@ -7,7 +7,7 @@
 npm install
 npx playwright-core install chromium
 export CHROME_EXE=$(node -e "console.log(require('playwright-core').chromium.executablePath())")
-npm test        # ٧١٩ اختبارًا للتطبيق الحي (٤١ ملفًا)
+npm test        # ٧٣٤ اختبارًا للتطبيق الحي (٤٢ ملفًا)
 ```
 اختبارات قواعد الأمان (تحتاج Java):
 ```bash
@@ -23,4 +23,4 @@ npx firebase emulators:exec --only firestore --project demo-iomp "node firestore
 - `docs/` — وثائق المراحل والأدلة الثمانية ومعايير النظام
 
 ## CI/CD
-كل دفع إلى `main`: اختبارات التطبيق (٧١٩) + اختبارات القواعد بالمحاكي ← وعند الخضرة: نشر تلقائي إلى GitHub Pages.
+كل دفع إلى `main`: اختبارات التطبيق (٧٣٤) + اختبارات القواعد بالمحاكي ← وعند الخضرة: نشر تلقائي إلى GitHub Pages.
