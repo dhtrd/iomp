@@ -853,6 +853,31 @@ input[type="checkbox"]:not(.rcap):not(.rtask){width:18px!important;min-width:18p
 .btn.block#loginBtn{display:block}
 /* توافق الجوال: خط ≥16px يمنع تكبير iOS، ولمسة أوضح */
 @media(max-width:820px){.auth-modern .field input{font-size:16px}}
+/* ═══════════ م٦-٥: اختيار العميل — انتقال الصفحات + ثيم السطح (لا يمسّ الشريط/القائمة/الدخول) ═══════════ */
+/* انتقال (أ٦ صعود كبير + ب٤ دفع مرن + ج٨ تتابع صفوف): العناصر تدخل صاعدةً متتابعةً عند كل تنقّل */
+@keyframes pgEnter{from{opacity:0;transform:translateY(42px)}to{opacity:1;transform:none}}
+#appContent.pgin>*{animation:pgEnter .5s cubic-bezier(.32,.72,0,1) both}
+#appContent.pgin>*:nth-child(1){animation-delay:.02s}#appContent.pgin>*:nth-child(2){animation-delay:.09s}
+#appContent.pgin>*:nth-child(3){animation-delay:.16s}#appContent.pgin>*:nth-child(4){animation-delay:.23s}
+#appContent.pgin>*:nth-child(5){animation-delay:.3s}#appContent.pgin>*:nth-child(n+6){animation-delay:.36s}
+/* هـ٩: شريط تحميل علوي يومض عند كل تنقّل (مع الهياكل القائمة «جارٍ التحميل…») */
+#routeProg{position:fixed;top:0;right:0;left:0;height:3px;z-index:70;pointer-events:none;opacity:0;transition:opacity .2s;overflow:hidden}
+#routeProg.on{opacity:1}
+#routeProg::after{content:"";position:absolute;top:0;bottom:0;width:34%;border-radius:3px;background:linear-gradient(90deg,var(--navy700),#7C3AED)}
+#routeProg.on::after{animation:rprog .72s cubic-bezier(.32,.72,0,1)}
+@keyframes rprog{0%{inset-inline-start:-36%}100%{inset-inline-start:100%}}
+/* ثيم السطح — مقصور على منطقة المحتوى #appContent فقط */
+/* ج٥: هالتان مموّهتان خلف المحتوى */
+.mainpane{position:relative}
+.mainpane::before,.mainpane::after{content:"";position:fixed;z-index:0;border-radius:50%;filter:blur(72px);pointer-events:none;opacity:.5}
+.mainpane::before{width:340px;height:340px;background:#8DA6F5;top:64px;inset-inline-start:8%}
+.mainpane::after{width:300px;height:300px;background:#C9A7F2;bottom:6%;inset-inline-start:42%}
+[data-theme="dark"] .mainpane::before{background:#4F46E5;opacity:.32}[data-theme="dark"] .mainpane::after{background:#7C3AED;opacity:.3}
+.container{position:relative;z-index:1}
+/* ب٩ حدود شعرية بلا ظلال + د٨ شريط متدرج أعلى كل بطاقة — لبطاقات المحتوى فقط */
+#appContent .card{border:1.5px solid var(--border);box-shadow:none;position:relative}
+#appContent .card::before{content:"";position:absolute;top:0;inset-inline:18px;height:3px;border-radius:0 0 3px 3px;background:linear-gradient(90deg,var(--navy700),#7C3AED);opacity:.9;z-index:1;pointer-events:none}
+[data-theme="dark"] #appContent .card{border-color:var(--border)}
 </style>
 </head>
 <body>
@@ -915,6 +940,7 @@ input[type="checkbox"]:not(.rcap):not(.rtask){width:18px!important;min-width:18p
     <symbol id="i-report" viewBox="0 0 24 24"><path d="M5 3h9l5 5v13a0 0 0 0 1 0 0H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v5h5"/><path d="M8 13v4M12 11v6M16 14v3"/></symbol>
   </svg>
   <button class="iconbtn" id="menuToggle" aria-label="طيّ/فتح القائمة"><i></i><i></i><i></i></button><!-- م٦-٣: زر القائمة المثبّت أعلاها لكل الأجهزة -->
+  <div id="routeProg" aria-hidden="true"></div><!-- م٦-٥ (هـ٩): شريط تحميل التنقّل -->
   <div class="shell">
     <div class="navov" id="navOverlay"></div>
     <aside class="side">
@@ -1446,7 +1472,11 @@ function _aprWire(){
   if(cbtn) cbtn.onclick=()=>{ if(cpan)cpan.classList.toggle('open'); const h=_apr.customHex||'#4F46E5'; if(hexIn)hexIn.value=h.replace('#','').toUpperCase(); if(prev)prev.style.background=h; setApr({accent:'custom',customHex:h}); }; }
 _aprLoad(); applyAppearance(); _aprWire();
 function adminTabsAvailable(){ const t=[]; if(canManageSessions())t.push('sessions'); if(can('warehouse.manage'))t.push('warehouses'); if(can('users.manage'))t.push('users'); if(can('perms.manage'))t.push('settings'); if(can('perms.manage'))t.push('admin'); if(can('trash.restore')||can('trash.purge'))t.push('trash'); return t.length?['home'].concat(t):t; }
-function route(){if(countsUnsub){countsUnsub();countsUnsub=null;}if(actUnsub){actUnsub();actUnsub=null;}if(repUnsub){repUnsub();repUnsub=null;}if(sessUnsub){sessUnsub();sessUnsub=null;}if(extraUnsub){extraUnsub();extraUnsub=null;}const c=$('appContent');
+// م٦-٥ (اختيار العميل): غلاف الانتقال — شريط التحميل (هـ٩) ثم حركة الدخول المتتابعة (أ٦+ب٤+ج٨)
+function route(){ routeProgFlash(); _route(); pageEnterAnimate(); }
+function routeProgFlash(){ const p=$('routeProg'); if(!p)return; p.classList.remove('on'); void p.offsetWidth; p.classList.add('on'); clearTimeout(p._t); p._t=setTimeout(()=>p.classList.remove('on'),760); }
+function pageEnterAnimate(){ const c=$('appContent'); if(!c)return; c.classList.remove('pgin'); void c.offsetWidth; c.classList.add('pgin'); }
+function _route(){if(countsUnsub){countsUnsub();countsUnsub=null;}if(actUnsub){actUnsub();actUnsub=null;}if(repUnsub){repUnsub();repUnsub=null;}if(sessUnsub){sessUnsub();sessUnsub=null;}if(extraUnsub){extraUnsub();extraUnsub=null;}const c=$('appContent');
   if(adminTab==='reports'&&canViewAnyReports()){ return renderReportsScreen(c); } // ر٧: شاشة التقارير الموحّدة (م١٩)
   if(adminTab==='branches'&&featuresBranchesOn()&&(can('branch.manage')||can('users.manage'))){ return renderBranchesScreen(c); } // ر٨-ب: إدارة الفروع (م١٧) خلف علم
   if(adminTab==='products'&&featuresProductCatalogOn()&&can('warehouse.manage')){ return renderProductsScreen(c); } // ر٩: كتالوج المنتجات (م١٥) خلف علم
