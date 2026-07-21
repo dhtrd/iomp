@@ -3643,11 +3643,14 @@ function startCameraZXing(){
 function stopCamera(){ _camOn=false; try{ if(_zxingReader&&_zxingReader.reset)_zxingReader.reset(); }catch(e){} try{ if(_camStream)_camStream.getTracks().forEach(t=>t.stop()); }catch(e){} _camStream=null; const o=$('camOverlay'); if(o)o.style.display='none'; }
 
 // ===== VARIANCE REPORT (تقرير الفروقات — المرحلة 5) =====
-// تجميع «من أضاف» من إدخالات العدّ: اسم الفاعل مقابل مجموع كميّته.
+// تجميع «من أضاف» من إدخالات العدّ: اسم الفاعل مقابل مجموع كميّته + تفصيل عدّاته (م٦: المطّلع يراجع العدّات الفردية كما في شاشة العد)
 function repAgg(entries){
-  const m={}; (entries||[]).forEach(e=>{const n=(e&&e.byName!=null?String(e.byName).trim():'')||'—'; m[n]=(m[n]||0)+(e&&e.q?e.q:0);});
-  return Object.keys(m).map(n=>({name:n,q:m[n]})).sort((a,b)=>b.q-a.q);
+  const m={}; (entries||[]).forEach(e=>{const n=(e&&e.byName!=null?String(e.byName).trim():'')||'—'; const g=m[n]||(m[n]={q:0,parts:[]}); const q=(e&&e.q?e.q:0); g.q+=q; g.parts.push(q);});
+  return Object.keys(m).map(n=>({name:n,q:m[n].q,parts:m[n].parts})).sort((a,b)=>b.q-a.q);
 }
+// نص تفصيل العدّات لفاعلٍ واحد: «الاسم: الإجمالي (ق١ + ق٢ …)» — يظهر التفصيل فقط عند تعدد العدّات
+function whoDetail(w,html){ const parts=(w.parts&&w.parts.length>1)?(' ('+w.parts.map(fmt).join(' + ')+')'):'';
+  return html?(esc(w.name)+': '+fmt(w.q)+(parts?' <span class="muted">'+parts+'</span>':'')):(w.name+': '+fmt(w.q)+parts); }
 // محرك حساب الفروقات: لكل صنف حالة وفرق وقيمة بالتكلفة.
 function computeVariance(items,counts){
   return (items||[]).map(it=>{
@@ -3752,7 +3755,7 @@ function renderReportShell(){
         '<input id="repSearch" placeholder="بحث بالكود أو الاسم…">'+
         '<select id="repCat"><option value="">كل الفئات</option>'+cats.map(x=>'<option value="'+esc(x)+'">'+esc(x)+'</option>').join('')+'</select>'+
         '<select id="repStatus"><option value="all">كل الحالات</option><option value="counted">المعدود فقط</option><option value="var">الفروقات فقط (عجز/زيادة)</option><option value="deficit">عجز</option><option value="surplus">الزيادات (تشمل خارج الدفتر والدفتري السالب)</option><option value="extra">زيادة خارج الدفتر (يدوي)</option><option value="match">مطابق</option><option value="uncounted">غير معدود</option></select>'+
-        '<label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--tsec);white-space:nowrap"><input type="checkbox" id="repWho" style="width:16px;height:16px"> إظهار «من أضاف»</label>'+
+        '<label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--tsec);white-space:nowrap"><input type="checkbox" id="repWho"'+((!can('count')&&!canManageSessions())?' checked':'')+' style="width:16px;height:16px"> إظهار «من أضاف» (تفاصيل العدّات)</label>'+
       '</div>'+
       '<div class="rtable-wrap"><div id="repTable"><p class="muted" style="padding:12px">جارٍ الحساب…</p></div></div>'+
       '<p class="muted" id="repNote" style="margin-top:8px"></p>'+
@@ -3824,7 +3827,7 @@ function renderReportRows(){
   const body=shown.map(r=>{
     const diffCell=r.hasDiff?colored(r.diff,fmt(r.diff)):'—';
     const varCell=r.varValue!=null?colored(r.varValue,fmt(round2(r.varValue))):'—';
-    const whoCell=showWho?'<td class="muted" style="font-size:12px">'+(r.who.length?r.who.map(w=>esc(w.name)+': '+fmt(w.q)).join('<br>'):'—')+(r.manual?' <span class="tag" style="font-size:10px">يدوي</span>':'')+'</td>':'';
+    const whoCell=showWho?'<td class="muted" style="font-size:12px">'+(r.who.length?r.who.map(w=>whoDetail(w,true)).join('<br>'):'—')+(r.manual?' <span class="tag" style="font-size:10px">يدوي</span>':'')+'</td>':''; // م٦: تفصيل العدّات (4 + 20 …) للمراجعة
     const notesCell=showNotes?'<td style="font-size:12px;max-width:240px">'+((r.notes&&r.notes.length)?r.notes.map(n=>'📝 '+esc(n.text||'')+(n.byName?' <span class="muted">— '+esc(n.byName)+'</span>':'')).join('<br>'):'<span class="muted">—</span>')+'</td>':'';
     return '<tr><td class="num" style="direction:ltr;text-align:right"><span class="tag">'+esc(r.code)+'</span></td>'+
       '<td>'+esc(r.name)+(r.manual?' <span class="tag" style="background:#FEF3C7;color:#92400E">يدوي</span>':'')+'</td><td class="muted">'+esc(r.category||'—')+'</td>'+
@@ -3857,7 +3860,7 @@ function renderReportRows(){
 function exportDetailedAoa(){
   const rows=repRows; const fin=canSeeFinance();
   const detail=[['الكود','الصنف','الفئة','الوحدة','الرصيد الدفتري','المعدود','الفرق','الحالة'].concat(fin?['التكلفة','القيمة الدفترية','القيمة الفعلية','قيمة الفرق']:[]).concat(['من أضاف','الملاحظات'])];
-  rows.forEach(r=>detail.push([r.code,r.name,r.category,r.unit,(r.book!=null?r.book:''),(r.isCounted?r.counted:''),(r.hasDiff?r.diff:''),STLABEL[r.status]].concat(fin?[(r.cost!=null?r.cost:''),(r.bookValue!=null?round2(r.bookValue):''),(r.countedValue!=null?round2(r.countedValue):''),(r.varValue!=null?round2(r.varValue):'')]:[]).concat([r.who.map(w=>w.name+': '+w.q).join(' / '),((r.notes||[]).map(n=>n.text+(n.byName?' ('+n.byName+')':'')).join(' ؛ '))])));
+  rows.forEach(r=>detail.push([r.code,r.name,r.category,r.unit,(r.book!=null?r.book:''),(r.isCounted?r.counted:''),(r.hasDiff?r.diff:''),STLABEL[r.status]].concat(fin?[(r.cost!=null?r.cost:''),(r.bookValue!=null?round2(r.bookValue):''),(r.countedValue!=null?round2(r.countedValue):''),(r.varValue!=null?round2(r.varValue):'')]:[]).concat([r.who.map(w=>whoDetail(w,false)).join(' / '),((r.notes||[]).map(n=>n.text+(n.byName?' ('+n.byName+')':'')).join(' ؛ '))]))); // م٦: تفصيل العدّات في عمود «من أضاف»
   // صفّ إجماليات ورقة التفاصيل
   let eB=0,eC=0,eD=0,eV=0,eBV=0,eCV=0; rows.forEach(r=>{ if(r.book!=null)eB+=r.book; if(r.isCounted)eC+=r.counted; if(r.hasDiff)eD+=r.diff; if(r.varValue!=null)eV+=r.varValue; if(r.bookValue!=null)eBV+=r.bookValue; if(r.countedValue!=null)eCV+=r.countedValue; });
   detail.push([]);
