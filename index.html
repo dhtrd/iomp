@@ -1028,7 +1028,7 @@ input[type="checkbox"]:not(.rcap):not(.rtask){width:18px!important;min-width:18p
     <div style="display:flex;flex-direction:column;gap:8px">
       <button class="btn ghost" data-reason="branch" style="text-align:right;line-height:1.5">📋 مراجعة الفرع <span class="muted" style="font-weight:400">— باركود، اسم، فئة، دفتري، فعلي، فرق + إجماليات</span></button>
       <button class="btn ghost" data-reason="detailed" style="text-align:right;line-height:1.5">📊 تقرير مفصل <span class="muted" style="font-weight:400">— كل الأعمدة والقيم + ملخص</span></button>
-      <button class="btn ghost" data-reason="committee" style="text-align:right;line-height:1.5">✍ محضر لجنة الجرد <span class="muted" style="font-weight:400">— ملخص كتابي بالإجماليات + تواقيع اللجنة (بلا جدول)</span></button>
+      <button class="btn ghost" data-reason="committee" id="prCommittee" style="text-align:right;line-height:1.5">✍ محضر لجنة الجرد <span class="muted" style="font-weight:400">— ملخص كتابي بالإجماليات + مسؤول الفرع/المستودع + تواقيع اللجنة (بعد الاعتماد)</span></button>
       <button class="btn ghost" data-reason="mgmt" style="text-align:right;line-height:1.5">🏢 تقرير للإدارة <span class="muted" style="font-weight:400">— القيم والإجماليات وحالة كل صنف</span></button>
       <button class="btn ghost" data-reason="varianceSummary" id="prVarSum" style="text-align:right;line-height:1.5">📉 محضر ملخّص الفروقات <span class="muted" style="font-weight:400">— ملخص كتابي بالإجماليات + تواقيع (بعد الاعتماد)</span></button>
       <button class="btn ghost" data-reason="handover" id="prHandover" style="text-align:right;line-height:1.5">🔁 محضر استلام مخزون <span class="muted" style="font-weight:400">— ملخص كتابي + المُسلِّم/المُستلِم (بلا جدول)</span></button>
@@ -1054,7 +1054,7 @@ input[type="checkbox"]:not(.rcap):not(.rtask){width:18px!important;min-width:18p
       <button class="btn ghost" data-xreason="upload" style="text-align:right;line-height:1.5">⬆ رفع الجرد (لأودو) <span class="muted" style="font-weight:400">— الكود/الباركود، الاسم، الوحدة، الكمية المعدودة (المعدود فقط)</span></button>
       <button class="btn ghost" data-xreason="branch" style="text-align:right;line-height:1.5">📋 مراجعة الفرع <span class="muted" style="font-weight:400">— باركود، اسم، فئة، دفتري، فعلي، فرق</span></button>
       <button class="btn ghost" data-xreason="detailed" style="text-align:right;line-height:1.5">📊 تقرير مفصل <span class="muted" style="font-weight:400">— جدولان: تفاصيل بالقيم + ملخص حسب الفئة</span></button>
-      <button class="btn ghost" data-xreason="committee" style="text-align:right;line-height:1.5">✍ محضر لجنة الجرد <span class="muted" style="font-weight:400">— جدول للاعتماد</span></button>
+      <button class="btn ghost" data-xreason="committee" id="xCommittee" style="text-align:right;line-height:1.5">✍ محضر لجنة الجرد <span class="muted" style="font-weight:400">— بعد الاعتماد</span></button>
       <button class="btn ghost" data-xreason="mgmt" style="text-align:right;line-height:1.5">🏢 تقرير للإدارة <span class="muted" style="font-weight:400">— القيم والإجماليات</span></button>
       <button class="btn ghost" data-xreason="varianceSummary" id="xVarSum" style="text-align:right;line-height:1.5">📉 محضر ملخّص الفروقات <span class="muted" style="font-weight:400">— الفروقات فقط (بعد الاعتماد)</span></button>
       <button class="btn ghost" data-xreason="handover" id="xHandover" style="text-align:right;line-height:1.5">🔁 محضر استلام مخزون <span class="muted" style="font-weight:400">— المعدود للمُسلِّم/المُستلِم</span></button>
@@ -3077,6 +3077,12 @@ function reportCfg(){ return Object.assign({ defaultReport:'executive' }, appSet
 function sysDefaults(){ return appSettings().defaults || {}; } // المحطّة ٦ (تخصيص النظام): افتراضات مقادة بالإعدادات بأثرٍ فوري بلا كود
 // المحطّة ٥ (إدارة التواقيع): المخوّلون السبعة — تُختار وتُرتَّب مركزيًّا وتظهر في كتل تواقيع المحاضر
 const SIGN_ROLES=[{key:'inv_mgr',label:'مدير الجرد'},{key:'inv_rev',label:'مراجع الجرد'},{key:'wh_mgr',label:'مدير المستودع'},{key:'br_mgr',label:'مدير الفرع'},{key:'fin_mgr',label:'المدير المالي'},{key:'gm',label:'المدير العام'},{key:'exec',label:'المدير التنفيذي'}];
+// م٦-٣: مسمّى مسؤول الموقع حسب تسمية المستودع/الفرع (مستودع → «مسؤول المستودع»، فرع → «مسؤول الفرع»، وإلا الاثنان)
+function respRoleLabel(){ const loc=((repSess&&(repSess.location||repSess.name))||'')+'';
+  const hasW=loc.indexOf('مستودع')>=0, hasB=loc.indexOf('فرع')>=0;
+  if(hasW&&!hasB)return 'مسؤول المستودع'; if(hasB&&!hasW)return 'مسؤول الفرع'; return 'مسؤول الفرع / المستودع'; }
+// اسم مسؤول الموقع للمحضر: المسؤول المسجَّل، وإلا المستلِم الجديد، وإلا المُسلِّم السابق
+function respName(){ return (repSess&&repSess.responsible&&repSess.responsible.name)||(repSess&&repSess.custodyNext&&repSess.custodyNext.name)||(repSess&&repSess.custodyPrev&&repSess.custodyPrev.name)||''; }
 function docSignatories(){
   const ss=(repSess&&Array.isArray(repSess.signatories)&&repSess.signatories.length)?repSess.signatories:null; // موقّعو الجلسة (مسمى+اسم) لهم الأولوية
   if(ss) return ss.map(x=>({ key:'', label:x.title||x.label||'—', name:x.name||'', optional:!!x.optional }));
@@ -4048,7 +4054,7 @@ const PRINT_REASONS={
   branch:   {label:'مراجعة الفرع',   cols:['barcode','name','category','book','counted','diff'], summary:false, totals:true, sign:false},
   detailed: {label:'تقرير مفصل',     cols:['code','barcode','name','category','book','counted','diff','status','cost','bookVal','countedVal','varVal'], summary:true, totals:true, sign:false},
   // م٦-٣: المحاضر «ملخّصة» — صيغة + إجماليات مكتوبة + تواقيع، بلا جدول أصناف (طلب العميل)
-  committee:{label:'محضر لجنة الجرد', cols:['code','name','category','book','counted','diff','status','varVal'], summary:true, totals:true, sign:true, summaryOnly:true},
+  committee:{label:'محضر لجنة الجرد', cols:['code','name','category','book','counted','diff','status','varVal'], summary:true, totals:true, sign:true, summaryOnly:true, showResp:true}, // م٦-٣: يتضمن مسؤول الفرع/المستودع
   mgmt:     {label:'تقرير للإدارة',   cols:['category','name','book','counted','diff','bookVal','countedVal','varVal','status'], summary:true, totals:true, sign:false},
   // محاضر جديدة: ملخّص الفروقات (بعد الاعتماد) — استلام مخزون (سابق/جديد) — عهدة إضافي
   varianceSummary:{label:'محضر ملخّص الفروقات', cols:['code','name','category','book','counted','diff','varVal','status'], summary:true, totals:true, sign:true, needsApproval:true, summaryOnly:true},
@@ -4134,9 +4140,11 @@ function buildPrintReport(reasonKey){
     let hoBlocks='';
     if(R.handover){ const cpn=(repSess.custodyPrev&&repSess.custodyPrev.name)||'', cnn=(repSess.custodyNext&&repSess.custodyNext.name)||'';
       hoBlocks='<div style="margin-top:22px;display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap;font-size:12px">'+cell('المسؤول السابق (المُسلِّم)',cpn,'')+cell('المسؤول الجديد (المُستلِم)',cnn,'')+'</div>'; }
+    // م٦-٣: كتلة مسؤول الفرع/المستودع في محضر الجرد (بمسمّى يتبع تسمية المستودع)
+    let respBlock=''; if(R.showResp) respBlock='<div style="margin-top:22px;display:flex;font-size:12px">'+cell(respRoleLabel(),respName(),'')+'</div>';
     const sigs=docSignatories(); // المحطّة ٥: كتل التواقيع القابلة للتهيئة — تُفضَّل موقّعو الجلسة (مسمى+اسم)
     const sig=sigs.map((sg,i)=>cell(sg.label+(sg.optional?' (اختياري)':''), sg.name||((i===0&&chairName)?chairName:''), '')).join('');
-    html+=appr+hoBlocks+'<div style="margin-top:26px;display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap;font-size:12px">'+sig+'</div>';
+    html+=appr+hoBlocks+respBlock+'<div style="margin-top:26px;display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap;font-size:12px">'+sig+'</div>';
   }
   const footer=(pc.footerText||pc.showPageNumbers!==false)?'<div style="margin-top:12px;padding-top:6px;border-top:1px solid #ccc;display:flex;justify-content:space-between;font-size:11px;color:#666"><span>'+esc(pc.footerText||'')+'</span>'+(pc.showPageNumbers!==false?'<span>صفحة ‏__</span>':'<span></span>')+'</div>':'';
   html+=footer+'</div></div>'; // إغلاق طبقة z-index + الحاوية
@@ -4149,6 +4157,7 @@ function reasonAvailability(pfx){ const approved=!!(repSess&&repSess.status==='a
   const set=(el,on,why)=>{ if(!el)return; el.style.display=''; el.disabled=!on; el.style.opacity=on?'':'.55'; el.title=on?'':why;
     const m=el.querySelector('.muted'); if(m){ if(!on){ if(m.textContent.indexOf('⏳')<0) m.textContent=' — ⏳ '+why; } } };
   set($(pfx==='pr'?'prVarSum':'xVarSum'),approved,'يتاح بعد اعتماد الجلسة');
+  set($(pfx==='pr'?'prCommittee':'xCommittee'),approved,'يتاح بعد اعتماد الجرد'); // م٦-٣: محضر الجرد (بديل محضر الفروقات) لا يُفعّل إلا بعد الاعتماد
   set($(pfx==='pr'?'prHandover':'xHandover'),ho,'يتاح بعد تسجيل المسؤولَين السابق/الجديد'); }
 // م٦-٣: محرّر أعضاء اللجنة (تواقيع) في نافذة الطباعة — حذف/إضافة ينعكس على المحضر فورًا (في ذاكرة الجلسة الحالية)
 function repSigList(){ if(!repSess)return []; if(!Array.isArray(repSess.signatories)||!repSess.signatories.length) repSess.signatories=docSignatories().map(s=>({title:s.label||'',name:s.name||''})); return repSess.signatories; }

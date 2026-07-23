@@ -57,7 +57,31 @@ const openR=async(page)=>{ await page.evaluate(()=>window.__openReport('sx')); a
   const after=await page.evaluate(()=>{ const h=window.__buildReasonPrint('committee'); return (h.match(/التوقيع:/g)||[]).length; });
   const n1=await page.evaluate(()=>window.__repSigList().length);
   ok('P4 قائمة الأعضاء 3 ثم 2 بعد الحذف', n0===3&&n1===2, n0+'→'+n1);
-  ok('P4 خانات التوقيع تنقص فورًا في المحضر (3→2)', before===3&&after===2, before+'→'+after);
+  ok('P4 خانات التوقيع تنقص فورًا في المحضر (حذف عضو = −1)', after===before-1&&before>=3, before+'→'+after);
+  await page.close(); }
+
+// ===== P5 — محضر الجرد يتضمن «مسؤول الفرع/المستودع» بمسمّى يتبع تسمية الموقع =====
+{ const page=await ctx.newPage(); await load(page,{profile:OWNER,users:[OWNER],sessions:sess({status:'approved',signatories:SIG,approvedByName:'المالك',location:'مستودع الاثاث',responsible:{name:'ناصر'}})}); await openR(page);
+  const h=await page.evaluate(()=>window.__buildReasonPrint('committee'));
+  ok('P5 مستودع ⇒ «مسؤول المستودع» باسم المسؤول', h.includes('مسؤول المستودع')&&h.includes('ناصر'), '');
+  await page.close(); }
+{ const page=await ctx.newPage(); await load(page,{profile:OWNER,users:[OWNER],sessions:sess({status:'approved',signatories:SIG,approvedByName:'المالك',location:'فرع الرياض',custodyNext:{name:'سعد'}})}); await openR(page);
+  const h=await page.evaluate(()=>window.__buildReasonPrint('committee'));
+  ok('P5 فرع ⇒ «مسؤول الفرع» (يقبل السابق/الجديد اسمًا)', h.includes('مسؤول الفرع')&&h.includes('سعد'), '');
+  const hc=await page.evaluate(()=>window.__buildReasonPrint('custody'));
+  ok('P5 كتلة المسؤول خاصّة بمحضر الجرد فقط (لا العهدة)', !hc.includes('مسؤول الفرع / المستودع')&&!/مسؤول المستودع|مسؤول الفرع(?! )/.test(hc), '');
+  await page.close(); }
+
+// ===== P6 — محضر الجرد (بديل محضر الفروقات) لا يُفعَّل إلا بعد اعتماد الجرد =====
+{ const page=await ctx.newPage(); await load(page,{profile:OWNER,users:[OWNER],sessions:sess({status:'review',signatories:SIG})}); // غير معتمدة
+  await openR(page);
+  const disB=await page.evaluate(()=>{ window.__reasonAvail('pr'); const e=document.getElementById('prCommittee'); return e?e.disabled:null; });
+  ok('P6 قبل الاعتماد: زر محضر الجرد معطَّل', disB===true, 'disabled='+disB);
+  await page.close(); }
+{ const page=await ctx.newPage(); await load(page,{profile:OWNER,users:[OWNER],sessions:sess({status:'approved',approvedByName:'المالك',signatories:SIG})});
+  await openR(page);
+  const disA=await page.evaluate(()=>{ window.__reasonAvail('pr'); const e=document.getElementById('prCommittee'); return e?e.disabled:null; });
+  ok('P6 بعد الاعتماد: زر محضر الجرد مُفعَّل', disA===false, 'disabled='+disA);
   await page.close(); }
 
 await browser.close();
