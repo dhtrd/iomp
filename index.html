@@ -1028,7 +1028,7 @@ input[type="checkbox"]:not(.rcap):not(.rtask){width:18px!important;min-width:18p
     <div style="display:flex;flex-direction:column;gap:8px">
       <button class="btn ghost" data-reason="branch" style="text-align:right;line-height:1.5">📋 مراجعة الفرع <span class="muted" style="font-weight:400">— باركود، اسم، فئة، دفتري، فعلي، فرق + إجماليات</span></button>
       <button class="btn ghost" data-reason="detailed" style="text-align:right;line-height:1.5">📊 تقرير مفصل <span class="muted" style="font-weight:400">— كل الأعمدة والقيم + ملخص</span></button>
-      <button class="btn ghost" data-reason="committee" id="prCommittee" style="text-align:right;line-height:1.5">✍ محضر لجنة الجرد <span class="muted" style="font-weight:400">— ملخص كتابي بالإجماليات + مسؤول الفرع/المستودع + تواقيع اللجنة (بعد الاعتماد)</span></button>
+      <button class="btn ghost" data-reason="committee" id="prCommittee" style="text-align:right;line-height:1.5">✍ محضر لجنة الجرد <span class="muted" style="font-weight:400">— ملخص كتابي بالإجماليات + تواقيع اللجنة (بعد الاعتماد)</span></button>
       <button class="btn ghost" data-reason="mgmt" style="text-align:right;line-height:1.5">🏢 تقرير للإدارة <span class="muted" style="font-weight:400">— القيم والإجماليات وحالة كل صنف</span></button>
       <button class="btn ghost" data-reason="varianceSummary" id="prVarSum" style="text-align:right;line-height:1.5">📉 محضر ملخّص الفروقات <span class="muted" style="font-weight:400">— ملخص كتابي بالإجماليات + تواقيع (بعد الاعتماد)</span></button>
       <button class="btn ghost" data-reason="handover" id="prHandover" style="text-align:right;line-height:1.5">🔁 محضر استلام مخزون <span class="muted" style="font-weight:400">— ملخص كتابي + المُسلِّم/المُستلِم (بلا جدول)</span></button>
@@ -4062,7 +4062,7 @@ const PRINT_REASONS={
   branch:   {label:'مراجعة الفرع',   cols:['barcode','name','category','book','counted','diff'], summary:false, totals:true, sign:false},
   detailed: {label:'تقرير مفصل',     cols:['code','barcode','name','category','book','counted','diff','status','cost','bookVal','countedVal','varVal'], summary:true, totals:true, sign:false},
   // م٦-٣: المحاضر «ملخّصة» — صيغة + إجماليات مكتوبة + تواقيع، بلا جدول أصناف (طلب العميل)
-  committee:{label:'محضر لجنة الجرد', cols:['code','name','category','book','counted','diff','status','varVal'], summary:true, totals:true, sign:true, summaryOnly:true, showResp:true}, // م٦-٣: يتضمن مسؤول الفرع/المستودع
+  committee:{label:'محضر لجنة الجرد', cols:['code','name','category','book','counted','diff','status','varVal'], summary:true, totals:true, sign:true, summaryOnly:true}, // م٦-٣: أُلغيت كتلة مسؤول الفرع/المستودع (طلب العميل)
   mgmt:     {label:'تقرير للإدارة',   cols:['category','name','book','counted','diff','bookVal','countedVal','varVal','status'], summary:true, totals:true, sign:false},
   // محاضر جديدة: ملخّص الفروقات (بعد الاعتماد) — استلام مخزون (سابق/جديد) — عهدة إضافي
   varianceSummary:{label:'محضر ملخّص الفروقات', cols:['code','name','category','book','counted','diff','varVal','status'], summary:true, totals:true, sign:true, needsApproval:true, summaryOnly:true},

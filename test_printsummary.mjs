@@ -70,7 +70,7 @@ const openR=async(page)=>{ await page.evaluate(()=>window.__openReport('sx')); a
   const rows1=await page.evaluate(()=>document.querySelectorAll('#repSigRows [data-i]').length);
   const printCells=await page.evaluate(()=>{ const h=window.__buildReasonPrint('committee'); return (h.match(/التوقيع:/g)||[]).length; });
   ok('P8 حذف عضو من الشاشة ينقص القائمة', rows0>=3&&rows1===rows0-1, rows0+'→'+rows1);
-  ok('P8 وينعكس على المحضر فورًا', printCells===rows1+1/*+مسؤول الموقع*/, 'cells='+printCells+' rows='+rows1);
+  ok('P8 وينعكس على المحضر فورًا', printCells===rows1, 'cells='+printCells+' rows='+rows1);
   await page.close(); }
 
 // ===== P4 — محرّر أعضاء اللجنة: الحذف ينعكس على المحضر فورًا =====
@@ -84,16 +84,10 @@ const openR=async(page)=>{ await page.evaluate(()=>window.__openReport('sx')); a
   ok('P4 خانات التوقيع تنقص فورًا في المحضر (حذف عضو = −1)', after===before-1&&before>=3, before+'→'+after);
   await page.close(); }
 
-// ===== P5 — محضر الجرد يتضمن «مسؤول الفرع/المستودع» بمسمّى يتبع تسمية الموقع =====
+// ===== P5 — أُلغيت كتلة «مسؤول الفرع/المستودع» من محضر الجرد (طلب العميل) =====
 { const page=await ctx.newPage(); await load(page,{profile:OWNER,users:[OWNER],sessions:sess({status:'approved',signatories:SIG,approvedByName:'المالك',location:'مستودع الاثاث',responsible:{name:'ناصر'}})}); await openR(page);
   const h=await page.evaluate(()=>window.__buildReasonPrint('committee'));
-  ok('P5 مستودع ⇒ «مسؤول المستودع» باسم المسؤول', h.includes('مسؤول المستودع')&&h.includes('ناصر'), '');
-  await page.close(); }
-{ const page=await ctx.newPage(); await load(page,{profile:OWNER,users:[OWNER],sessions:sess({status:'approved',signatories:SIG,approvedByName:'المالك',location:'فرع الرياض',custodyNext:{name:'سعد'}})}); await openR(page);
-  const h=await page.evaluate(()=>window.__buildReasonPrint('committee'));
-  ok('P5 فرع ⇒ «مسؤول الفرع» (يقبل السابق/الجديد اسمًا)', h.includes('مسؤول الفرع')&&h.includes('سعد'), '');
-  const hc=await page.evaluate(()=>window.__buildReasonPrint('custody'));
-  ok('P5 كتلة المسؤول خاصّة بمحضر الجرد فقط (لا العهدة)', !hc.includes('مسؤول الفرع / المستودع')&&!/مسؤول المستودع|مسؤول الفرع(?! )/.test(hc), '');
+  ok('P5 لا كتلة «مسؤول المستودع/الفرع» في محضر الجرد', !h.includes('مسؤول المستودع')&&!h.includes('مسؤول الفرع')&&!h.includes('ناصر'), '');
   await page.close(); }
 
 // ===== P6 — محضر الجرد (بديل محضر الفروقات) لا يُفعَّل إلا بعد اعتماد الجرد =====
