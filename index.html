@@ -1035,6 +1035,7 @@ input[type="checkbox"]:not(.rcap):not(.rtask){width:18px!important;min-width:18p
       <button class="btn ghost" data-reason="custody" style="text-align:right;line-height:1.5">📦 محضر عهدة <span class="muted" style="font-weight:400">— جدول الأصناف المعدودة كعهدة (منفصل)</span></button>
     </div>
     <div id="prSigWrap" style="margin-top:14px;border-top:1px solid var(--border);padding-top:12px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap"><label style="font-size:13px;font-weight:700">📅 تاريخ الجرد (في {date}):</label><input type="date" id="prReportDate" class="inp" style="width:auto"></div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
         <b style="font-size:13px">أعضاء اللجنة (للتواقيع)</b>
         <button class="btn ghost sm" id="prSigAdd" type="button">+ إضافة عضو</button>
@@ -3099,9 +3100,12 @@ const DOC_VARS=[{k:'{company}',d:'اسم الشركة'},{k:'{document}',d:'اس�
   {k:'{bookValue}',d:'القيمة الدفترية (= totalCost)'},{k:'{actualValue}',d:'القيمة الفعلية (= totalActual)'},{k:'{dayName}',d:'اسم يوم بدء الجرد'}];
 // التاريخ المعتمد للمحاضر: تاريخ بدء الجرد (startedAt) دائمًا — لا تاريخ اليوم نهائيًّا
 var AR_WEEKDAYS=['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
-function officialDateObj(){ // كائن تاريخ بدء الجرد: startedAt ثم createdAt ثم approvedAt — ولا يقع على «اليوم» أبدًا
+function officialDateObj(){ // تاريخ الجرد للمحضر: تاريخ يدوي مُحدَّد (reportDate) أولًا، ثم بدء الجرد (startedAt) ثم الإنشاء ثم الاعتماد — ولا يقع على «اليوم» أبدًا
+  if(repSess&&repSess.reportDate){ const dm=new Date(String(repSess.reportDate)+'T00:00:00'); if(!isNaN(+dm))return dm; } // تاريخ الجرد اليدوي (يضبطه المستخدم)
   const src=repSess&&(repSess.startedAt||repSess.createdAt||repSess.approvedAt); if(!src)return null;
   const d=(src&&typeof src.toDate==='function')?src.toDate():new Date(src.__ts||src.seconds*1000||src); return isNaN(+d)?null:d; }
+function reportDateISO(){ const d=officialDateObj(); if(!d)return ''; const p=n=>String(n).padStart(2,'0'); return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate()); } // القيمة الحالية لحقل تاريخ الجرد (YYYY-MM-DD)
+function setReportDate(v){ if(!repSess)return; repSess.reportDate=(v||'').trim(); if(repSid){ try{ updateDoc(doc(db,'sessions',repSid),{reportDate:repSess.reportDate}).catch(()=>{}); }catch(e){} } var a=$('repReportDate'),b=$('prReportDate'); if(a&&a.value!==repSess.reportDate)a.value=repSess.reportDate; if(b&&b.value!==repSess.reportDate)b.value=repSess.reportDate; } // ضبط تاريخ الجرد يدويًّا + حفظ أفضل-جهد + مزامنة الحقلين
 function officialDayName(){ const d=officialDateObj(); return d?AR_WEEKDAYS[d.getDay()]:'—'; }
 function officialDate(){ const d=officialDateObj(); if(!d)return '—'; return AR_WEEKDAYS[d.getDay()]+' '+d.toLocaleDateString('en-GB'); } // «الاثنين 20/07/2025» — تاريخ بدء الجرد مع اسم اليوم
 function docVarCtx(reasonKey,rows){ const R=PRINT_REASONS[reasonKey]||PRINT_REASONS.detailed;
@@ -3913,7 +3917,9 @@ function renderReportShell(){
       '<div style="flex:1;min-width:160px"><h2 style="margin:0">تقرير الفروقات — '+esc(repSess.name)+'</h2><div class="muted">'+esc(repSess.location||'')+' • '+(repSess.blind?'جلسة عمياء • ':'')+'الأصناف: '+fmt(repItems.length)+'</div></div>'+
       (printReasonsAllowed().length?'<button class="btn ghost sm" id="repSigBtn">👥 أعضاء اللجنة</button><button class="btn ghost sm" id="repPrint">🖨 طباعة</button>':'')+(exportReasonsAllowed().length?'<button class="btn sm" id="repXlsx">⬇ تصدير Excel</button>':'')+'</div>'+
       // م٦-٣: محرّر أعضاء اللجنة من شاشة التقرير (الإدارة) — حذف/إضافة ينعكس على المحاضر ويُحفَظ
-      (printReasonsAllowed().length?'<div id="repSigPanel" style="display:none;margin-top:12px;border:1px solid var(--border);border-radius:10px;padding:12px;background:var(--card)"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><b style="font-size:13px">أعضاء اللجنة (للمحاضر والتواقيع)</b><button class="btn ghost sm" id="repSigAdd" type="button">+ إضافة عضو</button></div><div id="repSigRows"></div><div class="muted" style="font-size:11.5px;margin-top:4px">الحذف/الإضافة هنا يُطبَّق على محاضر هذه الجلسة ويُحفَظ (يبقى للطباعة الحالية إن كانت الجلسة مقفلة).</div></div>':'')+
+      (printReasonsAllowed().length?'<div id="repSigPanel" style="display:none;margin-top:12px;border:1px solid var(--border);border-radius:10px;padding:12px;background:var(--card)">'+
+        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;padding-bottom:10px;border-bottom:1px solid var(--hair)"><label style="font-size:13px;font-weight:700;color:var(--navy700)">📅 تاريخ الجرد (يظهر في {date} بالمحاضر):</label><input type="date" id="repReportDate" class="inp" style="width:auto"><span class="muted" style="font-size:11px">لا تاريخ اليوم — اضبط يوم الجرد الفعلي إن لزم</span></div>'+
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><b style="font-size:13px">أعضاء اللجنة (للمحاضر والتواقيع)</b><button class="btn ghost sm" id="repSigAdd" type="button">+ إضافة عضو</button></div><div id="repSigRows"></div><div class="muted" style="font-size:11.5px;margin-top:4px">الحذف/الإضافة هنا يُطبَّق على محاضر هذه الجلسة ويُحفَظ (يبقى للطباعة الحالية إن كانت الجلسة مقفلة).</div></div>':'')+
       '<div class="tiles" id="repTiles" style="margin-top:14px"></div>'+
       '<div class="rtools">'+
         '<input id="repSearch" placeholder="بحث بالكود أو الاسم…">'+
@@ -3927,8 +3933,9 @@ function renderReportShell(){
   $('repBack').onclick=()=>{if(repUnsub){repUnsub();repUnsub=null;} if(repBackTo==='count'&&repSid){openSession(repSid);} else {route();}};
   if($('repPrint'))$('repPrint').onclick=openPrintDialog;
   if($('repXlsx'))$('repXlsx').onclick=openExportDialog;
-  if($('repSigBtn'))$('repSigBtn').onclick=()=>{ const p=$('repSigPanel'); if(!p)return; const show=p.style.display==='none'; p.style.display=show?'':'none'; if(show)renderSigBox('repSigRows'); }; // م٦-٣: فتح محرّر أعضاء اللجنة
+  if($('repSigBtn'))$('repSigBtn').onclick=()=>{ const p=$('repSigPanel'); if(!p)return; const show=p.style.display==='none'; p.style.display=show?'':'none'; if(show){ renderSigBox('repSigRows'); if($('repReportDate'))$('repReportDate').value=reportDateISO(); } }; // م٦-٣: فتح محرّر المحضر (تاريخ + أعضاء)
   if($('repSigAdd'))$('repSigAdd').onclick=sigAdd;
+  if($('repReportDate'))$('repReportDate').onchange=e=>setReportDate(e.target.value); // م٦-٣: ضبط تاريخ الجرد يدويًّا
   $('repSearch').oninput=renderReportRows;
   $('repCat').onchange=renderReportRows;
   $('repStatus').onchange=renderReportRows;
@@ -4191,6 +4198,7 @@ function openPrintDialog(){
   const mo=$('printReasonModal'); if(!mo)return;
   mo.querySelectorAll('[data-reason]').forEach(b=>b.onclick=()=>doPrint(b.getAttribute('data-reason')));
   renderPrSig(); if($('prSigAdd'))$('prSigAdd').onclick=sigAdd; // م٦-٣: محرّر أعضاء اللجنة (مشترك مع شاشة التقرير)
+  if($('prReportDate')){ $('prReportDate').value=reportDateISO(); $('prReportDate').onchange=e=>setReportDate(e.target.value); } // م٦-٣: تاريخ الجرد في نافذة الطباعة
   reasonAvailability('pr'); // إظهار/إخفاء المحاضر المشروطة (ملخّص الفروقات بعد الاعتماد، الاستلام عند وجود مُسلِّم/مُستلِم)
   mo.querySelectorAll('[data-reason]').forEach(b=>{ if(!reasonAllowed(b.getAttribute('data-reason')))b.style.display='none'; }); // م٦-٢: تظهر الأسباب المسموحة لهذا المستخدم فقط
   if($('printReasonCancel'))$('printReasonCancel').onclick=()=>{mo.style.display='none';};
