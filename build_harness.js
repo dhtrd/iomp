@@ -235,6 +235,7 @@ window.__openExportDialog = ()=>{ try{ openExportDialog(); }catch(e){} };
 window.__disp = (id)=>{ const e=document.getElementById(id); return e?getComputedStyle(e).display:'ABSENT'; };
 window.__buildReasonPrint = (k)=>{ buildPrintReport(k); return document.getElementById('repPrintArea').innerHTML; };
 window.__repSigList = ()=>repSigList(); // م٦-٣: محرّر أعضاء اللجنة (للفحص)
+window.__findByScan = (items,code)=>{ var s=(typeof curItems!=='undefined')?curItems:null; try{ curItems=items||[]; var r=findByScan(code); return r?String(r.code):null; } finally { if(s!==null)curItems=s; } }; // م٦-٣: مطابقة الباركود (للفحص)
 window.__reasonAvail = (p)=>{ reasonAvailability(p); }; // م٦-٣: تفعيل/تعطيل أزرار الأسباب (للفحص)
 window.__docVarCtx = (k)=>docVarCtx(k, (typeof repRows!=='undefined'?repRows:[])); // م٦-٣: متغيّرات الصيغة (للفحص)
 window.__acBuildBackup = ()=>acBuildBackup();

@@ -2861,7 +2861,10 @@ function renderCountingShell(){
   if($('reopenBtn'))$('reopenBtn').onclick=doReopenSession;
   $('actToggle').onclick=()=>{const p=$('actPanel');p.style.display=(p.style.display==='none'?'':'none');};
   $('csearch').oninput=()=>{if(!scanMode)renderCountList();};
-  $('csearch').addEventListener('keydown',(e)=>{if(e.key==='Enter'&&scanMode){e.preventDefault();handleScanCode($('csearch').value);$('csearch').value='';}});
+  $('csearch').addEventListener('keydown',(e)=>{ if(e.key!=='Enter')return; const v=($('csearch').value||''); if(!v.trim())return;
+    if(scanMode){ e.preventDefault(); handleScanCode(v); $('csearch').value=''; return; }
+    // ماسح خارجي (keyboard-wedge) دون تفعيل «وضع الماسح»: إن طابقت القيمة الممسوحة صنفًا بالكود/الباركود ⇒ سجّل عدّة ١+ تلقائيًّا (طلب العميل)
+    const it=findByScan(v.trim()); if(it){ e.preventDefault(); handleScanCode(v); $('csearch').value=''; renderCountList(); const s=$('csearch'); if(s)s.focus(); } });
   if($('camScanBtn'))$('camScanBtn').onclick=startCamera;
   if($('scanModeBtn'))$('scanModeBtn').onclick=toggleScanMode;
   if($('addItemBtn'))$('addItemBtn').onclick=openAddItemDialog;
@@ -3772,7 +3775,17 @@ function ensureAudio(){ try{ if(!_actx)_actx=new (window.AudioContext||window.we
 function beep(ok){ try{ ensureAudio(); if(!_actx)return; const o=_actx.createOscillator(),g=_actx.createGain(); o.connect(g); g.connect(_actx.destination); o.type='sine'; o.frequency.value=ok?1040:247; g.gain.value=0.0001; const t=_actx.currentTime; g.gain.exponentialRampToValueAtTime(0.16,t+0.01); g.gain.exponentialRampToValueAtTime(0.0001,t+(ok?0.12:0.30)); o.start(t); o.stop(t+(ok?0.13:0.32)); }catch(e){} }
 function vibrate(ms){ try{ navigator.vibrate&&navigator.vibrate(ms||40); }catch(e){} }
 function scanFeedback(msg,ok){ const el=$('scanStatus'); if(el){ el.style.display='block'; el.textContent=msg; el.style.background=ok?'rgba(12,163,12,.15)':'rgba(208,59,59,.15)'; el.style.color=ok?'var(--success)':'var(--danger)'; clearTimeout(el._t); el._t=setTimeout(()=>{if($('scanStatus'))$('scanStatus').style.display='none';},3000); } const cl=$('camLast'); if(cl)cl.textContent=msg; }
-function findByScan(code){ code=String(code||'').trim(); if(!code)return null; return curItems.find(x=>String(x.code)===code||(x.barcode&&String(x.barcode)===code))||null; }
+// مطابقة الباركود المُتسامحة (طلب العميل: الماسح لا يسجّل): مباشرة ← تجاهل الأصفار البادئة ← الأرقام فقط — على الكود والباركود معًا
+function findByScan(code){ code=String(code||'').trim(); if(!code)return null;
+  var direct=curItems.find(function(x){return String(x.code)===code||(x.barcode&&String(x.barcode)===code);}); if(direct)return direct;
+  var nrm=function(s){return String(s==null?'':s).trim();};
+  var stripZ=function(s){return nrm(s).replace(/^0+/,'');};
+  var dig=function(s){return nrm(s).replace(/\D/g,'');};
+  var cz=stripZ(code), cd=dig(code);
+  return curItems.find(function(x){ var xc=nrm(x.code), xb=nrm(x.barcode||'');
+    if(cz!==''&&(stripZ(xc)===cz||(xb&&stripZ(xb)===cz)))return true;
+    if(cd.length>=4&&(dig(xc)===cd||(xb&&dig(xb)===cd)))return true; // مقارنة رقمية للأكواد الطويلة فقط (تفادي التصادم)
+    return false; })||null; }
 // كل مسحة: عثور على الصنف بالكود أو الباركود ← عدّ ١+ (تراكمي + سجل حركة) ← صوت
 function handleScanCode(code){ code=String(code||'').trim(); if(!code)return; const it=findByScan(code); if(!it){ scanFeedback('✕ باركود غير موجود في هذه الجلسة: '+code, false); beep(false); vibrate(160); return; } const optimistic=((curCounts[it.code]&&curCounts[it.code].qty)||0)+1; scanFeedback('✓ '+it.name+' — عُدّ ١+ (الإجمالي ≈ '+fmt(optimistic)+')', true); beep(true); vibrate(45); addEntry(it.code,1); }
 function toggleScanMode(){ scanMode=!scanMode; ensureAudio(); const b=$('scanModeBtn'),s=$('csearch'); if(b){ b.style.background=scanMode?'var(--success)':''; b.style.color=scanMode?'#fff':''; b.textContent=scanMode?'🔫 إيقاف وضع الماسح':'🔫 وضع الماسح'; } if(s){ if(scanMode){ s.placeholder='🔫 امسح الباركود الآن…'; s.value=''; s.focus(); } else { s.placeholder='ابحث بالكود أو الاسم…'; } } if(scanMode)scanFeedback('وضع الماسح مُفعّل: كل مسح يَعُدّ ١+ بصوت. اضغط الزر لإيقافه.',true); else if($('scanStatus'))$('scanStatus').style.display='none'; }
