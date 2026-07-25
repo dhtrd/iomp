@@ -206,6 +206,41 @@ await T('إصلاح-١/١٦: حساب معطّل يُمنع من قراءة عد
 await T('إصلاح-١/١٧: العدّاد يُمنع من قراءة بطاقة المنتج (فيها التكلفة)', assertFails(getDoc(doc(db('u_ct'), 'products/PRD-1'))));
 await T('إصلاح-١/١٧: مدير المخزون يقرأ بطاقة المنتج', assertSucceeds(getDoc(doc(db('u_wh'), 'products/PRD-1'))));
 
+// ═════════ ط-١٠: الكتالوج الرئيسيّ المقطّع — catalogMeta / catalogChunks / catalogImports ═════════
+await testEnv.withSecurityRulesDisabled(async (ctx) => {
+  const d = ctx.firestore();
+  await setDoc(doc(d, 'catalogMeta/version'), { ver: 'v1', count: 2, at: 1750000000000, by: 'u_wh' });
+  await setDoc(doc(d, 'catalogChunks/chunk_0000'), { items: [{ barcode:'628500000001', code:'C1', name:'صنف ١', category:'ق', cost:5 }] });
+  await setDoc(doc(d, 'catalogChunks/chunk_0001'), { items: [{ barcode:'628500000002', code:'C2', name:'صنف ٢', category:'ق', cost:7 }] });
+  await setDoc(doc(d, 'catalogImports/j_exist'), { by:'u_wh', at:1750000000000, added:2, updated:0 });
+});
+// القراءة — العدّاد يحتاجها للتدفّق ٤ (باركود خارج جلسته)
+await T('ط-١٠: العدّاد النشط يقرأ مستند نسخة الكتالوج', assertSucceeds(getDoc(doc(db('u_ct'), 'catalogMeta/version'))));
+await T('ط-١٠: العدّاد النشط يقرأ قطعة الكتالوج', assertSucceeds(getDoc(doc(db('u_ct'), 'catalogChunks/chunk_0000'))));
+await T('ط-١٠: العدّاد يسرد قطع الكتالوج (المزامنة الكاملة)', assertSucceeds(getDocs(collection(db('u_ct'), 'catalogChunks'))));
+await T('ط-١٠: حساب معطّل يُمنع من قراءة الكتالوج', assertFails(getDoc(doc(db('u_off'), 'catalogChunks/chunk_0000'))));
+await T('ط-١٠: غير مصادَق يُمنع من قراءة الكتالوج', assertFails(getDoc(doc(db(null), 'catalogChunks/chunk_0000'))));
+// الكتابة — warehouse.manage وحدها
+await T('ط-١٠: مدير المخزون يكتب قطعة كتالوج', assertSucceeds(setDoc(doc(db('u_wh'), 'catalogChunks/chunk_0002'), { items: [] })));
+await T('ط-١٠: مدير المخزون يحدّث مستند النسخة', assertSucceeds(setDoc(doc(db('u_wh'), 'catalogMeta/version'), { ver:'v2', count:3, at:1750000001000, by:'u_wh' })));
+await T('ط-١٠: العدّاد يُمنع من كتابة قطعة كتالوج', assertFails(setDoc(doc(db('u_ct'), 'catalogChunks/chunk_0003'), { items: [] })));
+await T('ط-١٠: العدّاد يُمنع من تزوير مستند النسخة', assertFails(setDoc(doc(db('u_ct'), 'catalogMeta/version'), { ver:'zzz' })));
+await T('ط-١٠: المطّلع يُمنع من كتابة قطعة كتالوج', assertFails(setDoc(doc(db('u_vw'), 'catalogChunks/chunk_0004'), { items: [] })));
+// الحذف — تقليص عدد القطع عند إعادة الرفع جزءٌ من العملية نفسها
+await T('ط-١٠: مدير المخزون يحذف قطعةً زائدة بعد تقليص الكتالوج', assertSucceeds(deleteDoc(doc(db('u_wh'), 'catalogChunks/chunk_0002'))));
+await T('ط-١٠: العدّاد يُمنع من حذف قطعة كتالوج', assertFails(deleteDoc(doc(db('u_ct'), 'catalogChunks/chunk_0001'))));
+await T('ط-١٠: مدير المخزون يُمنع من حذف مستند النسخة (trash.purge وحده)', assertFails(deleteDoc(doc(db('u_wh'), 'catalogMeta/version'))));
+// سجلّ عمليات الرفع — ملحق-فقط بنمط activity المعتمد
+await T('ط-١٠: مدير المخزون ينشئ قيد رفعٍ باسمه', assertSucceeds(setDoc(doc(db('u_wh'), 'catalogImports/j1'), { by:'u_wh', at:1750000002000, added:1, updated:0 })));
+await T('ط-١٠: انتحال فاعلٍ آخر في قيد الرفع مرفوض', assertFails(setDoc(doc(db('u_wh'), 'catalogImports/j2'), { by:'u_owner', at:1750000002000 })));
+await T('ط-١٠: العدّاد يُمنع من إنشاء قيد رفع', assertFails(setDoc(doc(db('u_ct'), 'catalogImports/j3'), { by:'u_ct', at:1750000002000 })));
+await T('ط-١٠: حتى المالك يُمنع من تعديل قيد رفعٍ قائم (ملحق-فقط)', assertFails(updateDoc(doc(db('u_owner'), 'catalogImports/j_exist'), { added: 999 })));
+await T('ط-١٠: العدّاد يُمنع من قراءة سجلّ الرفع (فيه أثر التكلفة)', assertFails(getDoc(doc(db('u_ct'), 'catalogImports/j_exist'))));
+await T('ط-١٠: المطّلع صاحب report.view يقرأ سجلّ الرفع', assertSucceeds(getDoc(doc(db('u_vw'), 'catalogImports/j_exist'))));
+await T('ط-١٠: مدير المخزون يقرأ سجلّ الرفع', assertSucceeds(getDoc(doc(db('u_wh'), 'catalogImports/j_exist'))));
+// حارس الاستقلال: الكتالوج الجديد لا يفتح products للعدّادين
+await T('ط-١٠: بعد إضافة الكتالوج يظلّ العدّاد ممنوعًا من products', assertFails(getDoc(doc(db('u_ct'), 'products/PRD-1'))));
+
 // ---- إعداد «الاطلاع بعد الإغلاق فقط» (viewersAfterClose) — يُفعَّل هنا ثم تُفحص بواباته ----
 // ملاحظة مهمة: لا تُفحص البوابة على s_open — فحص «إغلاق للمراجعة: المالك» أعلاه نقلها إلى
 // status:'review'، فلم تعد «مفتوحة» هنا والسماح للمطّلع بها صحيح. نبذر جلسة مفتوحة حقيقية s_gate.

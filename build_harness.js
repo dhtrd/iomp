@@ -37,6 +37,9 @@ function __seed(){
   (__SC.products||[]).forEach(p=>{ const id=p.id||('p'+(__uidSeq++)); __store['products/'+id]=__clone(Object.assign({},p)); delete __store['products/'+id].__history; // ر٩: بذر الكتالوج (م١٥)
     (p.__history||[]).forEach((h,i)=>{ __store['products/'+id+'/history/hist_'+String(i).padStart(4,'0')]=__clone(h); }); });
   (__SC.movements||[]).forEach((mv)=>{ const id=mv.id||('mv'+(__uidSeq++)); __store['movements/'+id]=__clone(mv); }); // ر٩: بذر الحركات لتصنيف ABC/XYZ
+  // ط-١٠: بذر الكتالوج الرئيسيّ المقطّع — مستند نسخة واحد + قطع مرقّمة (نمط chunk_0000 نفسه)
+  if (__SC.catalogMeta) __store['catalogMeta/version'] = __clone(__SC.catalogMeta);
+  (__SC.catalogChunks||[]).forEach((ch,i)=>{ __store['catalogChunks/chunk_'+String(i).padStart(4,'0')] = {items:__clone(ch)}; });
 }
 function __fireDoc(path){ __listeners.filter(l=>l.kind==='doc'&&l.path===path).forEach(l=>{ try{ l.cb(__docSnap(path)); }catch(e){} }); }
 function __fireCol(path){ // path is a written doc path; fire col listeners whose col is its direct parent
@@ -69,8 +72,11 @@ function orderBy(f,d){ return {__ob:f,d}; }
 function where(f,op,v){ return {__where:f,op,v}; } // إصلاح-٣ (بند ٢ب): دعم where في المحاكي (يُطبَّق فعليًّا في getDocs)
 function limit(n){ return {__limit:n}; }
 function __refPath(r){ return r.__query? r.col.path : r.path; }
-function getDoc(ref){ return Promise.resolve(__docSnap(ref.path)); }
-function getDocs(ref){ let docs=__colSnap(__refPath(ref)).docs;
+const __failPaths={}; // ط-١٠: محاكاة عطل شبكة على مسارٍ بعينه — لتمييز «تعذّرت القراءة» عن «غير موجود»
+window.__failRead=(p,b)=>{ if(b)__failPaths[p]=true; else delete __failPaths[p]; };
+function getDoc(ref){ if(__failPaths[ref.path]) return Promise.reject({code:'unavailable',message:'network'}); return Promise.resolve(__docSnap(ref.path)); }
+function getDocs(ref){ if(__failPaths[__refPath(ref)]) return Promise.reject({code:'unavailable',message:'network'});
+  let docs=__colSnap(__refPath(ref)).docs;
   if(ref&&ref.__query&&Array.isArray(ref.cs)){ ref.cs.forEach(c=>{ if(c&&c.__where){ docs=docs.filter(d=>{ const v=(d.data()||{})[c.__where]; if(c.op==='==')return v===c.v; if(c.op==='in')return Array.isArray(c.v)&&c.v.indexOf(v)>=0; if(c.op==='!=')return v!==c.v; return true; }); } }); }
   return Promise.resolve({forEach:cb=>docs.forEach(cb), docs, size:docs.length, empty:docs.length===0}); }
 function __deepMerge(t,s){ for(const k in s){ const v=s[k]; if(v&&typeof v==='object'&&!Array.isArray(v)&&!v.__ts){ if(!t[k]||typeof t[k]!=='object')t[k]={}; __deepMerge(t[k],v);} else t[k]=v; } return t; }
@@ -333,6 +339,26 @@ window.__sessVariancePct = (items,counts)=>sessVariancePct(items,counts);
 window.__ledLoadCatalog = ()=>ledLoadCatalog();
 window.__ledCatalog = ()=>Object.assign({},ledCatalog);
 window.__ledSetCatalog = (c)=>{ ledCatalog=c||{}; };
+// ط-١٠: خطاطيف الكتالوج الرئيسيّ — سلّم القراءات، الفهرس O(1)، المرآة المحليّة
+window.__cat = {
+  ensure:(o)=>catalogEnsure(o),
+  find:(c)=>{ const it=catalogFind(c); return it?Object.assign({},it):null; },
+  count:()=>catalogCount(),
+  loaded:()=>catalogIsLoaded(),
+  reads:()=>catalogReadsUsed(),
+  ver:()=>catalogVer,
+  seed:(items,ver)=>catalogSetItems(items,ver),
+  clear:()=>catalogClear(),
+  mirrorGet:()=>catalogMirrorGet(),
+  mirrorSet:(items,ver)=>catalogMirrorSet(items,ver),
+  chunkSize:()=>CATALOG_CH,
+  cacheKey:()=>CATALOG_CACHE_KEY,
+  indexed:()=>!!catalogIndex,
+  // إثبات O(1): متوسط زمن مطابقةٍ واحدة بالميلي ثانية بعد تسخين الفهرس
+  bench:(codes,reps)=>{ catalogFind(codes[0]); const n=codes.length, r=reps||1;
+    const t0=performance.now(); for(let k=0;k<r;k++){ for(let i=0;i<n;i++) catalogFind(codes[i]); }
+    return (performance.now()-t0)/(r*n); }
+};
 window.__ready = true;
 `;
 

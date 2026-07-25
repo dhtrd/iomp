@@ -334,6 +334,36 @@ service cloud.firestore {
       }
     }
 
+    // ---------- الكتالوج الرئيسيّ للأصناف (ط-١٠) — تخزين مقطّع ٤٠٠ صنف/قطعة ----------
+    // لماذا مجموعةٌ مستقلّة لا products؟ لأنّ products بطاقةٌ ثريّة مفتاحها SKU لا الباركود، وقاعدة قراءتها
+    //   تستثني العدّادين عمدًا؛ وفتحُها لهم تغييرُ صلاحيات ممنوع. (وثيقة ٧ §٦-أ)
+    // لماذا التقطيع؟ مستندٌ لكلّ باركود = ٢٠٬٠٠٠ قراءة/مزامنة × ٥ عدّادين = ٢٠٠٪ من الحصّة اليوميّة — قاتلٌ يوم التشغيل.
+    //   بـ٤٠٠ صنف/قطعة تصير ٥٠ مستندًا = ٠٫٥٪ — أرخص ٤٠٠ ضعفًا. (وثيقة ٧ §٥)
+    // القياس قبل الكتابة (ط-٦٣): قراءة العدّاد هنا = ٣٣ تعبيرًا مقابل ١٬٠٢٤ لقراءة snapshot/{chunk} القائمة في
+    //   الإنتاج اليوم — أخفّ ٣١ مرّة؛ وأثقل فرعٍ جديد ٣٩٥ مقابل ٣٬٧٠٥ لأثقل فرعٍ قائم. وعدد نداءات المستندات
+    //   المميّزة ثابتٌ على ٣ من ١٠ — بلا زيادة. (وثيقة ٧ §٤)
+    // القراءة: أي مستخدمٍ نشط — العدّاد يحتاجها لمطابقة باركودٍ خارج جلسته (التدفّق ٤).
+    //   وهي لا توسّع انكشاف التكلفة عمليًّا: العدّاد يقرأ اليوم تكاليف snapshot وextraItems لجلسته كاملة،
+    //   وحوار «صنف يدوي» يُلزمه بكتابة التكلفة بيده. وبوّابة الماليّة قائمةٌ على أعمدة القيمة في التقارير. (وثيقة ٧ §٦)
+    // الكتابة: warehouse.manage — إعادة استعمال صلاحيةٍ قائمة، بلا صلاحيةٍ جديدة، إبقاءً لـ can() خفيفة.
+    match /catalogMeta/{doc} {
+      allow read:   if authed() && isActive();
+      allow create, update: if can('warehouse.manage');
+      allow delete: if can('trash.purge');
+    }
+    match /catalogChunks/{chunk} {
+      allow read:   if authed() && isActive();
+      allow create, update: if can('warehouse.manage');
+      allow delete: if can('trash.purge') || can('warehouse.manage'); // إعادة الرفع تُقلّص عدد القطع ⇒ حذف الزائد جزءٌ من العملية نفسها
+    }
+    // سجلّ عمليات رفع الكتالوج — ملحق-فقط بنمط activity المعتمد (إنشاء بالفاعل نفسه، لا تعديل)
+    match /catalogImports/{jid} {
+      allow read:   if authed() && isActive() && ( can('warehouse.manage') || can('report.view') );
+      allow create: if authed() && isActive() && request.resource.data.get('by','') == uid() && can('warehouse.manage');
+      allow update: if false;
+      allow delete: if can('trash.purge');
+    }
+
     // ---------- منع كل ما سوى ذلك ----------
     match /{document=**} {
       allow read, write: if false;

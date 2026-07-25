@@ -3286,6 +3286,71 @@ const offlineStore=(function(){ let _idb=null,_idbTried=false;
   async function set(k,v){ if(idbOk()){ try{ const db=await idb(); return await new Promise((res,rej)=>{ const tx=db.transaction('kv','readwrite'); tx.objectStore('kv').put(v,k); tx.oncomplete=()=>res(true); tx.onerror=()=>rej(tx.error); }); }catch(e){} } lsSet(k,v); return true; }
   return { get, set, backend:()=>idbOk()?'idb':'ls' };
 })();
+
+/* ═══════ ط-١٠: طبقة الكتالوج الرئيسيّ — تخزين مقطّع + مرآة محليّة + فهرس O(1) ═══════
+   القرار الحاكم (وثيقة ٧ §٥): مستندٌ لكلّ باركود يكلّف ٢٠٬٠٠٠ قراءة لكلّ مزامنة =
+   ٢٠٠٪ من الحصّة اليوميّة بخمسة عدّادين. التقطيع بـ٤٠٠ صنفًا للقطعة — وهو ثابت CH
+   نفسه المستعمل في لقطة الجلسة (السطر ٢٧٧٤) — يجعلها ٥٠ قراءة، أي أرخص ٤٠٠ ضعفًا.
+   وقت المسح لا يُقرأ من Firestore حرفٌ واحد: البحث من فهرس Map في الذاكرة O(1).
+   ولا مستمع دائم على الكتالوج إطلاقًا — مستند نسخةٍ واحد يكشف التغيّر. */
+const CATALOG_CH=400, CATALOG_CACHE_KEY='iomp-catalog-v1';
+let catalogItems=[], catalogIndex=null, catalogVer=null, catalogLoaded=false, _catalogLoading=null, _catalogReads=0;
+
+function catalogNorm(c){ return String(c==null?'':c).trim(); }
+/* فهرس O(1): الباركود (وكود الصنف) ← الصنف. يُبنى مرّةً واحدة بعد كلّ تحميل. */
+function catalogBuildIndex(){ const m=new Map();
+  for(let i=0;i<catalogItems.length;i++){ const it=catalogItems[i]; if(!it)continue;
+    const b=catalogNorm(it.barcode!=null?it.barcode:it.code); if(b&&!m.has(b))m.set(b,it);
+    const c=catalogNorm(it.code); if(c&&c!==b&&!m.has(c))m.set(c,it); }
+  catalogIndex=m; return m; }
+/* البحث الساخن — O(1) ولا يمسّ الشبكة ولا القرص */
+function catalogFind(code){ const k=catalogNorm(code); if(!k)return null;
+  if(!catalogIndex)catalogBuildIndex(); return catalogIndex.get(k)||null; }
+function catalogCount(){ return catalogItems.length; }
+function catalogIsLoaded(){ return catalogLoaded; }
+function catalogReadsUsed(){ return _catalogReads; }
+function catalogSetItems(items,ver){ catalogItems=Array.isArray(items)?items:[]; catalogVer=ver==null?null:ver;
+  catalogIndex=null; catalogLoaded=true; return catalogItems.length; }
+function catalogClear(){ catalogItems=[]; catalogIndex=null; catalogVer=null; catalogLoaded=false; _catalogLoading=null; _catalogReads=0; }
+
+async function catalogMirrorGet(){ try{ const c=await offlineStore.get(CATALOG_CACHE_KEY);
+    return (c&&Array.isArray(c.items))?c:null; }catch(e){ return null; } }
+async function catalogMirrorSet(items,ver){ try{ await offlineStore.set(CATALOG_CACHE_KEY,{ver:ver==null?null:ver,at:Date.now(),items:items||[]}); return true; }catch(e){ return false; } }
+
+/* مستند النسخة — قراءةٌ واحدة تكشف هل تغيّر الكتالوج */
+async function catalogFetchMeta(){ try{ const d=await getDoc(doc(db,'catalogMeta','version')); _catalogReads++;
+    return d.exists()?(d.data()||{}):null; }catch(e){ return undefined; } } // undefined = تعذّرت القراءة (لا يعني «غير موجود»)
+/* تنزيل القطع مرتّبةً ودمجها — يُستدعى فقط عند اختلاف النسخة */
+async function catalogFetchChunks(){ const qs=await getDocs(collection(db,'catalogChunks'));
+  const ch=[]; qs.forEach(d=>ch.push(d)); _catalogReads+=ch.length;
+  ch.sort((a,b)=>a.id<b.id?-1:1);
+  let items=[]; for(let i=0;i<ch.length;i++){ const arr=(ch[i].data()||{}).items; if(Array.isArray(arr))items=items.concat(arr); }
+  return items; }
+
+/* الضامن: يجعل الكتالوج جاهزًا في الذاكرة بأقلّ قراءاتٍ ممكنة.
+   المرآة أولًا (صفر قراءات) ← مستند النسخة (قراءة واحدة) ← القطع (فقط إن تغيّرت النسخة). */
+async function catalogEnsure(opts){ const o=opts||{};
+  if(_catalogLoading)return _catalogLoading;
+  if(catalogLoaded&&!o.force)return {ok:true,source:'memory',count:catalogItems.length,reads:0};
+  _catalogLoading=(async()=>{
+    const r0=_catalogReads;
+    const mirror=await catalogMirrorGet();
+    if(mirror&&!o.force){ catalogSetItems(mirror.items,mirror.ver); }
+    if(!netOnline())return {ok:!!mirror,source:mirror?'mirror-offline':'none',count:catalogItems.length,reads:0,offline:true};
+    const meta=await catalogFetchMeta();
+    if(meta===undefined)return {ok:!!mirror,source:mirror?'mirror-neterr':'none',count:catalogItems.length,reads:_catalogReads-r0,error:'meta'};
+    if(meta===null){ if(!mirror)catalogSetItems([],null);
+      return {ok:true,source:'empty',count:catalogItems.length,reads:_catalogReads-r0,empty:true}; }
+    const ver=meta.ver==null?null:meta.ver;
+    if(mirror&&!o.force&&mirror.ver!=null&&ver!=null&&String(mirror.ver)===String(ver)){
+      catalogSetItems(mirror.items,ver);
+      return {ok:true,source:'mirror',count:catalogItems.length,reads:_catalogReads-r0,ver:ver}; }
+    try{ const items=await catalogFetchChunks(); catalogSetItems(items,ver); await catalogMirrorSet(items,ver);
+      return {ok:true,source:'cloud',count:items.length,reads:_catalogReads-r0,ver:ver}; }
+    catch(e){ return {ok:!!mirror,source:mirror?'mirror-fallback':'none',count:catalogItems.length,reads:_catalogReads-r0,error:'chunks'}; }
+  })();
+  try{ return await _catalogLoading; } finally{ _catalogLoading=null; } }
+
 function netOnline(){ if(_forcedOnline!==null)return !!_forcedOnline; try{ return navigator.onLine!==false; }catch(e){ return true; } }
 // معرّف الجهاز: سداسي عشوائي يُولَّد مرّة ويُحفظ (ثابت عبر الجلسات على نفس الجهاز)
 function offlineDeviceId(){ try{ let d=localStorage.getItem(OFFLINE_DEVICE_KEY); if(!d){ d='dev-'+Math.random().toString(16).slice(2,10)+Math.random().toString(16).slice(2,6); localStorage.setItem(OFFLINE_DEVICE_KEY,d); } return d; }catch(e){ return 'dev-nostore'; } }
