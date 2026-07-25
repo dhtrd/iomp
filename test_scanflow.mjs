@@ -72,8 +72,8 @@ async function settle(page, extra) {
 // ═════════ س١ — مسحة كاملة: بلا Enter، بلا نقر، بلا تأخير ═════════
 {
   const page = await open();
-  ok('س١ ثوابت المحرّك مطابقة للمعتمَد (سقف ١٠٠ / منع ازدواج ١٢٠م)',
-    await page.evaluate(() => { const c = window.__scanConsts(); return c.cap === 100 && c.dedup === 120 && c.cadence === 40 && c.idle === 60 && c.minLen === 4; }));
+  ok('س١ ثوابت المحرّك مطابقة للمعتمَد (سقف ١٠٠ / بلا نافذة منع ازدواج)',
+    await page.evaluate(() => { const c = window.__scanConsts(); return c.cap === 100 && c.dedup === 0 && c.cadence === 40 && c.idle === 60 && c.minLen === 4; }));
   ok('س١ فهرس البحث بزمن ثابت مبنيّ لكل الأصناف',
     await page.evaluate(n => { const s = window.__scanIndexStats(); return s.C === n && s.D >= n; }, N));
 
@@ -107,7 +107,7 @@ async function settle(page, extra) {
     await hw(page, cd(8));
     await settle(page);
     ok('س٢ المسحة ' + k + ' ⇒ الكمية ' + k, await cnt(page, cd(8)) === k, 'qty=' + await cnt(page, cd(8)));
-    await page.waitForTimeout(240);                                 // فاصل واقعي بين مسحتين (> منع الازدواج)
+    await page.waitForTimeout(240);                                 // فاصل واقعي بين مسحتين
   }
   ok('س٢ ثلاث إضافات مستقلّة بالضبط', await ents(page, cd(8)) === 3, 'entries=' + await ents(page, cd(8)));
   ok('س٢ لا حوار تأكيد ظهر إطلاقًا', await page.evaluate(() => { const o = document.getElementById('cfOverlay'); return !o || getComputedStyle(o).display === 'none'; }));
@@ -191,6 +191,76 @@ async function settle(page, extra) {
   await page.close();
 }
 
+// ═════════ س٦ — م٦-٥: العدّ المتتابع لنفس الصنف بلا أي فاصل ولا تأكيد ═════════
+{
+  const page = await open();
+
+  // ٤ مسحات متتالية بفاصل ٩٠ مللي — أطول من سكون التفريغ (٦٠) وأقصر من النافذة المُزالة (١٢٠)
+  for (let k = 1; k <= 4; k++) {
+    await hw(page, bc(20), { cadence: 8 });
+    await page.waitForTimeout(90);
+    ok('س٦ المسحة ' + k + ' لنفس الباركود ⇒ الكمية ' + k, await cnt(page, cd(20)) === k, 'qty=' + await cnt(page, cd(20)));
+  }
+  await settle(page);
+  ok('س٦ أربع إضافات مستقلّة بالضبط', await ents(page, cd(20)) === 4, 'entries=' + await ents(page, cd(20)));
+  const p6 = await panel(page);
+  ok('س٦ اللوحة تعرض ٣ ← +1 ← ٤', p6 && p6.cells['الكمية الحالية'] === '3' && p6.cells['الكمية المضافة'] === '+1' && p6.cells['الإجمالي بعد التحديث'] === '4',
+    JSON.stringify(p6 && p6.cells));
+  ok('س٦ لا حوار تأكيد ولا انتظار', await page.evaluate(() => { const o = document.getElementById('cfOverlay'); return !o || getComputedStyle(o).display === 'none'; }));
+
+  // مسحات بلاحقة Enter وفاصل ٤٠ مللي فقط — كانت النافذة القديمة تبتلع الثانية والثالثة صمتًا
+  for (let k = 1; k <= 3; k++) { await hw(page, bc(21), { cadence: 6, enter: true }); await page.waitForTimeout(40); }
+  await settle(page);
+  ok('س٦ ثلاث مسحات سريعة بـEnter (فاصل ٤٠م) ⇒ الكمية ٣', await cnt(page, cd(21)) === 3, 'qty=' + await cnt(page, cd(21)));
+
+  // خمسة نداءات في نبضة واحدة لنفس الكود ⇒ خمس قطع
+  await page.evaluate(c => { for (let i = 0; i < 5; i++) window.__scanCommit(c, 'x'); }, bc(22));
+  await settle(page);
+  ok('س٦ خمسة نداءات في نبضة واحدة ⇒ الكمية ٥', await cnt(page, cd(22)) === 5, 'qty=' + await cnt(page, cd(22)));
+
+  // الازدواج الحقيقي الوحيد الممنوع: حدث DOM نفسه يُعالَج مرّتين
+  const ev = await page.evaluate(c => {
+    const e = new KeyboardEvent('keydown', { key: 'Enter' });
+    return [window.__scanCommitEvt(c, e), window.__scanCommitEvt(c, e)];
+  }, bc(23));
+  await settle(page);
+  ok('س٦ حدث الماسح نفسه مرّتين ⇒ الثاني مُهمَل', ev[0] === true && ev[1] === false, JSON.stringify(ev));
+  ok('س٦ الكمية ١ للحدث المزدوج', await cnt(page, cd(23)) === 1, 'qty=' + await cnt(page, cd(23)));
+
+  ok('س٦ التركيز عاد لحقل المسح', await focus(page) === 'csearch', 'focus=' + await focus(page));
+  ok('س٦ الحقل نظيف جاهز للتالي', (await page.inputValue('#csearch')) === '');
+  await page.close();
+}
+
+// ═════════ س٧ — م٦-٥: تبديل اللوحة فورًا عند مسح صنف مختلف ═════════
+{
+  const page = await open();
+  await hw(page, bc(25), { cadence: 8 });
+  await settle(page);
+  const pa = await panel(page);
+  ok('س٧ اللوحة تعرض الصنف الأول', pa && pa.head.indexOf('صنف رقم 25') >= 0 && pa.cells['الباركود'] === bc(25), 'head=' + (pa && pa.head));
+
+  await hw(page, bc(26), { cadence: 8 });
+  await settle(page);
+  const pb = await panel(page);
+  ok('س٧ اللوحة انتقلت للصنف الثاني', pb && pb.head.indexOf('صنف رقم 26') >= 0, 'head=' + (pb && pb.head));
+  ok('س٧ الباركود المعروض هو الجديد', pb && pb.cells['الباركود'] === bc(26), 'v=' + (pb && pb.cells['الباركود']));
+  ok('س٧ لا أثر للصنف السابق في اللوحة', pb && pb.text.indexOf('صنف رقم 25') < 0 && pb.text.indexOf(bc(25)) < 0, 'text=' + (pb && pb.text));
+  ok('س٧ أرقام اللوحة تخصّ الصنف الجديد (0 ← +1 ← 1)',
+    pb && pb.cells['الكمية الحالية'] === '0' && pb.cells['الإجمالي بعد التحديث'] === '1', JSON.stringify(pb && pb.cells));
+  ok('س٧ كمية الصنف الأول لم تتأثّر', await cnt(page, cd(25)) === 1, 'qty=' + await cnt(page, cd(25)));
+
+  // صنف مختلف بعد تكرار: اللوحة لا تحتفظ بإجمالي الصنف السابق
+  await hw(page, bc(25), { cadence: 8 }); await page.waitForTimeout(90);
+  await hw(page, bc(27), { cadence: 8 }); await settle(page);
+  const pc = await panel(page);
+  ok('س٧ بعد تكرار ثم صنف جديد: اللوحة للصنف الجديد وحده',
+    pc && pc.head.indexOf('صنف رقم 27') >= 0 && pc.cells['الإجمالي بعد التحديث'] === '1' && pc.text.indexOf('صنف رقم 25') < 0,
+    'head=' + (pc && pc.head) + ' | after=' + (pc && pc.cells['الإجمالي بعد التحديث']));
+  ok('س٧ الصنف المكرَّر بلغ ٢ في المخزن', await cnt(page, cd(25)) === 2, 'qty=' + await cnt(page, cd(25)));
+  await page.close();
+}
+
 // ═════════ ع — فحوص عدائية ═════════
 {
   const page = await open();
@@ -202,11 +272,11 @@ async function settle(page, extra) {
   await settle(page);
   ok('ع١ صدى CR+LF لا يُسجّل مسحةً مكرّرة', await cnt(page, cd(4)) === 1, 'qty=' + await cnt(page, cd(4)));
 
-  // ع٢ — الكود نفسه مرّتين خلال نافذة منع الازدواج ⇒ واحدة فقط
+  // ع٢ — م٦-٥: نداءان متلاصقان لنفس الكود = مسحتان متعمّدتان ⇒ كلتاهما تُحتسبان (لا نافذة زمنية)
   const two = await page.evaluate(c => { const a = window.__scanCommit(c, 'x'); const b = window.__scanCommit(c, 'x'); return [a, b]; }, bc(5));
   await settle(page);
-  ok('ع٢ نداءان متلاصقان: الثاني مُهمَل', two[0] === true && two[1] === false, JSON.stringify(two));
-  ok('ع٢ الكمية ١ لا ٢', await cnt(page, cd(5)) === 1, 'qty=' + await cnt(page, cd(5)));
+  ok('ع٢ نداءان متلاصقان: كلاهما مقبول', two[0] === true && two[1] === true, JSON.stringify(two));
+  ok('ع٢ الكمية ٢ لا ١ (العدّ المتتابع مضمون)', await cnt(page, cd(5)) === 2, 'qty=' + await cnt(page, cd(5)));
 
   // ع٣ — نصّ البحث العربي لا يتلف بسبب المسحة
   await page.fill('#csearch', 'صنف');

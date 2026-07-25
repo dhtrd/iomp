@@ -1237,7 +1237,10 @@ let scanMode=false, _actx=null, _camOn=false, _camStream=null, _lastScan='', _la
 const SCAN_CADENCE_MS=40;    // ط-١: أقصى فاصل بين حرفين يُعدّ «إيقاع ماسح» (الإنسان أبطأ من ٨٠ مللي عمليًّا)
 const SCAN_IDLE_MS=60;       // ط-١: خمول بعده تُثبَّت المسحة تلقائيًّا بلا Enter وبلا نقر
 const SCAN_MIN_LEN=4;        // ط-١: أقل طول يُقبل كودًا ممسوحًا
-const SCAN_DEDUP_MS=120;     // ط-٣: منع ازدواج الماسح السلكي لنفس الكود (قرار العميل: ١٢٠ مللي)
+/* م٦-٥ ط-٩: لا نافذة زمنية عمياء لمنع الازدواج — أُزيلت عمدًا.
+   مسح الصنف نفسه مرارًا هو العدّ المتتابع المطلوب: كل مسحة قطعة مادّية واحدة تُحتسب مهما تقاربت.
+   المنع الوحيد الباقي هو الازدواج الحقيقي — معالجة حدث الماسح نفسه مرّتين — ويُحسم بهوية الحدث
+   وببنية الالتقاط (حزمة واحدة ⇒ تثبيت واحد)، لا بالزمن. */
 const MANUAL_QTY_CAP=100;    // ط-٥: سقف الكمية اليدوية الذي يُطلب فوقه تأكيد (قرار العميل: ١٠٠)
 const CAM_CLEAR_CYCLES=3;    // ط-٤: دورات غياب الكود عن إطار الكاميرا قبل قبول إعادة مسحه (٣×٢٥٠ ≈ ٧٥٠ مللي)
 const SCAN_RUN_RESET_MS=700;  // ط-٨: فاصل يُعدّ «توقّف بشريّ» فيبدأ سطرًا جديدًا (أطول من أي تعثّر خيط رئيسي)
@@ -1247,7 +1250,7 @@ const SCAN_LATE_MS=25;        // ط-٨: تأخّر مؤقّت السكون عن 
 const SCAN_CODE_RE=/^[0-9A-Za-z\-_.]{4,}$/;
 let scanQueue=[], scanSeq=0, scanBusy=false;            // ط-٣: طابور FIFO بمستهلك واحد
 let _scanIndex=null, _scanIndexSrc=null;                // ط-٥: فهرس O(١) — يُبطَل تلقائيًّا بتغيّر مرجع curItems
-let _scanDedup=Object.create(null);                     // ط-٣: كود ← طابع آخر قبول
+const _scanEvtSeen=(typeof WeakSet==='function')?new WeakSet():null;  // ط-٩: حدث DOM عولج ⇒ لا يُعالَج ثانيةً
 let _camLastCode='', _camMiss=0;                        // ط-٤: قاعدة إعادة الالتقاط
 let _rclPending=false, _rclT=0, _actLastQs=null, _actDirty=false; // ط-٦: كبح إعادة البناء أثناء المسح والسجل الخفيّ
 
@@ -2882,7 +2885,7 @@ function renderCountingShell(){
     '<div class="card" id="actPanel" style="display:none"><div style="display:flex;align-items:center;gap:8px"><h2 style="margin:0;font-size:16px;flex:1">📋 سجل الحركة</h2><span class="muted" style="font-size:12px">آخر ٤٠ حركة</span></div><div id="actlog" style="margin-top:8px"><p class="muted">جارٍ التحميل…</p></div></div>'+
     '<div id="clist"></div>';
   scanMode=false; stopCamera();
-  scanQueue=[]; scanBusy=false; _scanDedup=Object.create(null); _rclPending=false; _actLastQs=null; _actDirty=false; // م٦-٤: تصفير حالة محرّك المسح مع كل بناء لقشرة العد
+  scanQueue=[]; scanBusy=false; _rclPending=false; _actLastQs=null; _actDirty=false; // م٦-٤: تصفير حالة محرّك المسح مع كل بناء لقشرة العد
   $('backBtn').onclick=()=>{stopCamera();scanMode=false;if(countsUnsub){countsUnsub();countsUnsub=null;}if(actUnsub){actUnsub();actUnsub=null;}if(sessUnsub){sessUnsub();sessUnsub=null;}if(extraUnsub){extraUnsub();extraUnsub=null;}if(notesUnsub){notesUnsub();notesUnsub=null;}route();};
   if($('repBtn'))$('repBtn').onclick=()=>openVarianceReport(curSid,'count');
   if($('closeBtn'))$('closeBtn').onclick=closeSessionGate;
@@ -2904,7 +2907,7 @@ function renderCountingShell(){
     const v=(s.value||''); const t=v.trim(); if(!t)return;
     // مسار متوافق (ماسح يلصق القيمة دفعةً واحدة، أو إدخال يدوي): يطابق صنفًا أو يبدو كودًا ممسوحًا ⇒ يُسجَّل أو يُنبَّه، ويُفرَّغ الحقل
     const codeLike=SCAN_CODE_RE.test(t);
-    if(scanMode||findByScan(t)||codeLike){ e.preventDefault(); handleScanCode(t); s.value=''; renderCountListLive(); s.focus(); } });
+    if(scanMode||findByScan(t)||codeLike){ e.preventDefault(); scanFieldCancel(s); handleScanCode(t,e); s.value=''; renderCountListLive(); s.focus(); } });
   if($('camScanBtn'))$('camScanBtn').onclick=startCamera;
   if($('scanModeBtn'))$('scanModeBtn').onclick=toggleScanMode;
   if($('addItemBtn'))$('addItemBtn').onclick=openAddItemDialog;
@@ -3962,18 +3965,17 @@ function scanFocusGuard(){ try{ if(_camOn)return; const s=$('csearch'); if(!s)re
   s.focus(); }catch(e){} }
 
 /* ط-٣: بوابة الطابور — نقطة الدخول الوحيدة لكل مصادر المسح (حقل/كاميرا/واجهة برمجية).
-   منع الازدواج: الكود نفسه خلال SCAN_DEDUP_MS يُهمَل (صدى CR+LF، ارتداد الزناد، حدث مكرّر). */
-function scanCommit(code,src){ code=String(code==null?'':code).trim(); if(!code)return false;
-  const now=Date.now(), last=_scanDedup[code];
-  if(last!=null&&now-last<SCAN_DEDUP_MS)return false;
-  _scanDedup[code]=now;
+   ط-٩ (م٦-٥): كل نداء هنا = قطعة مادّية واحدة عُدَّت ⇒ يدخل الطابور دائمًا.
+   الصنف نفسه ممسوحًا أربع مرّات ⇒ ٤ — لا نافذة زمنية تبتلع مسحةً متعمّدة مهما تسارع العدّاد.
+   الازدواج الحقيقي الوحيد الممكن هو معالجة حدث DOM نفسه مرّتين، ويُمنَع بهوية الكائن لا بالزمن. */
+function scanCommit(code,src,evt){ code=String(code==null?'':code).trim(); if(!code)return false;
+  if(evt&&_scanEvtSeen){ if(_scanEvtSeen.has(evt))return false; _scanEvtSeen.add(evt); }
   scanSeq++;
-  if(scanSeq%64===0){ for(const k in _scanDedup){ if(now-_scanDedup[k]>5000)delete _scanDedup[k]; } } // كبح نمو خريطة المنع
   scanQueue.push({code:code,seq:scanSeq,src:src||'field',eid:entryId(),tries:0});
   scanPump(); return true; }
 
 // الاسم محفوظ للتوافق مع كل النداءات القائمة (الكاميرا/الاختبارات/المسار المتوافق)
-function handleScanCode(code){ return scanCommit(code,'api'); }
+function handleScanCode(code,evt){ return scanCommit(code,'api',evt); }
 
 /* ط-٣: مستهلك واحد فقط — يعالج الطابور بالترتيب حتى يفرغ. لا تتداخل مسحتان أبدًا. */
 async function scanPump(){ if(scanBusy)return; scanBusy=true;
@@ -4055,6 +4057,14 @@ function scanFieldFlush(el){ if(!el)return false;
   if(el._scRq!==el.value)renderCountListLive();                      // لا إعادة رسم إن كان المعروض مطابقًا أصلًا
   if(el._scOn)el._scOn(code);
   return true; }
+
+/* ط-٩ (م٦-٥): إبطال حزمة معلّقة بعد أن استهلك مسارٌ آخر قيمة الحقل نفسها.
+   بلا هذا، حالةٌ واحدة تُنتج ازدواجًا حقيقيًّا: تعثُّر الخيط الرئيسي يجعل scanFieldFlush يؤجّل
+   التفريغ (نافذة السكون الإضافية في ط-٨) فيرتدّ Enter إلى المسار المتوافق ويُسجّل من قيمة الحقل،
+   ثم يفرغ المؤقّت المؤجَّل الحزمة نفسها فيُسجّل ثانيةً. الإبطال هنا يقطع ذلك بنيويًّا — لا بالزمن —
+   فيبقى العدّ المتتابع المتعمّد سليمًا بالكامل. */
+function scanFieldCancel(el){ if(!el)return; el._scBuf=null; el._scPre=''; el._scFast=0; el._scSlow=0; el._scLate=0;
+  clearTimeout(el._scTimer); el._scTimer=0; }
 
 /* البحث: يُرسم فورًا للكتابة البشرية، ويُكبَح أثناء حزمة مسح جارية (فاصل أطول من سكون التفريغ) */
 function csearchInput(){ if(scanMode)return; const el=$('csearch'); if(!el)return;

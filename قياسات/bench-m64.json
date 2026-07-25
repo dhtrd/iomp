@@ -1,43 +1,43 @@
 {
-  "tag": "after",
-  "src": "index.html",
+  "tag": "m64",
+  "src": "/tmp/index-m64.html",
   "node": "v22.22.2",
   "lookup": [
     {
       "items": 500,
-      "warmFirst": 0,
+      "warmFirst": 0.0002,
       "warmLast": 0.0002,
-      "warmLastBarcode": 0.0002,
-      "warmNotFound": 0.0003,
-      "coldLastBarcode": 0.605,
+      "warmLastBarcode": 0,
+      "warmNotFound": 0.0005,
+      "coldLastBarcode": 0.595,
       "hasQueue": true
     },
     {
       "items": 3000,
       "warmFirst": 0.0002,
-      "warmLast": 0.0002,
-      "warmLastBarcode": 0.0002,
+      "warmLast": 0.0005,
+      "warmLastBarcode": 0,
       "warmNotFound": 0.0005,
-      "coldLastBarcode": 2.735,
+      "coldLastBarcode": 2.94,
       "hasQueue": true
     },
     {
       "items": 8000,
       "warmFirst": 0,
-      "warmLast": 0.0003,
-      "warmLastBarcode": 0.0002,
-      "warmNotFound": 0.0002,
-      "coldLastBarcode": 7.9,
+      "warmLast": 0.0002,
+      "warmLastBarcode": 0,
+      "warmNotFound": 0.0005,
+      "coldLastBarcode": 7.945,
       "hasQueue": true
     }
   ],
   "render": [
     {
       "items": 500,
-      "renderFullMs": 11.3,
-      "renderFilteredMs": 4.5,
-      "renderFullMin": 10.2,
-      "renderFilteredMin": 4.3,
+      "renderFullMs": 12.4,
+      "renderFilteredMs": 4.7,
+      "renderFullMin": 10.1,
+      "renderFilteredMin": 4.2,
       "samples": 8,
       "rowsInDom": 100,
       "handlersBound": 300
@@ -45,28 +45,28 @@
     {
       "items": 3000,
       "renderFullMs": 11.2,
-      "renderFilteredMs": 8.3,
-      "renderFullMin": 10.6,
-      "renderFilteredMin": 6.8,
+      "renderFilteredMs": 10.6,
+      "renderFullMin": 10.9,
+      "renderFilteredMin": 7.1,
       "samples": 8,
       "rowsInDom": 100,
       "handlersBound": 300
     },
     {
       "items": 8000,
-      "renderFullMs": 13.8,
-      "renderFilteredMs": 14.8,
-      "renderFullMin": 11.4,
-      "renderFilteredMin": 12.2,
+      "renderFullMs": 14.5,
+      "renderFilteredMs": 15,
+      "renderFullMin": 11.9,
+      "renderFilteredMin": 12.3,
       "samples": 8,
       "rowsInDom": 100,
       "handlersBound": 300
     }
   ],
   "scanBarcodeEnter": {
-    "feedbackMs": 6.5,
-    "okMs": 6.5,
-    "listUpdateMs": 50.5,
+    "feedbackMs": 6.6,
+    "okMs": 6.7,
+    "listUpdateMs": 52.4,
     "recorded": true,
     "qty": 1,
     "entries": 1,
@@ -78,8 +78,8 @@
     "panelCells": 5
   },
   "scanCodeEnter": {
-    "feedbackMs": 1.7,
-    "okMs": 1.7,
+    "feedbackMs": 1.8,
+    "okMs": 1.8,
     "listUpdateMs": 1.8,
     "recorded": true,
     "qty": 1,
@@ -92,9 +92,9 @@
     "panelCells": 5
   },
   "scanBarcodeNoEnter": {
-    "feedbackMs": 53,
-    "okMs": 53,
-    "listUpdateMs": 72,
+    "feedbackMs": 53.3,
+    "okMs": 53.3,
+    "listUpdateMs": 72.2,
     "recorded": true,
     "qty": 1,
     "entries": 1,
@@ -106,7 +106,7 @@
     "panelCells": 5
   },
   "scanUnknown": {
-    "feedbackMs": 0.9,
+    "feedbackMs": 1.2,
     "okMs": null,
     "listUpdateMs": null,
     "recorded": false,
@@ -123,61 +123,61 @@
     "n": 8,
     "recorded": 8,
     "exactlyOne": true,
-    "feedbackMed": 53.1,
-    "okMed": 53.1,
-    "listMed": 71.9,
-    "feedbackMin": 52.8,
-    "feedbackMax": 53.2,
-    "coldFeedback": 53.2,
-    "coldOk": 53.2,
-    "coldList": 70.7,
+    "feedbackMed": 53.2,
+    "okMed": 53.2,
+    "listMed": 72.2,
+    "feedbackMin": 53,
+    "feedbackMax": 53.4,
+    "coldFeedback": 53.4,
+    "coldOk": 53.5,
+    "coldList": 72.2,
     "samples": [
+      {
+        "f": 53.4,
+        "o": 53.4,
+        "l": 76.4,
+        "rec": true
+      },
+      {
+        "f": 53.3,
+        "o": 53.4,
+        "l": 71.7,
+        "rec": true
+      },
       {
         "f": 53.1,
         "o": 53.1,
-        "l": 70.8,
-        "rec": true
-      },
-      {
-        "f": 53.2,
-        "o": 53.2,
-        "l": 71,
-        "rec": true
-      },
-      {
-        "f": 52.9,
-        "o": 52.9,
-        "l": 70.8,
-        "rec": true
-      },
-      {
-        "f": 53.2,
-        "o": 53.2,
-        "l": 74,
-        "rec": true
-      },
-      {
-        "f": 52.9,
-        "o": 52.9,
-        "l": 71.9,
+        "l": 70.6,
         "rec": true
       },
       {
         "f": 53,
         "o": 53,
-        "l": 70.7,
+        "l": 72.2,
         "rec": true
       },
       {
-        "f": 52.8,
-        "o": 52.9,
-        "l": 71.9,
+        "f": 53.2,
+        "o": 53.2,
+        "l": 72.2,
+        "rec": true
+      },
+      {
+        "f": 53.2,
+        "o": 53.3,
+        "l": 72.9,
+        "rec": true
+      },
+      {
+        "f": 53,
+        "o": 53,
+        "l": 72.2,
         "rec": true
       },
       {
         "f": 53.1,
         "o": 53.1,
-        "l": 72.7,
+        "l": 73.1,
         "rec": true
       }
     ]
@@ -186,69 +186,69 @@
     "n": 8,
     "recorded": 8,
     "exactlyOne": true,
-    "feedbackMed": 1,
-    "okMed": 1.1,
-    "listMed": 20.4,
+    "feedbackMed": 0.9,
+    "okMed": 0.9,
+    "listMed": 20.1,
     "feedbackMin": 0.8,
-    "feedbackMax": 1.1,
-    "coldFeedback": 0.9,
-    "coldOk": 1,
-    "coldList": 21.8,
+    "feedbackMax": 1.2,
+    "coldFeedback": 1,
+    "coldOk": 1.1,
+    "coldList": 21.1,
     "samples": [
       {
-        "f": 0.9,
-        "o": 1.5,
-        "l": 20,
-        "rec": true
-      },
-      {
-        "f": 0.9,
-        "o": 1,
+        "f": 1.2,
+        "o": 1.2,
         "l": 20.1,
-        "rec": true
-      },
-      {
-        "f": 1,
-        "o": 1,
-        "l": 21.9,
         "rec": true
       },
       {
         "f": 0.8,
         "o": 0.8,
-        "l": 19.1,
+        "l": 19.9,
+        "rec": true
+      },
+      {
+        "f": 0.9,
+        "o": 0.9,
+        "l": 34.6,
+        "rec": true
+      },
+      {
+        "f": 0.9,
+        "o": 0.9,
+        "l": 19.7,
         "rec": true
       },
       {
         "f": 1.1,
         "o": 1.1,
-        "l": 24.7,
+        "l": 19.2,
         "rec": true
       },
       {
-        "f": 1.1,
-        "o": 1.1,
-        "l": 19.3,
+        "f": 0.9,
+        "o": 0.9,
+        "l": 19.6,
         "rec": true
       },
       {
         "f": 1,
         "o": 1,
-        "l": 21.5,
+        "l": 22.7,
         "rec": true
       },
       {
-        "f": 1.1,
-        "o": 1.1,
-        "l": 20.4,
+        "f": 0.9,
+        "o": 0.9,
+        "l": 34.9,
         "rec": true
       }
     ]
   },
   "burstSame": {
-    "wallMs": 4865,
+    "wallMs": 4842,
     "pacedSleepMs": 2420,
-    "tailMs": 1.5,
+    "tailMs": 1.8,
     "qty": 10,
     "entries": 10,
     "fullRenders": 10,
@@ -258,8 +258,20 @@
     "runs": [
       {
         "gapMs": 100,
-        "medIntervalMs": 391,
-        "minIntervalMs": 353.9,
+        "medIntervalMs": 405,
+        "minIntervalMs": 393.9,
+        "expected": 10,
+        "qty": 10,
+        "entries": 10,
+        "lost": 0,
+        "tailMs": 1.9,
+        "fieldAfter": "",
+        "focusAfter": "csearch"
+      },
+      {
+        "gapMs": 60,
+        "medIntervalMs": 394.8,
+        "minIntervalMs": 366.2,
         "expected": 10,
         "qty": 10,
         "entries": 10,
@@ -269,26 +281,14 @@
         "focusAfter": "csearch"
       },
       {
-        "gapMs": 60,
-        "medIntervalMs": 382.2,
-        "minIntervalMs": 362.4,
-        "expected": 10,
-        "qty": 10,
-        "entries": 10,
-        "lost": 0,
-        "tailMs": 1.5,
-        "fieldAfter": "",
-        "focusAfter": "csearch"
-      },
-      {
         "gapMs": 30,
-        "medIntervalMs": 391.8,
-        "minIntervalMs": 378.1,
+        "medIntervalMs": 391.1,
+        "minIntervalMs": 370.9,
         "expected": 10,
         "qty": 10,
         "entries": 10,
         "lost": 0,
-        "tailMs": 1.9,
+        "tailMs": 1.4,
         "fieldAfter": "",
         "focusAfter": "csearch"
       }
@@ -302,14 +302,14 @@
         "gapMs": 0,
         "spanMs": 1,
         "expected": 10,
-        "accepted": 10,
-        "qty": 10,
-        "entries": 10,
-        "lost": 0
+        "accepted": 1,
+        "qty": 1,
+        "entries": 1,
+        "lost": 9
       },
       {
         "gapMs": 20,
-        "spanMs": 3274,
+        "spanMs": 3391,
         "expected": 10,
         "accepted": 10,
         "qty": 10,
@@ -318,7 +318,7 @@
       },
       {
         "gapMs": 60,
-        "spanMs": 3222,
+        "spanMs": 3674,
         "expected": 10,
         "accepted": 10,
         "qty": 10,
@@ -327,7 +327,7 @@
       },
       {
         "gapMs": 100,
-        "spanMs": 3213,
+        "spanMs": 3448,
         "expected": 10,
         "accepted": 10,
         "qty": 10,
@@ -335,8 +335,8 @@
         "lost": 0
       }
     ],
-    "allExact": true,
-    "totalLost": 0
+    "allExact": false,
+    "totalLost": 9
   },
   "sameEventGuard": {
     "supported": true,
@@ -349,15 +349,15 @@
     "supported": true,
     "accepted": 50,
     "injectMs": 1,
-    "drainMs": 327.4,
-    "perScanMs": 6.55,
+    "drainMs": 386.6,
+    "perScanMs": 7.73,
     "recorded": 50,
     "allExactlyOne": true,
     "fullRenders": 1,
     "patches": 0
   },
   "burstRealistic": {
-    "wallMs": 9757,
+    "wallMs": 9684,
     "recordedItems": 20,
     "allExactlyOne": true,
     "qtySum": 20,

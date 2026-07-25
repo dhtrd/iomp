@@ -244,6 +244,8 @@ window.__curItemsArr = ()=>curItems.map(x=>Object.assign({},x)); // م٦-٣: أ�
 window.__addExtraItem = (item)=>{ curExtra=curExtra.concat([Object.assign({},item,{manual:true})]); curItems=curBaseItems.concat(curExtra); if(document.getElementById('clist'))renderCountList(); }; // م٦-٣: محاكاة إضافة صنف يدوي (إظهار فوري)
 // م٦-٤: خطاطيف محرك المسح المؤسسي (طابور + لوحة النتيجة + التركيز)
 window.__scanCommit = (code,src)=>scanCommit(code,src||'test');
+// ط-٩ (م٦-٥): تمرير كائن الحدث نفسه — لإثبات أنّ المنع بهوية الحدث لا بالزمن
+window.__scanCommitEvt = (code,evt)=>scanCommit(code,'test',evt);
 window.__scanQueueLen = ()=>scanQueue.length;
 window.__scanBusy = ()=>!!scanBusy;
 window.__scanIdle = ()=>(!scanBusy && scanQueue.length===0);
@@ -252,7 +254,8 @@ window.__scanPanel = ()=>{ const e=document.getElementById('scanStatus'); if(!e)
   const h=e.querySelector('.sp-h');
   return { visible:getComputedStyle(e).display!=='none', cls:e.className||'', head:h?(h.textContent||'').trim():'', text:(e.textContent||'').trim(), cells:cells, cellCount:e.querySelectorAll('.sp-c').length }; };
 window.__focusId = ()=>{ const a=document.activeElement; return a?(a.id||a.className||a.tagName):'?'; };
-window.__scanConsts = ()=>({ cadence:SCAN_CADENCE_MS, idle:SCAN_IDLE_MS, minLen:SCAN_MIN_LEN, dedup:SCAN_DEDUP_MS, cap:MANUAL_QTY_CAP,
+window.__scanConsts = ()=>({ cadence:SCAN_CADENCE_MS, idle:SCAN_IDLE_MS, minLen:SCAN_MIN_LEN, cap:MANUAL_QTY_CAP,
+  dedup:(typeof SCAN_DEDUP_MS!=='undefined'?SCAN_DEDUP_MS:0),   // ط-٩: صفر ⇒ لا نافذة زمنية تمنع تكرار المسح المتعمّد
   runReset:(typeof SCAN_RUN_RESET_MS!=='undefined'?SCAN_RUN_RESET_MS:null), late:(typeof SCAN_LATE_MS!=='undefined'?SCAN_LATE_MS:null),
   hiccupMax:(typeof SCAN_HICCUP_MAX!=='undefined'?SCAN_HICCUP_MAX:null), proofGaps:(typeof SCAN_PROOF_GAPS!=='undefined'?SCAN_PROOF_GAPS:null) });
 window.__scanIndexStats = ()=>{ const x=scanIndexGet(); return { D:x.D.size, Z:x.Z.size, G:x.G.size, C:x.C.size }; };

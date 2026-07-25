@@ -174,7 +174,7 @@ out.burstSame = await page.evaluate(async ([code, enter]) => {
     for (const ch of code) { s.dispatchEvent(new KeyboardEvent('keydown', { key: ch, bubbles: true, cancelable: true })); s.value += ch; s.dispatchEvent(new Event('input', { bubbles: true })); await new Promise((r) => setTimeout(r, 6)); }
     tLastKey = performance.now();
     if (enter) s.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
-    await new Promise((r) => setTimeout(r, 200));   // > SCAN_DEDUP_MS = 120 (إيقاع ماسح واقعي)
+    await new Promise((r) => setTimeout(r, 200));   // إيقاع ماسح متمهّل (٢٠٠ مللي بين المسحات)
   }
   await new Promise((r) => setTimeout(r, 900));
   if (mo) mo.disconnect();
@@ -183,6 +183,71 @@ out.burstSame = await page.evaluate(async ([code, enter]) => {
     tailMs: tLastFeed === null ? null : +(tLastFeed - tLastKey).toFixed(1),
     qty: d ? d.qty : null, entries: d && d.entries ? d.entries.length : null, fullRenders: window.__full, patches: window.__patch };
 }, [cd(500), true]);
+
+// ────────────────────────────────────────────────────────────────────────────
+// ٤ج) العدّ المتتابع (م٦-٥): الصنف نفسه عشر مرّات بإيقاع أسرع من نافذة الـ١٢٠ مللي القديمة.
+//     المطلوب عشرة في كل إيقاع. أي رقم أقلّ = مسحة متعمّدة ابتلعها المحرّك.
+// ────────────────────────────────────────────────────────────────────────────
+out.countRun = await page.evaluate(async ([pairs, gaps]) => {
+  const s = document.getElementById('csearch');
+  const sp = document.getElementById('scanStatus');
+  const runs = [];
+  for (let g = 0; g < gaps.length; g++) {
+    const code = pairs[g][0], bar = pairs[g][1], gap = gaps[g];
+    s.focus(); s.value = '';
+    let tLastFeed = null;
+    const mo = sp ? new MutationObserver(() => { tLastFeed = performance.now(); }) : null;
+    if (mo) mo.observe(sp, { childList: true, subtree: true, attributes: true, characterData: true });
+    const fires = [];
+    for (let i = 0; i < 10; i++) {
+      for (const ch of bar) { s.dispatchEvent(new KeyboardEvent('keydown', { key: ch, bubbles: true, cancelable: true })); s.value += ch; s.dispatchEvent(new Event('input', { bubbles: true })); await new Promise((r) => setTimeout(r, 2)); }
+      fires.push(performance.now());
+      s.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+      await new Promise((r) => setTimeout(r, gap));
+    }
+    const tLastKey = fires[fires.length - 1];
+    await new Promise((r) => setTimeout(r, 1500));
+    if (mo) mo.disconnect();
+    const iv = []; for (let i = 1; i < fires.length; i++) iv.push(fires[i] - fires[i - 1]);
+    iv.sort((a, b) => a - b);
+    const d = window.__store['sessions/sr/counts/' + code];
+    runs.push({ gapMs: gap, medIntervalMs: +iv[Math.floor(iv.length / 2)].toFixed(1), minIntervalMs: +iv[0].toFixed(1),
+      expected: 10, qty: d ? d.qty : 0, entries: d && d.entries ? d.entries.length : 0,
+      lost: 10 - (d ? d.qty : 0), tailMs: tLastFeed === null ? null : +(tLastFeed - tLastKey).toFixed(1),
+      fieldAfter: s.value, focusAfter: document.activeElement ? (document.activeElement.id || document.activeElement.tagName) : '?' });
+  }
+  return { runs, allExact: runs.every((r) => r.qty === 10), totalLost: runs.reduce((a, r) => a + r.lost, 0) };
+}, [[[cd(600), bc(600)], [cd(601), bc(601)], [cd(602), bc(602)]], [100, 60, 30]]);
+
+// ٤ج-٢) الحالة الفاصلة: مسحات تصل أسرع ممّا يعالجها التطبيق (زرّ الماسح مضغوط باستمرار).
+//        هنا وحدها تظهر نافذة الـ١٢٠ مللي القديمة: تبتلع كل ما وصل داخلها.
+out.countRunFast = await page.evaluate(async ([pairs, gaps]) => {
+  const runs = [];
+  for (let g = 0; g < gaps.length; g++) {
+    const code = pairs[g][0], bar = pairs[g][1], gap = gaps[g];
+    let accepted = 0;
+    const t0 = performance.now();
+    for (let i = 0; i < 10; i++) { if (window.__scanCommit(bar, 'bench')) accepted++; if (gap > 0) await new Promise((r) => setTimeout(r, gap)); }
+    const spanMs = performance.now() - t0;
+    const dl = performance.now() + 15000;
+    while (performance.now() < dl) { if (window.__scanIdle()) break; await new Promise((r) => requestAnimationFrame(() => r())); }
+    await new Promise((r) => setTimeout(r, 500));
+    const d = window.__store['sessions/sr/counts/' + code];
+    runs.push({ gapMs: gap, spanMs: +spanMs.toFixed(0), expected: 10, accepted, qty: d ? d.qty : 0,
+      entries: d && d.entries ? d.entries.length : 0, lost: 10 - (d ? d.qty : 0) });
+  }
+  return { runs, allExact: runs.every((r) => r.qty === 10), totalLost: runs.reduce((a, r) => a + r.lost, 0) };
+}, [[[cd(620), bc(620)], [cd(621), bc(621)], [cd(622), bc(622)], [cd(623), bc(623)]], [0, 20, 60, 100]]);
+
+// ٤د) الازدواج الحقيقي الوحيد: حدث DOM نفسه يُعالَج مرّتين ⇒ يجب أن يُحتسب مرّة واحدة
+out.sameEventGuard = await page.evaluate(async ([code, bar]) => {
+  if (typeof window.__scanCommitEvt !== 'function') return { supported: false };
+  const r = await (async () => { const e = new KeyboardEvent('keydown', { key: 'Enter' });
+    const a = window.__scanCommitEvt(bar, e), b = window.__scanCommitEvt(bar, e); return [a, b]; })();
+  await new Promise((r2) => setTimeout(r2, 1400));
+  const d = window.__store['sessions/sr/counts/' + code];
+  return { supported: true, firstAccepted: r[0] === true, secondRejected: r[1] === false, qty: d ? d.qty : 0, entries: d && d.entries ? d.entries.length : 0 };
+}, [cd(610), bc(610)]);
 
 // ٤ب) إنتاجيّة المحرّك الصافية: ٥٠ مسحة تُحقن في نبضة واحدة (نسخة «بعد» فقط)
 out.engineThroughput = await page.evaluate(async () => {
