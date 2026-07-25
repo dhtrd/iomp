@@ -527,6 +527,22 @@ td{font-size:13.5px}
 #notifDrawer .nitem:hover{background:color-mix(in srgb,var(--navy100) 55%,transparent)}
 #notifDrawer .ntab,#notifDrawer .nfilt,.ck-filters button{transition:background var(--tr),color var(--tr),border-color var(--tr)}
 #notifDrawer .ntab:hover:not(.on),#notifDrawer .nfilt:hover:not(.on),.ck-filters button:hover:not(.on){border-color:color-mix(in srgb,var(--navy700) 35%,var(--border));color:var(--navy700)}
+/* ===== م٦-٤ ط-٧: لوحة نتيجة المسح (ستة حقول) — تظهر بنبضة قصيرة لا تُبطّئ المسح ===== */
+@keyframes scanpop{0%{opacity:0;transform:scale(.965)}60%{opacity:1;transform:scale(1.008)}100%{transform:scale(1)}}
+#scanStatus.scanp{display:block;margin-top:10px;padding:10px 12px;border-radius:var(--radius);border:1px solid var(--hair);animation:scanpop .16s var(--ease);font-weight:600;font-size:14px}
+#scanStatus.scanp.ok{background:color-mix(in srgb,var(--success) 12%,transparent);border-color:color-mix(in srgb,var(--success) 42%,var(--hair))}
+#scanStatus.scanp.err{background:color-mix(in srgb,var(--danger) 12%,transparent);border-color:color-mix(in srgb,var(--danger) 42%,var(--hair))}
+#scanStatus.scanp.pending{background:var(--navy100);border-color:color-mix(in srgb,var(--navy700) 30%,var(--hair))}
+#scanStatus .sp-h{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:800;color:var(--tprimary);line-height:1.35}
+#scanStatus .sp-i{font-size:19px;line-height:1}
+#scanStatus .sp-g{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:7px}
+#scanStatus .sp-c{display:flex;flex-direction:column;gap:1px;min-width:78px}
+#scanStatus .sp-k{font-size:11px;font-weight:600;color:var(--tmuted);white-space:nowrap}
+#scanStatus .sp-v{font-size:14.5px;font-weight:800;color:var(--tprimary);white-space:nowrap;font-variant-numeric:tabular-nums}
+#scanStatus .sp-v.up{color:var(--success)}
+#scanStatus .sp-v.big{font-size:17px;color:var(--navy700)}
+#scanStatus .sp-n{font-size:12px;font-weight:600;color:var(--tsec);margin-top:6px}
+@media(prefers-reduced-motion:reduce){#scanStatus.scanp{animation:none}}
 /* — القوائم المنبثقة والبحث الشامل: دخول متدرّج + خيارات أنيقة — */
 @keyframes popIn{from{opacity:0;transform:translateY(-5px) scale(.985)}}
 .selx-pop{animation:popIn .15s var(--ease);box-shadow:var(--e3);border-radius:14px}
@@ -1217,6 +1233,23 @@ let repBaseItems=[], repExtraItems=[], repNotes={}; // التقرير: أساس 
 let repSortKey='', repSortDir=1; // ر٤: فرز جدول التقرير بالنقر (م١٣)
 // حالة مسح الباركود (كاميرا + ماسح)
 let scanMode=false, _actx=null, _camOn=false, _camStream=null, _lastScan='', _lastT=0, _zxingReader=null, _zxingLoading=null, _lastUnknownScan='';
+/* ===== م٦-٤: إعادة هيكلة سير عمل الماسح — الثوابت في مكان واحد (تُعدَّل بسطر) ===== */
+const SCAN_CADENCE_MS=40;    // ط-١: أقصى فاصل بين حرفين يُعدّ «إيقاع ماسح» (الإنسان أبطأ من ٨٠ مللي عمليًّا)
+const SCAN_IDLE_MS=60;       // ط-١: خمول بعده تُثبَّت المسحة تلقائيًّا بلا Enter وبلا نقر
+const SCAN_MIN_LEN=4;        // ط-١: أقل طول يُقبل كودًا ممسوحًا
+const SCAN_DEDUP_MS=120;     // ط-٣: منع ازدواج الماسح السلكي لنفس الكود (قرار العميل: ١٢٠ مللي)
+const MANUAL_QTY_CAP=100;    // ط-٥: سقف الكمية اليدوية الذي يُطلب فوقه تأكيد (قرار العميل: ١٠٠)
+const CAM_CLEAR_CYCLES=3;    // ط-٤: دورات غياب الكود عن إطار الكاميرا قبل قبول إعادة مسحه (٣×٢٥٠ ≈ ٧٥٠ مللي)
+const SCAN_RUN_RESET_MS=700;  // ط-٨: فاصل يُعدّ «توقّف بشريّ» فيبدأ سطرًا جديدًا (أطول من أي تعثّر خيط رئيسي)
+const SCAN_HICCUP_MAX=2;      // ط-٨: أقصى عدد تعثّرات يُسمح بتجاوزها داخل حزمة ماسح واحدة
+const SCAN_PROOF_GAPS=2;      // ط-٨: عدد الفواصل السريعة التي تُثبت أن الحزمة من ماسح قبل التسامح مع تعثّر
+const SCAN_LATE_MS=25;        // ط-٨: تأخّر مؤقّت السكون عن موعده بأكثر من هذا ⇒ الخيط كان محجوبًا لا العدّاد متوقفًا
+const SCAN_CODE_RE=/^[0-9A-Za-z\-_.]{4,}$/;
+let scanQueue=[], scanSeq=0, scanBusy=false;            // ط-٣: طابور FIFO بمستهلك واحد
+let _scanIndex=null, _scanIndexSrc=null;                // ط-٥: فهرس O(١) — يُبطَل تلقائيًّا بتغيّر مرجع curItems
+let _scanDedup=Object.create(null);                     // ط-٣: كود ← طابع آخر قبول
+let _camLastCode='', _camMiss=0;                        // ط-٤: قاعدة إعادة الالتقاط
+let _rclPending=false, _rclT=0, _actLastQs=null, _actDirty=false; // ط-٦: كبح إعادة البناء أثناء المسح والسجل الخفيّ
 
 try{ app=initializeApp(firebaseConfig); auth=getAuth(app);
   // الكاش المحلي الدائم (IndexedDB): إعادة فتح الجلسات والتقارير تُعرض من الجهاز فورًا والخادم يرسل «الفروقات فقط»
@@ -2784,8 +2817,9 @@ async function openSession(sid){
     const attach=()=>{ // البثّ الحيّ: اليدوي + الملاحظات + العدّات + الحركة + حالة الجلسة
       extraUnsub=onSnapshot(collection(db,'sessions',sid,'extraItems'),(qs)=>{ const ex=[]; qs.forEach(d=>{const x=d.data(); if(x&&x.code!=null)ex.push(Object.assign({},x,{manual:true}));}); curExtra=ex; curItems=curBaseItems.concat(curExtra); if($('clist'))renderCountList(); },(err)=>{}); // اليدوي يُوسَم manual دائمًا ⇒ شارة «يدوي» ووسم «زيادة» وقت العد
       notesUnsub=onSnapshot(collection(db,'sessions',sid,'itemNotes'),(qs)=>{ curNotes={}; qs.forEach(d=>{const x=d.data(); if(x&&x.code!=null)curNotes[String(x.code)]=x;}); if($('clist'))renderCountList(); },(err)=>{});
-      countsUnsub=onSnapshot(collection(db,'sessions',sid,'counts'),(qs)=>{curCounts={};qs.forEach(d=>{const x=d.data();if(x&&x.code!=null)curCounts[x.code]=x;});pendReapply();renderCountList();},(err)=>{}); // دمج المعلَّق ⇒ لا يختفي عدّك أثناء تأكيد الخادم
-      actUnsub=onSnapshot(query(collection(db,'sessions',sid,'activity'),orderBy('at','desc'),limit(40)),(qs)=>renderActivity(qs),(err)=>{});
+      countsUnsub=onSnapshot(collection(db,'sessions',sid,'counts'),(qs)=>{curCounts={};qs.forEach(d=>{const x=d.data();if(x&&x.code!=null)curCounts[x.code]=x;});pendReapply();renderCountListLive();},(err)=>{}); // دمج المعلَّق ⇒ لا يختفي عدّك أثناء تأكيد الخادم (م٦-٤ ط-٦: الرسم الكامل يُؤجَّل أثناء رشقة المسح)
+      // م٦-٤ ط-٦: سجل الحركة لا يُعاد بناؤه ولوحته مطويّة (الحالة الافتراضية) — يُبنى مرة واحدة عند فتحها
+      actUnsub=onSnapshot(query(collection(db,'sessions',sid,'activity'),orderBy('at','desc'),limit(40)),(qs)=>{ _actLastQs=qs; const p=$('actPanel'); if(p&&p.style.display==='none'){ _actDirty=true; return; } _actDirty=false; renderActivity(qs); },(err)=>{});
       // تجميد فوري: أي تغيّر لحالة الجلسة (إغلاق/اعتماد…) يُقفل شاشات كل العدّادين لحظياً
       sessUnsub=onSnapshot(doc(db,'sessions',sid),(sd)=>{ if(!sd.exists())return; const ns=sd.data(); const changed=(sessStatusOf(ns)!==sessStatusOf(curSess)); curSess=ns; if(changed){ scanMode=false; stopCamera(); renderCountingShell(); } },(err)=>{});
     };
@@ -2848,6 +2882,7 @@ function renderCountingShell(){
     '<div class="card" id="actPanel" style="display:none"><div style="display:flex;align-items:center;gap:8px"><h2 style="margin:0;font-size:16px;flex:1">📋 سجل الحركة</h2><span class="muted" style="font-size:12px">آخر ٤٠ حركة</span></div><div id="actlog" style="margin-top:8px"><p class="muted">جارٍ التحميل…</p></div></div>'+
     '<div id="clist"></div>';
   scanMode=false; stopCamera();
+  scanQueue=[]; scanBusy=false; _scanDedup=Object.create(null); _rclPending=false; _actLastQs=null; _actDirty=false; // م٦-٤: تصفير حالة محرّك المسح مع كل بناء لقشرة العد
   $('backBtn').onclick=()=>{stopCamera();scanMode=false;if(countsUnsub){countsUnsub();countsUnsub=null;}if(actUnsub){actUnsub();actUnsub=null;}if(sessUnsub){sessUnsub();sessUnsub=null;}if(extraUnsub){extraUnsub();extraUnsub=null;}if(notesUnsub){notesUnsub();notesUnsub=null;}route();};
   if($('repBtn'))$('repBtn').onclick=()=>openVarianceReport(curSid,'count');
   if($('closeBtn'))$('closeBtn').onclick=closeSessionGate;
@@ -2859,12 +2894,17 @@ function renderCountingShell(){
   if($('returnBtn'))$('returnBtn').onclick=doReturnSession;
   if($('toReviewBtn'))$('toReviewBtn').onclick=doBackToReview;
   if($('reopenBtn'))$('reopenBtn').onclick=doReopenSession;
-  $('actToggle').onclick=()=>{const p=$('actPanel');p.style.display=(p.style.display==='none'?'':'none');};
-  $('csearch').oninput=()=>{if(!scanMode)renderCountList();};
-  $('csearch').addEventListener('keydown',(e)=>{ if(e.key!=='Enter')return; const s=$('csearch'); const v=(s.value||''); const t=v.trim(); if(!t)return;
-    // ماسح: في «وضع الماسح» دائمًا؛ وخارجه إن طابق صنفًا أو بدا كودًا ممسوحًا (بلا مسافات، ٤ خانات+) — يُسجَّل أو يُنبَّه، ويُفرَّغ الحقل دومًا فلا تتراكم الأكواد (طلب العميل)
-    const codeLike=/^[0-9A-Za-z\-_.]{4,}$/.test(t);
-    if(scanMode||findByScan(t)||codeLike){ e.preventDefault(); handleScanCode(t); s.value=''; renderCountList(); s.focus(); } });
+  $('actToggle').onclick=()=>{const p=$('actPanel');const show=(p.style.display==='none');p.style.display=(show?'':'none'); if(show&&_actDirty&&_actLastQs){ _actDirty=false; renderActivity(_actLastQs); }};
+  $('csearch').oninput=()=>csearchInput();
+  /* م٦-٤ ط-١: قناة التقاط بإيقاع الماسح — الماسح لا يحتاج Enter ولا زرًّا ولا تأخيرًا.
+     تُفرَّغ الحزمة إمّا بلاحقة Enter (فورًا) أو بسكون SCAN_IDLE_MS (لماسح بلا لاحقة). */
+  scanArmField($('csearch'),(code)=>{ scanCommit(code,'field'); scanFocusGuard(); });
+  $('csearch').addEventListener('keydown',(e)=>{ if(e.key!=='Enter')return; const s=$('csearch');
+    if(scanFieldFlush(s)){ e.preventDefault(); return; }   // مسحة كاملة التُقطت بالإيقاع ⇒ عُولجت، والحقل عاد لنصّ البحث السابق
+    const v=(s.value||''); const t=v.trim(); if(!t)return;
+    // مسار متوافق (ماسح يلصق القيمة دفعةً واحدة، أو إدخال يدوي): يطابق صنفًا أو يبدو كودًا ممسوحًا ⇒ يُسجَّل أو يُنبَّه، ويُفرَّغ الحقل
+    const codeLike=SCAN_CODE_RE.test(t);
+    if(scanMode||findByScan(t)||codeLike){ e.preventDefault(); handleScanCode(t); s.value=''; renderCountListLive(); s.focus(); } });
   if($('camScanBtn'))$('camScanBtn').onclick=startCamera;
   if($('scanModeBtn'))$('scanModeBtn').onclick=toggleScanMode;
   if($('addItemBtn'))$('addItemBtn').onclick=openAddItemDialog;
@@ -2997,13 +3037,23 @@ async function doAddItem(){
     govHide();
   }catch(err){ st('aiStatus','err','تعذّر: '+errAr(err.code||err.message)); if($('aiSave'))$('aiSave').disabled=false; }
 }
+// م٦-٤ ط-٦: شريط التقدّم مستقلٌّ عن رسم القائمة ⇒ يُحدَّث مع الترقيع الموضعي بلا إعادة بناء الصفوف
+function countProgressUpdate(){ if(!$('cprog'))return; const done=Object.keys(curCounts).length;
+  $('cprog').style.width=curItems.length?(done/curItems.length*100)+'%':'0%';
+  if($('cprogtext'))$('cprogtext').textContent=fmt(done)+' / '+fmt(curItems.length)+' معدود'; }
 function renderCountList(){
   if(!$('clist'))return;
+  { const _cs=$('csearch'); if(_cs)_cs._scRq=(_cs.value||''); } // بصمة نصّ البحث المرسوم فعليًّا (تمنع إعادة رسم بلا داعٍ بعد كل مسحة)
   const qn=arNorm(($('csearch')?$('csearch').value:'').trim());
   let list=curItems; if(qn)list=curItems.filter(it=>(it.code&&arNorm(it.code).indexOf(qn)>=0)||(it.name&&arNorm(it.name).indexOf(qn)>=0)||(it.barcode&&arNorm(it.barcode).indexOf(qn)>=0));
-  const blind=curSess.blind; const frozen=!canCount(); const done=Object.keys(curCounts).length;
-  if($('cprog')){$('cprog').style.width=curItems.length?(done/curItems.length*100)+'%':'0%';$('cprogtext').textContent=fmt(done)+' / '+fmt(curItems.length)+' معدود';}
-  const html=list.slice(0,300).map(it=>{const cc=curCounts[it.code];const counted=cc!=null;const total=counted?cc.qty:null;
+  const blind=curSess.blind; const frozen=!canCount();
+  countProgressUpdate();
+  const html=list.slice(0,300).map(it=>countRowHtml(it,blind,frozen)).join('');
+  $('clist').innerHTML=(list.length?html:'<p class="empty-hint">لا أصناف مطابقة.</p>')+(list.length>300?'<p class="muted" style="padding:8px">عرض أول 300 صنف — استخدم البحث ('+fmt(list.length)+' مطابق).</p>':'');
+  bindCountRows($('clist'));
+}
+/* م٦-٤ ط-٦: بناء صفٍّ واحد — نفس مخرجات النسخة السابقة حرفًا بحرف، مضافًا إليها data-row للترقيع الموضعي */
+function countRowHtml(it,blind,frozen){ {const cc=curCounts[it.code];const counted=cc!=null;const total=counted?cc.qty:null;
     const showBook=(!blind&&it.book!=null);
     const book=showBook?('الدفتري: '+fmt(it.book)+(counted?' • ':'')):''; // إصلاح-٦ (بند ٥): الفاصل «•» يظهر فقط حين يتبعه الإجمالي (لا يتعلّق في غير المعدود)
     let diffChip='';
@@ -3018,22 +3068,43 @@ function renderCountList(){
     let nbox='';
     if(notes.length){ nbox+='<div class="notewrap">'+notes.map(n=>'<div class="noterow">📝 '+esc(n.text||'')+(n.byName?' <span class="muted">— '+esc(n.byName)+'</span>':'')+(n.pending?' <span class="muted">(بانتظار المزامنة)</span>':'')+((!frozen&&n.by===(myProfile&&myProfile.uid)&&n.id)?' <button class="ndel" data-ndelc="'+esc(codeS)+'" data-ndeli="'+esc(n.id)+'" title="حذف ملاحظتي">×</button>':'')+'</div>').join('')+'</div>'; }
     if(noteOpen){ nbox+='<div class="cnotebox"><textarea class="cnotetxt" data-code="'+esc(codeS)+'" placeholder="اكتب الملاحظة — مثال: ٥ عبوات تالفة / موجود في مستودع آخر…" rows="2">'+esc(_noteDraft[codeS]||'')+'</textarea><button class="btn sm cnotesave" data-code="'+esc(codeS)+'" type="button">💾 حفظ الملاحظة</button></div>'; }
-    return '<div class="sess" style="margin-bottom:8px;align-items:flex-start"><div class="info"><div class="nm">'+esc(it.name)+(it.manual?' <span class="tag" style="background:#FEF3C7;color:#92400E">يدوي</span>':'')+(notes.length?' <span class="tag notetag" title="فيه ملاحظات">📝 '+notes.length+'</span>':'')+'</div><div class="muted"><span class="tag">'+esc(it.code)+'</span> '+(it.category?esc(it.category)+' • ':'')+book+(counted?'<b style="color:var(--navy700)">الإجمالي: '+fmt(total)+'</b>':'')+diffChip+'</div></div>'+
-      (frozen?'':'<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><label style="display:flex;align-items:center;gap:5px;font-size:12.5px;color:var(--tsec);white-space:nowrap;cursor:pointer"><input type="checkbox" class="cnotecb" data-code="'+esc(codeS)+'"'+(noteOpen?' checked':'')+'> ملاحظة</label><input class="padd inp" data-code="'+esc(it.code)+'" type="number" inputmode="decimal" placeholder="أضف" style="width:78px;height:42px;text-align:center;font-size:16px;font-weight:600;padding:0"><button class="paddbtn btn sm" type="button">+ أضف</button>'+(counted?'<button class="prst btn ghost sm" data-code="'+esc(it.code)+'" title="تصفير الصنف">↺</button>':'')+'</div>')+box+nbox+'</div>';}).join('');
-  $('clist').innerHTML=(list.length?html:'<p class="empty-hint">لا أصناف مطابقة.</p>')+(list.length>300?'<p class="muted" style="padding:8px">عرض أول 300 صنف — استخدم البحث ('+fmt(list.length)+' مطابق).</p>':'');
-  const addFrom=inp=>{if(!inp)return;const code=inp.getAttribute('data-code');const v=inp.value;inp.value='';addEntry(code,v);};
-  $('clist').querySelectorAll('.paddbtn').forEach(b=>b.onclick=()=>addFrom(b.parentElement.querySelector('.padd')));
-  $('clist').querySelectorAll('.padd').forEach(inp=>inp.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addFrom(inp);}}));
-  $('clist').querySelectorAll('[data-deli]').forEach(b=>b.onclick=async()=>{if(await confirmDialog({title:'حذف كمية',message:'حذف هذه الكمية من الصنف؟',confirmLabel:'حذف',danger:true}))removeEntry(b.getAttribute('data-delc'),parseInt(b.getAttribute('data-deli'),10));});
-  $('clist').querySelectorAll('.prst').forEach(b=>b.onclick=async()=>{if(await confirmDialog({title:'تصفير الصنف',message:'تصفير هذا الصنف وحذف كل إضافاته؟',confirmLabel:'تصفير',danger:true}))resetItem(b.getAttribute('data-code'));});
+    return '<div class="sess" data-row="'+esc(codeS)+'" style="margin-bottom:8px;align-items:flex-start"><div class="info"><div class="nm">'+esc(it.name)+(it.manual?' <span class="tag" style="background:#FEF3C7;color:#92400E">يدوي</span>':'')+(notes.length?' <span class="tag notetag" title="فيه ملاحظات">📝 '+notes.length+'</span>':'')+'</div><div class="muted"><span class="tag">'+esc(it.code)+'</span> '+(it.category?esc(it.category)+' • ':'')+book+(counted?'<b style="color:var(--navy700)">الإجمالي: '+fmt(total)+'</b>':'')+diffChip+'</div></div>'+
+      (frozen?'':'<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><label style="display:flex;align-items:center;gap:5px;font-size:12.5px;color:var(--tsec);white-space:nowrap;cursor:pointer"><input type="checkbox" class="cnotecb" data-code="'+esc(codeS)+'"'+(noteOpen?' checked':'')+'> ملاحظة</label><input class="padd inp" data-code="'+esc(it.code)+'" type="number" inputmode="decimal" placeholder="أضف" style="width:78px;height:42px;text-align:center;font-size:16px;font-weight:600;padding:0"><button class="paddbtn btn sm" type="button">+ أضف</button>'+(counted?'<button class="prst btn ghost sm" data-code="'+esc(it.code)+'" title="تصفير الصنف">↺</button>':'')+'</div>')+box+nbox+'</div>';} }
+/* ط-٥: إدخال يدوي فوق الحدّ المعتاد (MANUAL_QTY_CAP) يُؤكَّد مرّة — لا يمسّ المسح إطلاقًا (المسحة دائمًا ١+) */
+function addFrom(inp){ if(!inp)return; const code=inp.getAttribute('data-code'); const v=inp.value; inp.value='';
+  const n=numv(v);
+  if(n!=null&&Math.abs(n)>MANUAL_QTY_CAP){ confirmDialog({title:'تأكيد كمية كبيرة',message:'الكمية المُدخلة يدويًّا ('+fmt(n)+') تتجاوز الحدّ المعتاد ('+fmt(MANUAL_QTY_CAP)+'). هل تريد تسجيلها كما هي؟',confirmLabel:'نعم، سجّلها'}).then(okc=>{ if(okc)addEntry(code,n); }); return; }
+  addEntry(code,v); }
+/* م٦-٤ ط-٦: ربط المعالِجات — يعمل على كامل القائمة أو على صفٍّ واحد مُرقَّع (نفس المعالِجات حرفيًّا) */
+function bindCountRows(root){ if(!root)return;
+  root.querySelectorAll('.paddbtn').forEach(b=>b.onclick=()=>addFrom(b.parentElement.querySelector('.padd')));
+  root.querySelectorAll('.padd').forEach(inp=>{ inp.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addFrom(inp);}});
+    // ط-٥: مسحة تسقط سهوًا في خانة «أضف» تُحوَّل لمسار المسح ولا تُسجَّل ككمية عملاقة
+    scanArmField(inp,(code)=>{ inp.value=''; const s=$('csearch'); if(s)s.focus(); scanCommit(code,'padd'); }); });
+  root.querySelectorAll('[data-deli]').forEach(b=>b.onclick=async()=>{if(await confirmDialog({title:'حذف كمية',message:'حذف هذه الكمية من الصنف؟',confirmLabel:'حذف',danger:true}))removeEntry(b.getAttribute('data-delc'),parseInt(b.getAttribute('data-deli'),10));});
+  root.querySelectorAll('.prst').forEach(b=>b.onclick=async()=>{if(await confirmDialog({title:'تصفير الصنف',message:'تصفير هذا الصنف وحذف كل إضافاته؟',confirmLabel:'تصفير',danger:true}))resetItem(b.getAttribute('data-code'));});
   // ملاحظات العدّ: فتح/إغلاق المحرّر، حفظ المسودة عبر إعادة الرسم الحيّ، الحفظ، وحذف ملاحظتي
-  $('clist').querySelectorAll('.cnotecb').forEach(cb=>cb.onchange=()=>{ const code=String(cb.getAttribute('data-code')); if(cb.checked)_noteOpen.add(code); else _noteOpen.delete(code); renderCountList();
+  root.querySelectorAll('.cnotecb').forEach(cb=>cb.onchange=()=>{ const code=String(cb.getAttribute('data-code')); if(cb.checked)_noteOpen.add(code); else _noteOpen.delete(code); renderCountList();
     if(cb.checked){ let ta=null; $('clist').querySelectorAll('.cnotetxt').forEach(t=>{ if(t.getAttribute('data-code')===code)ta=t; }); if(ta)ta.focus(); } });
-  $('clist').querySelectorAll('.cnotetxt').forEach(t=>t.oninput=()=>{ _noteDraft[String(t.getAttribute('data-code'))]=t.value; });
-  $('clist').querySelectorAll('.cnotesave').forEach(b=>b.onclick=()=>noteSave(b.getAttribute('data-code')));
-  $('clist').querySelectorAll('[data-ndeli]').forEach(b=>b.onclick=()=>noteDelete(b.getAttribute('data-ndelc'),b.getAttribute('data-ndeli')));
+  root.querySelectorAll('.cnotetxt').forEach(t=>t.oninput=()=>{ _noteDraft[String(t.getAttribute('data-code'))]=t.value; });
+  root.querySelectorAll('.cnotesave').forEach(b=>b.onclick=()=>noteSave(b.getAttribute('data-code')));
+  root.querySelectorAll('[data-ndeli]').forEach(b=>b.onclick=()=>noteDelete(b.getAttribute('data-ndelc'),b.getAttribute('data-ndeli')));
 }
-function itemName(code){const it=curItems.find(x=>String(x.code)===String(code));return it?(it.name||''):'';}
+/* ط-٦: الترقيع الموضعي — بعد المسحة يُعاد بناء صفّ الصنف وحده بدل ٣٠٠ صفّ.
+   يُعيد false إن تعذّر (الصنف خارج نتيجة البحث الحالية أو القائمة غير مرسومة) فيتولّى النداء إعادة الرسم الكاملة المؤجَّلة. */
+function countRowFind(code){ const cl=$('clist'); if(!cl)return null; const ch=cl.children;
+  for(let i=0;i<ch.length;i++){ if(ch[i].getAttribute&&ch[i].getAttribute('data-row')===code)return ch[i]; } return null; }
+function patchCountRow(code){ code=String(code); const cl=$('clist'); if(!cl)return false;
+  const row=countRowFind(code); if(!row)return false;
+  const it=scanIndexGet().C.get(code); if(!it)return false;
+  const tmp=document.createElement('div'); tmp.innerHTML=countRowHtml(it,curSess&&curSess.blind,!canCount());
+  const nw=tmp.firstElementChild; if(!nw)return false;
+  const ae=document.activeElement, keepPadd=(ae&&ae.classList&&ae.classList.contains('padd')&&row.contains(ae))?ae.value:null;
+  row.parentNode.replaceChild(nw,row); bindCountRows(nw);
+  if(keepPadd!=null){ const p=nw.querySelector('.padd'); if(p){ p.value=keepPadd; p.focus(); } } // لا نُضيّع ما يكتبه العدّاد يدويًّا
+  countProgressUpdate(); return true; }
+function renderCountTouch(code){ if(!$('clist'))return; if(!patchCountRow(code))renderCountListLive(); }
+function itemName(code){ const it=scanIndexGet().C.get(String(code)); return it?(it.name||''):''; }
 // ===== حوكمة الجلسة: الحالات والتجميد (المرحلة أ‑١) =====
 function sessStatusOf(s){var st=(s&&s.status)||'open'; return st==='pending'?'review':st;} // pending (قديم) = قيد المراجعة
 function sessStatusLabel(st){return ({open:'مفتوحة',review:'قيد المراجعة',reviewed:'تمت المراجعة — بانتظار الاعتماد',fin_approved:'اعتماد مالي — بانتظار الاعتماد العام',approved:'معتمدة ومقفلة'})[st]||st;}
@@ -3235,8 +3306,13 @@ function offlineApplyOptimistic(op){ const code=op.code;
 async function offlineEnqueueAndReflect(op){ const entry=await offlineEnqueue(op); offlineApplyOptimistic(entry);
   toastWarn('دون اتصال — حُفظ محليًّا وسيُزامَن تلقائيًّا ('+fmt(_offlineQueueLen)+' بانتظار المزامنة)'); return entry; }
 // كتّاب العدّ الأساسيون (يُعاد استخدامهم عند دفع الطابور) — نفس منطق المعاملة/الحذف المستعمل مباشرةً
+/* م٦-٤: حارس عدم التكرار داخل المعاملة — إن كان معرّف السطر مكتوبًا سلفًا فلا يُكتب ثانيةً.
+   لا يغيّر أي حساب ولا قاعدة عمل (المعرّفات فريدة في كل المسارات القائمة)، وهو ما يجعل إعادة
+   محاولة مسحةٍ فشل تأكيدها آمنة تمامًا: زيادة واحدة بالضبط لكل مسحة ناجحة. */
 async function countWriteAdd(sid,code,d,at,eid){ const ref=doc(db,'sessions',sid,'counts',safeId(code));
-  await runTransaction(db,async(tx)=>{const s=await tx.get(ref);const cur=s.exists()?s.data():{code:code,qty:0,entries:[]};const entries=(cur.entries||[]).concat([{id:eid||entryId(),q:d,by:auth.currentUser.uid,byName:myProfile.name||'',at:(at||Date.now())}]);tx.set(ref,{code:code,qty:(cur.qty||0)+d,entries:entries,lastByName:myProfile.name||'',lastAt:serverTimestamp()});}); }
+  await runTransaction(db,async(tx)=>{const s=await tx.get(ref);const cur=s.exists()?s.data():{code:code,qty:0,entries:[]};
+    if(eid!=null&&(cur.entries||[]).some(e=>e&&e.id===eid))return;
+    const entries=(cur.entries||[]).concat([{id:eid||entryId(),q:d,by:auth.currentUser.uid,byName:myProfile.name||'',at:(at||Date.now())}]);tx.set(ref,{code:code,qty:(cur.qty||0)+d,entries:entries,lastByName:myProfile.name||'',lastAt:serverTimestamp()});}); }
 async function countWriteRemove(sid,code,index,eid){ const ref=doc(db,'sessions',sid,'counts',safeId(code)); let removedQ=null;
   await runTransaction(db,async(tx)=>{const s=await tx.get(ref);if(!s.exists())return;const cur=s.data();const entries=(cur.entries||[]).slice();let i=index; if(eid!=null){ i=entries.findIndex(e=>e&&e.id===eid); } if(i<0||i>=entries.length)return;removedQ=entries[i].q;entries.splice(i,1);if(!entries.length){tx.delete(ref);}else{tx.set(ref,{code:code,qty:entries.reduce((a,e)=>a+(e.q||0),0),entries:entries,lastByName:myProfile.name||'',lastAt:serverTimestamp()});}}); return removedQ; } // إصلاح-٢ (بند ٣ج): الحذف بمطابقة المعرّف حين توفّره — لا بالفهرس المتغيّر
 async function countWriteReset(sid,code){ await deleteDoc(doc(db,'sessions',sid,'counts',safeId(code))); }
@@ -3291,22 +3367,26 @@ function pendReapply(){ for(const code in _pendingAdds){ const list=_pendingAdds
   const cc=curCounts[code]||{code:code,qty:0,entries:[]}; const have=new Set((cc.entries||[]).map(e=>e&&e.id));
   list.forEach(p=>{ if(!have.has(p.id)){ cc.entries=(cc.entries||[]).concat([{id:p.id,q:p.q,by:p.by,byName:p.byName,at:p.at,pending:true}]); cc.qty=(cc.qty||0)+p.q; } });
   curCounts[code]=cc; } }
-function pendDrop(code,eid,confirmOk){ const l=_pendingAdds[code]||[]; const i=l.findIndex(x=>x.id===eid); if(i>=0)l.splice(i,1); if(!l.length)delete _pendingAdds[code];
+function pendDrop(code,eid,confirmOk,quiet){ const l=_pendingAdds[code]||[]; const i=l.findIndex(x=>x.id===eid); if(i>=0)l.splice(i,1); if(!l.length)delete _pendingAdds[code];
   const cc=curCounts[code];
   if(cc&&cc.entries){ const j=cc.entries.findIndex(e=>e&&e.id===eid);
     if(j>=0){ if(confirmOk){ delete cc.entries[j].pending; } else { cc.qty=(cc.qty||0)-(cc.entries[j].q||0); cc.entries.splice(j,1); if(!cc.entries.length){ delete curCounts[code]; } } } }
-  if($('clist'))renderCountList(); }
-async function addEntry(code,val){
-  const d=numv(val); if(d==null||d===0)return; if(!assertOpen())return;
-  if(featuresOfflineOn()&&!netOnline()){ await offlineEnqueueAndReflect({op:'add',code:code,val:d,sid:curSid}); return; } // دون اتصال ⇒ طابور + انعكاس تفاؤلي
-  const eid=entryId(), at=Date.now();
+  if($('clist')){ if(quiet)renderCountTouch(code); else renderCountList(); } } // م٦-٤ ط-٦: مسار المسح يُرقّع صفّه فقط
+/* addEntry: منطق العدّ والكتابة والسجل دون أي تغيير — أُضيفت قيمة إرجاع تُخبر المُنادي بالنتيجة،
+   و opt.quiet (رسم موضعي بلا رسائل مكرّرة) و opt.eid (معرّف ثابت للمحاولة ⇒ إعادة المحاولة لا تُضاعف). */
+async function addEntry(code,val,opt){ opt=opt||{};
+  const d=numv(val); if(d==null||d===0)return {ok:false,err:'value'};
+  if(!assertOpen())return {ok:false,err:'gate'};
+  if(featuresOfflineOn()&&!netOnline()){ await offlineEnqueueAndReflect({op:'add',code:code,val:d,sid:curSid}); return {ok:true,offline:true}; } // دون اتصال ⇒ طابور + انعكاس تفاؤلي
+  const eid=opt.eid||entryId(), at=Date.now();
   (_pendingAdds[code]=_pendingAdds[code]||[]).push({id:eid,q:d,by:auth.currentUser.uid,byName:myProfile.name||'',at:at});
-  pendReapply(); if($('clist'))renderCountList(); // ظهور لحظي قبل أي شبكة
+  pendReapply(); if($('clist')){ if(opt.quiet)renderCountTouch(code); else renderCountList(); } // ظهور لحظي قبل أي شبكة
   try{
     await countWriteAdd(curSid,code,d,at,eid);
-    pendDrop(code,eid,true);
+    pendDrop(code,eid,true,opt.quiet);
     logActivity('add',code,itemName(code),d);
-  }catch(err){ if(featuresOfflineOn()&&offlineIsConnErr(err)){ pendDrop(code,eid,false); await offlineEnqueueAndReflect({op:'add',code:code,val:d,sid:curSid}); return; } pendDrop(code,eid,false); toastErr('تعذّر الحفظ: '+errAr(err.code||err.message));}
+    return {ok:true};
+  }catch(err){ if(featuresOfflineOn()&&offlineIsConnErr(err)){ pendDrop(code,eid,false,opt.quiet); await offlineEnqueueAndReflect({op:'add',code:code,val:d,sid:curSid}); return {ok:true,offline:true}; } pendDrop(code,eid,false,opt.quiet); if(!opt.quiet)toastErr('تعذّر الحفظ: '+errAr(err.code||err.message)); return {ok:false,err:(err&&(err.code||err.message))||'write'};}
 }
 /* ===== ملاحظات العدّ (طلب العميل): لكل صنف — تُسجَّل وقت العد وتظهر في التقرير والطباعة =====
    تُخزَّن في sessions/{sid}/itemNotes/{code} منفصلةً عن العدّات ⇒ ملاحظة على صنف غير معدود لا تجعله «معدودًا». */
@@ -3828,21 +3908,168 @@ function ensureAudio(){ try{ if(!_actx)_actx=new (window.AudioContext||window.we
 // بيب فعلي عبر Web Audio (نغمة صاعدة للنجاح، منخفضة للفشل) — صوت لا تنبيه نظام
 function beep(ok){ try{ ensureAudio(); if(!_actx)return; const o=_actx.createOscillator(),g=_actx.createGain(); o.connect(g); g.connect(_actx.destination); o.type='sine'; o.frequency.value=ok?1040:247; g.gain.value=0.0001; const t=_actx.currentTime; g.gain.exponentialRampToValueAtTime(0.16,t+0.01); g.gain.exponentialRampToValueAtTime(0.0001,t+(ok?0.12:0.30)); o.start(t); o.stop(t+(ok?0.13:0.32)); }catch(e){} }
 function vibrate(ms){ try{ navigator.vibrate&&navigator.vibrate(ms||40); }catch(e){} }
-function scanFeedback(msg,ok){ const el=$('scanStatus'); if(el){ el.style.display='block'; el.textContent=msg; el.style.background=ok?'rgba(12,163,12,.15)':'rgba(208,59,59,.15)'; el.style.color=ok?'var(--success)':'var(--danger)'; clearTimeout(el._t); el._t=setTimeout(()=>{if($('scanStatus'))$('scanStatus').style.display='none';},3000); } const cl=$('camLast'); if(cl)cl.textContent=msg; }
+// رسالة نصّية بسيطة (حالات الكاميرا/وضع الماسح) — تُعيد ضبط ما قد تكون لوحة نتيجة المسح غيّرته
+function scanFeedback(msg,ok){ const el=$('scanStatus'); if(el){ el.className=''; el.style.display='block'; el.style.padding='10px 14px'; el.style.borderRadius='8px'; el.textContent=msg; el.style.background=ok?'rgba(12,163,12,.15)':'rgba(208,59,59,.15)'; el.style.color=ok?'var(--success)':'var(--danger)'; clearTimeout(el._t); el._t=setTimeout(()=>{const e2=$('scanStatus'); if(e2){e2.style.display='none';e2.className='';}},3000); } const cl=$('camLast'); if(cl)cl.textContent=msg; }
 // مطابقة الباركود المُتسامحة (طلب العميل: الماسح لا يسجّل): مباشرة ← تجاهل الأصفار البادئة ← الأرقام فقط — على الكود والباركود معًا
-function findByScan(code){ code=String(code||'').trim(); if(!code)return null;
-  var direct=curItems.find(function(x){return String(x.code)===code||(x.barcode&&String(x.barcode)===code);}); if(direct)return direct;
+/* ط-٥: فهرس بحث بزمن ثابت O(١) — ثلاث خرائط بترتيب الأولوية نفسه للمطابقة السابقة (مباشر ← أصفار بادئة ← أرقام فقط).
+   الإبطال بمقارنة **مرجع** curItems: كل مواضع إسناده الستة تُنشئ مصفوفة جديدة ⇒ لا يمكن أن يبقى الفهرس قديمًا. */
+function scanIndexBuild(){
+  var D=new Map(), Z=new Map(), G=new Map(), C=new Map();
   var nrm=function(s){return String(s==null?'':s).trim();};
-  var stripZ=function(s){return nrm(s).replace(/^0+/,'');};
-  var dig=function(s){return nrm(s).replace(/\D/g,'');};
-  var cz=stripZ(code), cd=dig(code);
-  return curItems.find(function(x){ var xc=nrm(x.code), xb=nrm(x.barcode||'');
-    if(cz!==''&&(stripZ(xc)===cz||(xb&&stripZ(xb)===cz)))return true;
-    if(cd.length>=4&&(dig(xc)===cd||(xb&&dig(xb)===cd)))return true; // مقارنة رقمية للأكواد الطويلة فقط (تفادي التصادم)
-    return false; })||null; }
-// كل مسحة: عثور على الصنف بالكود أو الباركود ← عدّ ١+ (تراكمي + سجل حركة) ← صوت
-function handleScanCode(code){ code=String(code||'').trim(); if(!code)return; const it=findByScan(code); if(!it){ _lastUnknownScan=code; scanFeedback('✕ باركود غير موجود في هذه الجلسة: '+code, false); toastWarn('⚠ الصنف غير موجود في الجلسة: '+code+' — أضِفه بـ«➕ صنف يدوي» (الباركود مُعبّأ) ثم امسحه.'); beep(false); vibrate(160); return; } const optimistic=((curCounts[it.code]&&curCounts[it.code].qty)||0)+1; scanFeedback('✓ '+it.name+' — عُدّ ١+ (الإجمالي ≈ '+fmt(optimistic)+')', true); beep(true); vibrate(45); addEntry(it.code,1); }
-function toggleScanMode(){ scanMode=!scanMode; ensureAudio(); const b=$('scanModeBtn'),s=$('csearch'); if(b){ b.style.background=scanMode?'var(--success)':''; b.style.color=scanMode?'#fff':''; b.textContent=scanMode?'🔫 إيقاف وضع الماسح':'🔫 وضع الماسح'; } if(s){ if(scanMode){ s.placeholder='🔫 امسح الباركود الآن…'; s.value=''; s.focus(); } else { s.placeholder='ابحث بالكود أو الاسم…'; } } if(scanMode)scanFeedback('وضع الماسح مُفعّل: كل مسح يَعُدّ ١+ بصوت. اضغط الزر لإيقافه.',true); else if($('scanStatus'))$('scanStatus').style.display='none'; }
+  for(var i=0;i<curItems.length;i++){ var it=curItems[i];
+    var c=String(it.code), b=it.barcode?String(it.barcode):'';
+    if(c&&!C.has(c))C.set(c,it);                     // خريطة الكود وحده: اسم الصنف والترقيع الموضعي بزمن ثابت
+    if(c&&!D.has(c))D.set(c,it); if(b&&!D.has(b))D.set(b,it);
+    var xc=nrm(it.code), xb=nrm(it.barcode||'');
+    var cz=xc.replace(/^0+/,''); if(cz!==''&&!Z.has(cz))Z.set(cz,it);
+    if(xb){ var bz=xb.replace(/^0+/,''); if(bz!==''&&!Z.has(bz))Z.set(bz,it); }
+    var cd=xc.replace(/\D/g,''); if(cd.length>=4&&!G.has(cd))G.set(cd,it);
+    if(xb){ var bd=xb.replace(/\D/g,''); if(bd.length>=4&&!G.has(bd))G.set(bd,it); }
+  }
+  _scanIndex={D:D,Z:Z,G:G,C:C}; _scanIndexSrc=curItems; return _scanIndex; }
+function scanIndexGet(){ return (_scanIndex&&_scanIndexSrc===curItems)?_scanIndex:scanIndexBuild(); }
+function findByScan(code){ code=String(code||'').trim(); if(!code)return null;
+  var ix=scanIndexGet(), r=ix.D.get(code); if(r)return r;
+  var cz=code.replace(/^0+/,''); if(cz!==''){ r=ix.Z.get(cz); if(r)return r; }
+  var cd=code.replace(/\D/g,''); if(cd.length>=4){ r=ix.G.get(cd); if(r)return r; } // مقارنة رقمية للأكواد الطويلة فقط (تفادي التصادم)
+  return null; }
+/* ══════════════════ م٦-٤: محرّك المسح المؤسسي ══════════════════
+   المسار: التقاط بالإيقاع (ط-١) ← تحقّق قبل التأكيد (ط-٢) ← طابور FIFO بمستهلك واحد (ط-٣)
+           ← تسجيل عبر addEntry بلا أي مساس بمنطق الجرد ← لوحة نتيجة بستة حقول (ط-٧) ← إعادة التركيز.
+   ضمانة: زيادة كمية واحدة بالضبط لكل مسحة ناجحة — لا فقدان، لا ازدواج، لا تجميد للواجهة. */
+
+/* ط-٧: لوحة نتيجة المسح — اسم الصنف • الباركود • الكمية الحالية • الكمية المضافة • الإجمالي بعد التحديث • مؤشّر الحالة */
+function scanPanel(o){ const el=$('scanStatus'); if(!el)return; o=o||{};
+  const st=o.state||'ok';
+  const ic=(st==='ok')?'✅':(st==='pending'?'⏳':'⛔');
+  const lbl=(st==='ok')?'تمّ العدّ ✓':(st==='pending'?'جارٍ التسجيل…':'لم تُسجَّل');
+  const cell=(k,v,cls)=>'<div class="sp-c"><span class="sp-k">'+k+'</span><span class="sp-v'+(cls?' '+cls:'')+'">'+v+'</span></div>';
+  let g;
+  if(o.before!=null) g='<div class="sp-g">'+cell('الباركود',esc(String(o.code||'—')))+cell('الكمية الحالية',fmt(o.before))+cell('الكمية المضافة','+'+fmt(o.add==null?1:o.add),'up')+cell('الإجمالي بعد التحديث',fmt(o.after),'big')+cell('الحالة',lbl)+'</div>';
+  else g='<div class="sp-g">'+cell('الباركود',esc(String(o.code||'—')))+cell('الحالة',lbl)+'</div>';
+  el.className='scanp '+st;
+  el.style.display='block'; el.style.background=''; el.style.color=''; el.style.padding=''; el.style.borderRadius='';
+  el.innerHTML='<div class="sp-h"><span class="sp-i">'+ic+'</span><span>'+esc(String(o.title||o.name||'—'))+'</span></div>'+g+(o.note?'<div class="sp-n">'+esc(String(o.note))+'</div>':'');
+  clearTimeout(el._t);
+  if(st!=='pending') el._t=setTimeout(()=>{ const e2=$('scanStatus'); if(e2&&!scanQueue.length){ e2.style.display='none'; e2.className=''; } }, st==='ok'?3200:6000);
+  const cl=$('camLast'); if(cl)cl.textContent=String(o.name||o.title||'')+(o.after!=null?(' — الإجمالي '+fmt(o.after)):''); }
+
+/* ط-٧: الماسح يبقى جاهزًا دائمًا — التركيز يعود لحقل المسح، إلّا إن كان العدّاد يكتب ملاحظة أو كميّة يدويًّا */
+function scanFocusGuard(){ try{ if(_camOn)return; const s=$('csearch'); if(!s)return; const a=document.activeElement;
+  if(a===s)return;
+  if(a&&a.classList&&(a.classList.contains('cnotetxt')||a.classList.contains('padd')))return;
+  if(a&&(a.tagName==='TEXTAREA'||(a.tagName==='INPUT'&&a.id!=='csearch')))return;
+  s.focus(); }catch(e){} }
+
+/* ط-٣: بوابة الطابور — نقطة الدخول الوحيدة لكل مصادر المسح (حقل/كاميرا/واجهة برمجية).
+   منع الازدواج: الكود نفسه خلال SCAN_DEDUP_MS يُهمَل (صدى CR+LF، ارتداد الزناد، حدث مكرّر). */
+function scanCommit(code,src){ code=String(code==null?'':code).trim(); if(!code)return false;
+  const now=Date.now(), last=_scanDedup[code];
+  if(last!=null&&now-last<SCAN_DEDUP_MS)return false;
+  _scanDedup[code]=now;
+  scanSeq++;
+  if(scanSeq%64===0){ for(const k in _scanDedup){ if(now-_scanDedup[k]>5000)delete _scanDedup[k]; } } // كبح نمو خريطة المنع
+  scanQueue.push({code:code,seq:scanSeq,src:src||'field',eid:entryId(),tries:0});
+  scanPump(); return true; }
+
+// الاسم محفوظ للتوافق مع كل النداءات القائمة (الكاميرا/الاختبارات/المسار المتوافق)
+function handleScanCode(code){ return scanCommit(code,'api'); }
+
+/* ط-٣: مستهلك واحد فقط — يعالج الطابور بالترتيب حتى يفرغ. لا تتداخل مسحتان أبدًا. */
+async function scanPump(){ if(scanBusy)return; scanBusy=true;
+  try{ while(scanQueue.length){ const job=scanQueue[0]; let keep=false;
+      try{ keep=await scanStep(job); }catch(e){ keep=false; }
+      if(!keep)scanQueue.shift(); } }
+  finally{ scanBusy=false; scanDrained(); } }
+
+/* ط-٢: التحقّق قبل التأكيد — لا «✓» ولا صوت نجاح قبل ثبوت الكتابة فعليًّا */
+async function scanStep(job){
+  const it=findByScan(job.code);
+  if(!it){ _lastUnknownScan=job.code;
+    scanPanel({state:'err',title:'باركود غير معروف',code:job.code,note:'هذا الباركود غير موجود في جلسة الجرد الحالية — أضِفه بـ«➕ صنف يدوي» (الباركود مُعبّأ مسبقًا) ثم امسحه.'});
+    toastWarn('⚠ هذا الباركود غير موجود في جلسة الجرد الحالية: '+job.code);
+    beep(false); vibrate(160); scanFocusGuard(); return false; }
+  if(!assertOpen()){ scanPanel({state:'err',title:'تعذّر العدّ — '+(it.name||''),code:job.code,note:'الجلسة غير متاحة للعدّ الآن؛ لم تُسجَّل أي كمية.'});
+    beep(false); vibrate(160); scanFocusGuard(); return false; }
+  const before=((curCounts[it.code]&&curCounts[it.code].qty)||0);
+  scanPanel({state:'pending',name:it.name,code:job.code,before:before,add:1,after:before+1});
+  const r=await addEntry(it.code,1,{quiet:true,eid:job.eid});
+  if(r&&r.ok){ const after=((curCounts[it.code]&&curCounts[it.code].qty)!=null?curCounts[it.code].qty:(before+1));
+    scanPanel({state:'ok',name:it.name,code:job.code,before:before,add:1,after:after,note:r.offline?'دون اتصال — حُفظت محليًّا وستُزامَن تلقائيًّا.':''});
+    beep(true); vibrate(45); scanFocusGuard(); return false; }
+  job.tries++;
+  if(job.tries<3){ await new Promise(res=>setTimeout(res,120*job.tries)); return true; } // إعادة محاولة بالمعرّف نفسه ⇒ لا ازدواج (حارس countWriteAdd)
+  scanPanel({state:'err',title:'لم تُسجَّل المسحة — '+(it.name||''),code:job.code,before:before,add:0,after:before,note:'تعذّر الحفظ بعد ٣ محاولات — تحقّق من الاتصال ثم أعِد المسح.'});
+  toastErr('تعذّر تسجيل المسحة: '+job.code+' — أعِد المسح.');
+  beep(false); vibrate(160); scanFocusGuard(); return false; }
+
+// عند فراغ الطابور: تُنفَّذ إعادة الرسم الكاملة المؤجَّلة مرّةً واحدة (بدل مرّة لكل مسحة)
+function scanDrained(){ const s=$('csearch');
+  if(_rclPending&&!(s&&s._scBuf!=null)){ _rclPending=false; clearTimeout(_rclT); _rclT=0; if($('clist'))renderCountList(); }
+  scanFocusGuard(); }                                                // ط-٨: حزمة جارية ⇒ يؤجَّل الرسم لمؤقّت الأمان
+
+/* ط-١: التقاط بإيقاع الماسح — الماسح يرسل الحروف بفواصل ≤ SCAN_CADENCE_MS، والإنسان لا يستطيع ذلك.
+   نصّ البحث الذي كتبه العدّاد يُحفَظ قبل بدء الحزمة ويُستعاد بعدها ⇒ المسح لا يُخرِّب البحث. */
+/* ط-٨: الحزمة تنجو من تعثّر الخيط الرئيسي.
+   خيط رئيسي مشغول (إعادة رسم/لقطة Firestore/جمع مهملات) يؤخّر معالجة ضغطة واحدة عشرات
+   المللي‌ثانية، فتبدو للمقياس «فاصلًا بشريًّا» وتُشطر الباركود نصفين ⇒ كود مبتور يُسجَّل على
+   صنف خاطئ أو يُرفض كمجهول. العلاج: لا نتسامح مع أي تعثّر إلّا بعد أن تُثبت الحزمة أنها من
+   ماسح (SCAN_PROOF_GAPS فواصل سريعة متتالية)، وبحدّ أقصى SCAN_HICCUP_MAX تعثّرًا، وبشرط ألّا
+   يتجاوز التعثّر SCAN_RUN_RESET_MS. الكتابة البشرية لا تجمع فاصلين سريعين ⇒ سلوكها لم يتغيّر. */
+function scanArmField(el,onScan){ if(!el||el._scArmed)return; el._scArmed=true;
+  el._scBuf=null; el._scPre=''; el._scT=0; el._scTimer=0; el._scRt=0; el._scFast=0; el._scSlow=0; el._scOn=onScan;
+  el.addEventListener('keydown',function(e){
+    if(e.ctrlKey||e.altKey||e.metaKey)return;
+    const k=e.key; if(!k||k.length!==1)return;                       // Enter/Tab/الأسهم… ليست حروف حزمة
+    const now=Date.now(), dt=now-(el._scT||0); el._scT=now;
+    if(el._scBuf!=null&&dt<=SCAN_CADENCE_MS){ el._scBuf+=k; el._scFast++; return; }   // إيقاع ماسح
+    if(el._scBuf!=null&&dt<=SCAN_RUN_RESET_MS&&(el._scFast||0)>=SCAN_PROOF_GAPS&&(el._scSlow||0)<SCAN_HICCUP_MAX){
+      el._scBuf+=k; el._scSlow++; return; }                          // تعثّر داخل حزمة مُثبَتة ⇒ نُكمل الكود
+    let pre=(el.value||''), ab=el._scBuf;                            // سطر جديد: نحفظ نصّ البحث القائم
+    if(ab!=null&&dt<=SCAN_RUN_RESET_MS&&ab.length<SCAN_MIN_LEN&&/^[0-9A-Za-z\-_.]+$/.test(ab)&&pre.slice(-ab.length)===ab)
+      pre=pre.slice(0,pre.length-ab.length);                         // بقايا حزمة مهجورة لصيقة ⇒ لا تُلوّث الحقل
+    el._scBuf=k; el._scPre=pre; el._scFast=0; el._scSlow=0;
+  },true);
+  el.addEventListener('input',function(){ if(el._scBuf==null)return;
+    clearTimeout(el._scTimer); el._scDue=Date.now()+SCAN_IDLE_MS; el._scLate=0;
+    el._scTimer=setTimeout(function(){ scanFieldFlush(el); },SCAN_IDLE_MS); });
+  el.addEventListener('blur',function(){ el._scBuf=null; el._scPre=''; el._scFast=0; el._scSlow=0; clearTimeout(el._scTimer); el._scTimer=0;
+    if(_rclPending){ _rclPending=false; clearTimeout(_rclT); _rclT=0; if($('clist'))renderCountList(); } });
+  return el; }
+
+/* تفريغ الحزمة: تُعدّ مسحةً فقط إن استوفت الطول والنمط — وإلّا فهي كتابة بشرية تُترك كما هي */
+function scanFieldFlush(el){ if(!el)return false;
+  /* ط-٨: مؤقّت السكون قد يتأخّر عن موعده لأن الخيط الرئيسي كان محجوبًا — والماسح حينها لم
+     يفرغ بعد. تأخُّرٌ فوق SCAN_LATE_MS ⇒ نمنح نافذة سكون إضافية واحدة بدل بتر الباركود. */
+  if(el._scBuf!=null&&(Date.now()-(el._scDue||0))>SCAN_LATE_MS&&!el._scLate){
+    el._scLate=1; clearTimeout(el._scTimer); el._scDue=Date.now()+SCAN_IDLE_MS;
+    el._scTimer=setTimeout(function(){ scanFieldFlush(el); },SCAN_IDLE_MS); return false; }
+  const buf=el._scBuf, fast=(el._scFast||0); el._scBuf=null; el._scFast=0; el._scSlow=0; el._scLate=0;
+  clearTimeout(el._scTimer); el._scTimer=0;
+  if(buf==null)return false;
+  const code=String(buf).trim();
+  if(code.length<SCAN_MIN_LEN||!SCAN_CODE_RE.test(code))return false;
+  if(fast<SCAN_PROOF_GAPS)return false;                              // ط-٨: بلا برهان إيقاع ⇒ كتابة بشرية تُترك كما هي
+  el.value=(el._scPre||''); el._scPre='';                            // الحقل يُفرَّغ تلقائيًّا (أو يعود لنصّ البحث السابق)
+  clearTimeout(el._scRt); el._scRt=0;
+  if(el._scRq!==el.value)renderCountListLive();                      // لا إعادة رسم إن كان المعروض مطابقًا أصلًا
+  if(el._scOn)el._scOn(code);
+  return true; }
+
+/* البحث: يُرسم فورًا للكتابة البشرية، ويُكبَح أثناء حزمة مسح جارية (فاصل أطول من سكون التفريغ) */
+function csearchInput(){ if(scanMode)return; const el=$('csearch'); if(!el)return;
+  clearTimeout(el._scRt);
+  if(el._scBuf!=null){ el._scRt=setTimeout(function(){ const e2=$('csearch'); if(e2&&e2._scBuf==null)renderCountList(); },SCAN_IDLE_MS+45); return; }
+  renderCountList(); }
+
+// إعادة رسم كاملة «حيّة»: تُؤجَّل ما دام الطابور يعمل، فتُنفَّذ مرّة واحدة عند فراغه
+function renderCountListLive(){ if(!$('clist'))return;
+  const s=$('csearch');
+  if(scanBusy||scanQueue.length||(s&&s._scBuf!=null)){ _rclPending=true;   // ط-٨: لا نحجب الخيط وحروف الباركود تتدفّق
+    clearTimeout(_rclT); _rclT=setTimeout(function(){ if(_rclPending){ _rclPending=false; if($('clist'))renderCountList(); } },SCAN_IDLE_MS+40);
+    return; }
+  _rclPending=false; clearTimeout(_rclT); _rclT=0; renderCountList(); }
+function toggleScanMode(){ scanMode=!scanMode; ensureAudio(); const b=$('scanModeBtn'),s=$('csearch'); if(b){ b.style.background=scanMode?'var(--success)':''; b.style.color=scanMode?'#fff':''; b.textContent=scanMode?'🔫 إيقاف وضع الماسح':'🔫 وضع الماسح'; } if(s){ if(scanMode){ s.placeholder='🔫 امسح الباركود الآن…'; s.value=''; s.focus(); } else { s.placeholder='ابحث بالكود أو الاسم…'; } } if(scanMode)scanFeedback('وضع الماسح مُفعّل: كل مسح يَعُدّ ١+ بصوت تلقائيًّا — بلا Enter وبلا ضغط زر.',true); else if($('scanStatus')){$('scanStatus').style.display='none';$('scanStatus').className='';} }
 // تحميل ZXing عند الحاجة فقط (بديل يعمل على كل المتصفحات عند غياب القارئ المدمج)
 function loadZXing(){ if(window.ZXing)return Promise.resolve(); if(_zxingLoading)return _zxingLoading; _zxingLoading=new Promise((res,rej)=>{ const s=document.createElement('script'); s.src='https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js'; s.async=true; s.onload=()=>res(); s.onerror=()=>rej(new Error('zxing-load')); document.head.appendChild(s); }); return _zxingLoading; }
 function startCamera(){
@@ -3852,23 +4079,31 @@ function startCamera(){
   scanFeedback('جارٍ تجهيز قارئ الكاميرا…', true);
   loadZXing().then(()=>startCameraZXing()).catch(()=>scanFeedback('تعذّر تحميل قارئ الكاميرا (تحقّق من الإنترنت) — استخدم «وضع الماسح» مع جهاز ماسح.', false));
 }
+/* ط-٤: قاعدة إعادة الالتقاط بدل النافذة الزمنية العمياء.
+   الكود نفسه لا يُعاد عدّه ما لم يغِب عن عدسة الكاميرا CAM_CLEAR_CYCLES دورة متتالية (≈٧٥٠ مللي).
+   بذلك: صنفان متطابقان متتاليان يُعدّان صحيحًا، وصنف ثابت أمام العدسة لا يتضاعف مهما طال بقاؤه. */
+function camReset(){ _camLastCode=''; _camMiss=0; }
+function camOnDetect(c){ c=String(c==null?'':c).trim(); if(!c)return;
+  if(c===_camLastCode){ _camMiss=0; return; }
+  _camLastCode=c; _camMiss=0; scanCommit(c,'cam'); }
+function camOnEmpty(){ if(!_camLastCode)return; if(++_camMiss>=CAM_CLEAR_CYCLES)camReset(); }
 function startCameraNative(){
   navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}}).then((stream)=>{
-    const v=$('camVideo'); v.srcObject=stream; v.play(); $('camOverlay').style.display='flex'; _camStream=stream; _camOn=true; _lastScan=''; _lastT=0;
+    const v=$('camVideo'); v.srcObject=stream; v.play(); $('camOverlay').style.display='flex'; _camStream=stream; _camOn=true; camReset();
     const det=new window.BarcodeDetector({formats:['ean_13','ean_8','code_128','code_39','upc_a','upc_e','itf','codabar','qr_code']});
-    const loop=()=>{ if(!_camOn)return; det.detect(v).then((codes)=>{ if(codes&&codes.length){ const c=codes[0].rawValue; const now=Date.now(); if(c!==_lastScan||now-_lastT>1500){ _lastScan=c; _lastT=now; handleScanCode(c); } } }).catch(()=>{}); setTimeout(loop,250); }; loop();
+    const loop=()=>{ if(!_camOn)return; det.detect(v).then((codes)=>{ if(codes&&codes.length)camOnDetect(codes[0].rawValue); else camOnEmpty(); }).catch(()=>{}); setTimeout(loop,250); }; loop();
   }).catch((e)=>{ scanFeedback('تعذّر فتح الكاميرا: '+((e&&e.message)||e), false); });
 }
 function startCameraZXing(){
   try{
-    $('camOverlay').style.display='flex'; _camOn=true; _lastScan=''; _lastT=0;
+    $('camOverlay').style.display='flex'; _camOn=true; camReset();
     if(!_zxingReader)_zxingReader=new window.ZXing.BrowserMultiFormatReader();
-    const cb=(result,err)=>{ if(!_camOn)return; if(result){ const c=(result.getText?result.getText():(result.text||'')); const now=Date.now(); if(c&&(c!==_lastScan||now-_lastT>1500)){ _lastScan=c; _lastT=now; handleScanCode(c); } } };
+    const cb=(result,err)=>{ if(!_camOn)return; if(result){ camOnDetect(result.getText?result.getText():(result.text||'')); } else camOnEmpty(); };
     if(typeof _zxingReader.decodeFromConstraints==='function'){ _zxingReader.decodeFromConstraints({video:{facingMode:{ideal:'environment'}}}, 'camVideo', cb); }
     else{ _zxingReader.decodeFromVideoDevice(undefined, 'camVideo', cb); }
   }catch(e){ scanFeedback('تعذّر تشغيل الكاميرا: '+((e&&e.message)||e), false); stopCamera(); }
 }
-function stopCamera(){ _camOn=false; try{ if(_zxingReader&&_zxingReader.reset)_zxingReader.reset(); }catch(e){} try{ if(_camStream)_camStream.getTracks().forEach(t=>t.stop()); }catch(e){} _camStream=null; const o=$('camOverlay'); if(o)o.style.display='none'; }
+function stopCamera(){ _camOn=false; camReset(); try{ if(_zxingReader&&_zxingReader.reset)_zxingReader.reset(); }catch(e){} try{ if(_camStream)_camStream.getTracks().forEach(t=>t.stop()); }catch(e){} _camStream=null; const o=$('camOverlay'); if(o)o.style.display='none'; }
 
 // ===== VARIANCE REPORT (تقرير الفروقات — المرحلة 5) =====
 // تجميع «من أضاف» من إدخالات العدّ: اسم الفاعل مقابل مجموع كميّته + تفصيل عدّاته (م٦: المطّلع يراجع العدّات الفردية كما في شاشة العد)

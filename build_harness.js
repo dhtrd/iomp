@@ -1,7 +1,10 @@
 // Builds harness.html from index.html by replacing Firebase CDN imports with an
 // in-memory stub, and exposing introspection hooks. Scenario is passed via ?s=<b64 json>.
 const fs = require('fs');
-const src = fs.readFileSync('index.html', 'utf8');
+// م٦-٤: يسمح SRC_HTML بقياس نسخة «قبل» (النسخة الاحتياطية) دون لمس index.html
+const SRC_HTML = process.env.SRC_HTML || 'index.html';
+const OUT_HTML = process.env.OUT_HTML || 'harness.html';
+const src = fs.readFileSync(SRC_HTML, 'utf8');
 
 // Strip the three `import ... from "https://www.gstatic.com/firebasejs/..."` statements.
 const importRe = /import\s*\{[\s\S]*?\}\s*\r?\n?\s*from\s*"https:\/\/www\.gstatic\.com\/firebasejs\/[^"]+";/g;
@@ -239,6 +242,29 @@ window.__findByScan = (items,code)=>{ var s=(typeof curItems!=='undefined')?curI
 window.__lastUnknownScan = ()=>_lastUnknownScan; // م٦-٣: آخر مسحة مجهولة
 window.__curItemsArr = ()=>curItems.map(x=>Object.assign({},x)); // م٦-٣: أصناف الجلسة الحالية
 window.__addExtraItem = (item)=>{ curExtra=curExtra.concat([Object.assign({},item,{manual:true})]); curItems=curBaseItems.concat(curExtra); if(document.getElementById('clist'))renderCountList(); }; // م٦-٣: محاكاة إضافة صنف يدوي (إظهار فوري)
+// م٦-٤: خطاطيف محرك المسح المؤسسي (طابور + لوحة النتيجة + التركيز)
+window.__scanCommit = (code,src)=>scanCommit(code,src||'test');
+window.__scanQueueLen = ()=>scanQueue.length;
+window.__scanBusy = ()=>!!scanBusy;
+window.__scanIdle = ()=>(!scanBusy && scanQueue.length===0);
+window.__scanPanel = ()=>{ const e=document.getElementById('scanStatus'); if(!e)return null;
+  const cells={}; e.querySelectorAll('.sp-c').forEach(c=>{ const k=c.querySelector('.sp-k'), v=c.querySelector('.sp-v'); if(k&&v)cells[(k.textContent||'').trim()]=(v.textContent||'').trim(); });
+  const h=e.querySelector('.sp-h');
+  return { visible:getComputedStyle(e).display!=='none', cls:e.className||'', head:h?(h.textContent||'').trim():'', text:(e.textContent||'').trim(), cells:cells, cellCount:e.querySelectorAll('.sp-c').length }; };
+window.__focusId = ()=>{ const a=document.activeElement; return a?(a.id||a.className||a.tagName):'?'; };
+window.__scanConsts = ()=>({ cadence:SCAN_CADENCE_MS, idle:SCAN_IDLE_MS, minLen:SCAN_MIN_LEN, dedup:SCAN_DEDUP_MS, cap:MANUAL_QTY_CAP,
+  runReset:(typeof SCAN_RUN_RESET_MS!=='undefined'?SCAN_RUN_RESET_MS:null), late:(typeof SCAN_LATE_MS!=='undefined'?SCAN_LATE_MS:null),
+  hiccupMax:(typeof SCAN_HICCUP_MAX!=='undefined'?SCAN_HICCUP_MAX:null), proofGaps:(typeof SCAN_PROOF_GAPS!=='undefined'?SCAN_PROOF_GAPS:null) });
+window.__scanIndexStats = ()=>{ const x=scanIndexGet(); return { D:x.D.size, Z:x.Z.size, G:x.G.size, C:x.C.size }; };
+window.__setScanMode = (b)=>{ scanMode=!!b; };
+window.__countWriteAdd = (sid,code,d,at,eid)=>countWriteAdd(sid,code,d,at,eid); // م٦-٤: حارس التكرار eid
+// م٦-٤: قياس مطابقة الباركود في الحالة المستقرة (curItems ثابت أثناء الجلسة الحقيقية)
+window.__benchScanWarm = (items,code,reps)=>{ var s=curItems; try{ curItems=items||[]; findByScan(code);
+  var t0=performance.now(); for(var k=0;k<reps;k++) findByScan(code); return (performance.now()-t0)/reps; } finally { curItems=s; } };
+// م٦-٤: أسوأ حالة — تغيّر مرجع curItems قبل كل مطابقة (إعادة بناء الفهرس في نسخة «بعد»)
+window.__benchScanCold = (items,code,reps)=>{ var s=curItems; try{ var t0=performance.now();
+  for(var k=0;k<reps;k++){ curItems=(items||[]).slice(); findByScan(code); } return (performance.now()-t0)/reps; } finally { curItems=s; } };
+window.__hasScanQueue = ()=>{ try{ return typeof scanQueue!=='undefined' && !!scanQueue; }catch(e){ return false; } };
 window.__reasonAvail = (p)=>{ reasonAvailability(p); }; // م٦-٣: تفعيل/تعطيل أزرار الأسباب (للفحص)
 window.__setReportDate = (v)=>setReportDate(v); // م٦-٣: ضبط تاريخ الجرد (للفحص)
 window.__docVarCtx = (k)=>docVarCtx(k, (typeof repRows!=='undefined'?repRows:[])); // م٦-٣: متغيّرات الصيغة (للفحص)
@@ -312,5 +338,5 @@ let out = withoutImports.replace(/<script type="module">/, '<script type="module
 const lastClose = out.lastIndexOf('</script>');
 out = out.slice(0, lastClose) + HOOKS + out.slice(lastClose);
 
-fs.writeFileSync('harness.html', out);
-console.log('harness.html written', out.length, 'bytes');
+fs.writeFileSync(OUT_HTML, out);
+console.log(OUT_HTML + ' written', out.length, 'bytes', '(src=' + SRC_HTML + ')');

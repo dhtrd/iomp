@@ -1,0 +1,558 @@
+{
+ "before": {
+  "tag": "before",
+  "src": "index.html.bak-phase64",
+  "node": "v22.22.2",
+  "lookup": [
+   {
+    "items": 500,
+    "warmFirst": 0.0005,
+    "warmLast": 0.0108,
+    "warmLastBarcode": 0.011,
+    "warmNotFound": 0.1877,
+    "coldLastBarcode": 0.01,
+    "hasQueue": false
+   },
+   {
+    "items": 3000,
+    "warmFirst": 0,
+    "warmLast": 0.0925,
+    "warmLastBarcode": 0.1005,
+    "warmNotFound": 0.8777,
+    "coldLastBarcode": 0.065,
+    "hasQueue": false
+   },
+   {
+    "items": 8000,
+    "warmFirst": 0.0002,
+    "warmLast": 0.1625,
+    "warmLastBarcode": 0.1638,
+    "warmNotFound": 2.5355,
+    "coldLastBarcode": 0.305,
+    "hasQueue": false
+   }
+  ],
+  "render": [
+   {
+    "items": 500,
+    "renderFullMs": 18.4,
+    "renderFilteredMs": 8.4,
+    "renderFullMin": 11.3,
+    "renderFilteredMin": 5.4,
+    "samples": 8,
+    "rowsInDom": 100,
+    "handlersBound": 300
+   },
+   {
+    "items": 3000,
+    "renderFullMs": 18.4,
+    "renderFilteredMs": 14.8,
+    "renderFullMin": 17.4,
+    "renderFilteredMin": 12.3,
+    "samples": 8,
+    "rowsInDom": 100,
+    "handlersBound": 300
+   },
+   {
+    "items": 8000,
+    "renderFullMs": 13.6,
+    "renderFilteredMs": 16.5,
+    "renderFullMin": 12,
+    "renderFilteredMin": 13.3,
+    "samples": 8,
+    "rowsInDom": 100,
+    "handlersBound": 300
+   }
+  ],
+  "scanBarcodeEnter": {
+   "feedbackMs": 52.6,
+   "okMs": 52.7,
+   "listUpdateMs": 52.7,
+   "recorded": true,
+   "qty": 1,
+   "entries": 1,
+   "fieldAfter": "",
+   "focusAfter": "csearch",
+   "fullRenders": 13,
+   "patches": 1,
+   "panelVisible": true,
+   "panelCells": 0
+  },
+  "scanCodeEnter": {
+   "feedbackMs": 28.2,
+   "okMs": 28.4,
+   "listUpdateMs": 28.4,
+   "recorded": true,
+   "qty": 1,
+   "entries": 1,
+   "fieldAfter": "",
+   "focusAfter": "csearch",
+   "fullRenders": 10,
+   "patches": 1,
+   "panelVisible": true,
+   "panelCells": 0
+  },
+  "scanBarcodeNoEnter": {
+   "feedbackMs": null,
+   "okMs": null,
+   "listUpdateMs": null,
+   "recorded": false,
+   "qty": null,
+   "entries": null,
+   "fieldAfter": "6281002998",
+   "focusAfter": "csearch",
+   "fullRenders": 10,
+   "patches": 0,
+   "panelVisible": false,
+   "panelCells": 0
+  },
+  "scanUnknown": {
+   "feedbackMs": 23.2,
+   "okMs": null,
+   "listUpdateMs": 23.3,
+   "recorded": false,
+   "qty": null,
+   "entries": null,
+   "fieldAfter": "",
+   "focusAfter": "csearch",
+   "fullRenders": 4,
+   "patches": 9,
+   "panelVisible": true,
+   "panelCells": 0
+  },
+  "scanNoEnterSeries": {
+   "n": 8,
+   "recorded": 0,
+   "exactlyOne": false,
+   "feedbackMed": null,
+   "okMed": null,
+   "listMed": null,
+   "feedbackMin": null,
+   "feedbackMax": null,
+   "coldFeedback": null,
+   "coldOk": null,
+   "coldList": null,
+   "samples": [
+    {
+     "f": null,
+     "o": null,
+     "l": null,
+     "rec": false
+    },
+    {
+     "f": null,
+     "o": null,
+     "l": null,
+     "rec": false
+    },
+    {
+     "f": null,
+     "o": null,
+     "l": null,
+     "rec": false
+    },
+    {
+     "f": null,
+     "o": null,
+     "l": null,
+     "rec": false
+    },
+    {
+     "f": null,
+     "o": null,
+     "l": null,
+     "rec": false
+    },
+    {
+     "f": null,
+     "o": null,
+     "l": null,
+     "rec": false
+    },
+    {
+     "f": null,
+     "o": null,
+     "l": null,
+     "rec": false
+    },
+    {
+     "f": null,
+     "o": null,
+     "l": null,
+     "rec": false
+    }
+   ]
+  },
+  "scanEnterSeries": {
+   "n": 8,
+   "recorded": 8,
+   "exactlyOne": true,
+   "feedbackMed": 30.4,
+   "okMed": 30.4,
+   "listMed": 30.4,
+   "feedbackMin": 22,
+   "feedbackMax": 108.3,
+   "coldFeedback": 21.2,
+   "coldOk": 21.3,
+   "coldList": 21.4,
+   "samples": [
+    {
+     "f": 22,
+     "o": 22.1,
+     "l": 22.1,
+     "rec": true
+    },
+    {
+     "f": 24.9,
+     "o": 25.1,
+     "l": 25.1,
+     "rec": true
+    },
+    {
+     "f": 28.9,
+     "o": 29,
+     "l": 29,
+     "rec": true
+    },
+    {
+     "f": 46.6,
+     "o": 46.7,
+     "l": 46.7,
+     "rec": true
+    },
+    {
+     "f": 108.3,
+     "o": 108.4,
+     "l": 108.4,
+     "rec": true
+    },
+    {
+     "f": 30.4,
+     "o": 30.4,
+     "l": 30.4,
+     "rec": true
+    },
+    {
+     "f": 24.1,
+     "o": 24.3,
+     "l": 24.3,
+     "rec": true
+    },
+    {
+     "f": 45.4,
+     "o": 45.6,
+     "l": 45.6,
+     "rec": true
+    }
+   ]
+  },
+  "burstSame": {
+   "wallMs": 23677,
+   "pacedSleepMs": 2420,
+   "tailMs": 18.1,
+   "qty": 10,
+   "entries": 10,
+   "fullRenders": 100,
+   "patches": 10
+  },
+  "engineThroughput": {
+   "supported": false
+  },
+  "burstRealistic": {
+   "wallMs": 68620,
+   "recordedItems": 20,
+   "allExactlyOne": true,
+   "qtySum": 20,
+   "fullRenders": 260,
+   "patches": 20,
+   "fieldAfter": "",
+   "focusAfter": "csearch"
+  },
+  "echoCRLF": {
+   "qty": 1,
+   "entries": 1
+  }
+ },
+ "after": {
+  "tag": "after",
+  "src": "index.html",
+  "node": "v22.22.2",
+  "lookup": [
+   {
+    "items": 500,
+    "warmFirst": 0,
+    "warmLast": 0.0002,
+    "warmLastBarcode": 0,
+    "warmNotFound": 0.0005,
+    "coldLastBarcode": 0.6,
+    "hasQueue": true
+   },
+   {
+    "items": 3000,
+    "warmFirst": 0.0002,
+    "warmLast": 0.0005,
+    "warmLastBarcode": 0.0002,
+    "warmNotFound": 0.0008,
+    "coldLastBarcode": 2.86,
+    "hasQueue": true
+   },
+   {
+    "items": 8000,
+    "warmFirst": 0.0002,
+    "warmLast": 0.0002,
+    "warmLastBarcode": 0.0005,
+    "warmNotFound": 0.0002,
+    "coldLastBarcode": 8.34,
+    "hasQueue": true
+   }
+  ],
+  "render": [
+   {
+    "items": 500,
+    "renderFullMs": 11.6,
+    "renderFilteredMs": 5.2,
+    "renderFullMin": 10.9,
+    "renderFilteredMin": 4.2,
+    "samples": 8,
+    "rowsInDom": 100,
+    "handlersBound": 300
+   },
+   {
+    "items": 3000,
+    "renderFullMs": 11.5,
+    "renderFilteredMs": 9.7,
+    "renderFullMin": 10.7,
+    "renderFilteredMin": 6.9,
+    "samples": 8,
+    "rowsInDom": 100,
+    "handlersBound": 300
+   },
+   {
+    "items": 8000,
+    "renderFullMs": 13.2,
+    "renderFilteredMs": 16.3,
+    "renderFullMin": 12.2,
+    "renderFilteredMin": 13.8,
+    "samples": 8,
+    "rowsInDom": 100,
+    "handlersBound": 300
+   }
+  ],
+  "scanBarcodeEnter": {
+   "feedbackMs": 8.5,
+   "okMs": 8.6,
+   "listUpdateMs": 58.2,
+   "recorded": true,
+   "qty": 1,
+   "entries": 1,
+   "fieldAfter": "",
+   "focusAfter": "csearch",
+   "fullRenders": 1,
+   "patches": 0,
+   "panelVisible": true,
+   "panelCells": 5
+  },
+  "scanCodeEnter": {
+   "feedbackMs": 2,
+   "okMs": 2,
+   "listUpdateMs": 2,
+   "recorded": true,
+   "qty": 1,
+   "entries": 1,
+   "fieldAfter": "",
+   "focusAfter": "csearch",
+   "fullRenders": 1,
+   "patches": 2,
+   "panelVisible": true,
+   "panelCells": 5
+  },
+  "scanBarcodeNoEnter": {
+   "feedbackMs": 66.5,
+   "okMs": 66.5,
+   "listUpdateMs": 90.2,
+   "recorded": true,
+   "qty": 1,
+   "entries": 1,
+   "fieldAfter": "",
+   "focusAfter": "csearch",
+   "fullRenders": 1,
+   "patches": 0,
+   "panelVisible": true,
+   "panelCells": 5
+  },
+  "scanUnknown": {
+   "feedbackMs": 0.9,
+   "okMs": null,
+   "listUpdateMs": null,
+   "recorded": false,
+   "qty": null,
+   "entries": null,
+   "fieldAfter": "",
+   "focusAfter": "csearch",
+   "fullRenders": 0,
+   "patches": 0,
+   "panelVisible": true,
+   "panelCells": 2
+  },
+  "scanNoEnterSeries": {
+   "n": 8,
+   "recorded": 8,
+   "exactlyOne": true,
+   "feedbackMed": 53.2,
+   "okMed": 53.3,
+   "listMed": 73.5,
+   "feedbackMin": 52.7,
+   "feedbackMax": 53.4,
+   "coldFeedback": 53.1,
+   "coldOk": 53.1,
+   "coldList": 71.3,
+   "samples": [
+    {
+     "f": 53.2,
+     "o": 53.3,
+     "l": 73.8,
+     "rec": true
+    },
+    {
+     "f": 53.4,
+     "o": 53.4,
+     "l": 72.1,
+     "rec": true
+    },
+    {
+     "f": 53,
+     "o": 53,
+     "l": 70.1,
+     "rec": true
+    },
+    {
+     "f": 53.1,
+     "o": 53.2,
+     "l": 73.5,
+     "rec": true
+    },
+    {
+     "f": 53.3,
+     "o": 53.3,
+     "l": 72.5,
+     "rec": true
+    },
+    {
+     "f": 53.3,
+     "o": 53.4,
+     "l": 71.5,
+     "rec": true
+    },
+    {
+     "f": 53.1,
+     "o": 53.1,
+     "l": 75.4,
+     "rec": true
+    },
+    {
+     "f": 52.7,
+     "o": 52.8,
+     "l": 73.8,
+     "rec": true
+    }
+   ]
+  },
+  "scanEnterSeries": {
+   "n": 8,
+   "recorded": 8,
+   "exactlyOne": true,
+   "feedbackMed": 1.1,
+   "okMed": 1.2,
+   "listMed": 23.7,
+   "feedbackMin": 0.9,
+   "feedbackMax": 1.6,
+   "coldFeedback": 1,
+   "coldOk": 1,
+   "coldList": 22.2,
+   "samples": [
+    {
+     "f": 1.1,
+     "o": 1.1,
+     "l": 20.4,
+     "rec": true
+    },
+    {
+     "f": 1.2,
+     "o": 1.3,
+     "l": 20.7,
+     "rec": true
+    },
+    {
+     "f": 1.6,
+     "o": 1.6,
+     "l": 37.2,
+     "rec": true
+    },
+    {
+     "f": 1.1,
+     "o": 1.1,
+     "l": 28.3,
+     "rec": true
+    },
+    {
+     "f": 1.2,
+     "o": 1.2,
+     "l": 21.7,
+     "rec": true
+    },
+    {
+     "f": 0.9,
+     "o": 0.9,
+     "l": 21.4,
+     "rec": true
+    },
+    {
+     "f": 1,
+     "o": 1,
+     "l": 23.7,
+     "rec": true
+    },
+    {
+     "f": 1.1,
+     "o": 1.2,
+     "l": 25,
+     "rec": true
+    }
+   ]
+  },
+  "burstSame": {
+   "wallMs": 5401,
+   "pacedSleepMs": 2420,
+   "tailMs": 1.5,
+   "qty": 10,
+   "entries": 10,
+   "fullRenders": 10,
+   "patches": 0
+  },
+  "engineThroughput": {
+   "supported": true,
+   "accepted": 50,
+   "injectMs": 1.1,
+   "drainMs": 411,
+   "perScanMs": 8.22,
+   "recorded": 50,
+   "allExactlyOne": true,
+   "fullRenders": 1,
+   "patches": 0
+  },
+  "burstRealistic": {
+   "wallMs": 10985,
+   "recordedItems": 20,
+   "allExactlyOne": true,
+   "qtySum": 20,
+   "fullRenders": 20,
+   "patches": 0,
+   "fieldAfter": "",
+   "focusAfter": "csearch"
+  },
+  "echoCRLF": {
+   "qty": 1,
+   "entries": 1
+  }
+ }
+}
