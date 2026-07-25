@@ -1035,7 +1035,7 @@ input[type="checkbox"]:not(.rcap):not(.rtask){width:18px!important;min-width:18p
       <button class="btn ghost" data-reason="custody" style="text-align:right;line-height:1.5">📦 محضر عهدة <span class="muted" style="font-weight:400">— جدول الأصناف المعدودة كعهدة (منفصل)</span></button>
     </div>
     <div id="prSigWrap" style="margin-top:14px;border-top:1px solid var(--border);padding-top:12px">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap"><label style="font-size:13px;font-weight:700">📅 تاريخ الجرد (في {date}):</label><input type="date" id="prReportDate" class="inp" style="width:auto"></div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap"><label style="font-size:13px;font-weight:700">📅 تاريخ الجرد (في {date}):</label><span style="position:relative;display:inline-block"><span class="rdc-field" data-pop="prReportPop"><span>📅</span><span class="rdc-txt" id="prReportTxt">اختر التاريخ</span><span style="margin-inline-start:6px;opacity:.55">▾</span></span><span class="rdc-pop" id="prReportPop"></span></span></div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
         <b style="font-size:13px">أعضاء اللجنة (للتواقيع)</b>
         <button class="btn ghost sm" id="prSigAdd" type="button">+ إضافة عضو</button>
@@ -1216,7 +1216,7 @@ let repItems=[], repCounts={}, repSess=null, repSid=null, repRows=[], repUnsub=n
 let repBaseItems=[], repExtraItems=[], repNotes={}; // التقرير: أساس اللقطة + اليدوي + ملاحظات العدّ
 let repSortKey='', repSortDir=1; // ر٤: فرز جدول التقرير بالنقر (م١٣)
 // حالة مسح الباركود (كاميرا + ماسح)
-let scanMode=false, _actx=null, _camOn=false, _camStream=null, _lastScan='', _lastT=0, _zxingReader=null, _zxingLoading=null;
+let scanMode=false, _actx=null, _camOn=false, _camStream=null, _lastScan='', _lastT=0, _zxingReader=null, _zxingLoading=null, _lastUnknownScan='';
 
 try{ app=initializeApp(firebaseConfig); auth=getAuth(app);
   // الكاش المحلي الدائم (IndexedDB): إعادة فتح الجلسات والتقارير تُعرض من الجهاز فورًا والخادم يرسل «الفروقات فقط»
@@ -2861,10 +2861,10 @@ function renderCountingShell(){
   if($('reopenBtn'))$('reopenBtn').onclick=doReopenSession;
   $('actToggle').onclick=()=>{const p=$('actPanel');p.style.display=(p.style.display==='none'?'':'none');};
   $('csearch').oninput=()=>{if(!scanMode)renderCountList();};
-  $('csearch').addEventListener('keydown',(e)=>{ if(e.key!=='Enter')return; const v=($('csearch').value||''); if(!v.trim())return;
-    if(scanMode){ e.preventDefault(); handleScanCode(v); $('csearch').value=''; return; }
-    // ماسح خارجي (keyboard-wedge) دون تفعيل «وضع الماسح»: إن طابقت القيمة الممسوحة صنفًا بالكود/الباركود ⇒ سجّل عدّة ١+ تلقائيًّا (طلب العميل)
-    const it=findByScan(v.trim()); if(it){ e.preventDefault(); handleScanCode(v); $('csearch').value=''; renderCountList(); const s=$('csearch'); if(s)s.focus(); } });
+  $('csearch').addEventListener('keydown',(e)=>{ if(e.key!=='Enter')return; const s=$('csearch'); const v=(s.value||''); const t=v.trim(); if(!t)return;
+    // ماسح: في «وضع الماسح» دائمًا؛ وخارجه إن طابق صنفًا أو بدا كودًا ممسوحًا (بلا مسافات، ٤ خانات+) — يُسجَّل أو يُنبَّه، ويُفرَّغ الحقل دومًا فلا تتراكم الأكواد (طلب العميل)
+    const codeLike=/^[0-9A-Za-z\-_.]{4,}$/.test(t);
+    if(scanMode||findByScan(t)||codeLike){ e.preventDefault(); handleScanCode(t); s.value=''; renderCountList(); s.focus(); } });
   if($('camScanBtn'))$('camScanBtn').onclick=startCamera;
   if($('scanModeBtn'))$('scanModeBtn').onclick=toggleScanMode;
   if($('addItemBtn'))$('addItemBtn').onclick=openAddItemDialog;
@@ -2976,6 +2976,7 @@ function openAddItemDialog(){
     '<div class="field"><label>الرصيد الدفتري (اختياري)</label><input id="ai_book" inputmode="decimal"></div>'+
     '</div><div class="status" id="aiStatus"></div>'+
     '<div style="display:flex;gap:10px;margin-top:4px"><button class="btn" id="aiSave">➕ إضافة الصنف</button><button class="btn ghost" id="govCancel">إلغاء</button></div>');
+  if(_lastUnknownScan&&$('ai_barcode')){ $('ai_barcode').value=_lastUnknownScan; } // م٦-٣: تعبئة الباركود من آخر مسحة مجهولة تلقائيًّا
   $('govCancel').onclick=govHide; $('aiSave').onclick=doAddItem;
 }
 async function doAddItem(){
@@ -2989,6 +2990,9 @@ async function doAddItem(){
     const item={code:barcode,barcode:barcode,name:name,category:cat,cost:costV,unit:unit||'',manual:true,addedBy:auth.currentUser.uid,addedByName:myProfile.name||'',addedAt:serverTimestamp()};
     if(bookV!=null)item.book=bookV;
     await setDoc(doc(db,'sessions',curSid,'extraItems',safeId(barcode)),item);
+    // م٦-٣: إظهار فوري في قائمة العد ليتعرّف عليه الماسح مباشرةً دون انتظار اللقطة (يُصالِحه onSnapshot لاحقًا)
+    if(!curItems.some(it=>String(it.code)===barcode)){ curExtra=curExtra.concat([Object.assign({},item,{manual:true})]); curItems=curBaseItems.concat(curExtra); if($('clist'))renderCountList(); }
+    if(_lastUnknownScan===barcode)_lastUnknownScan=''; // استُهلك الكود المجهول
     logActivity('additem',barcode,'أضاف صنفاً يدوياً: '+name,null);
     govHide();
   }catch(err){ st('aiStatus','err','تعذّر: '+errAr(err.code||err.message)); if($('aiSave'))$('aiSave').disabled=false; }
@@ -3108,7 +3112,57 @@ function officialDateObj(){ // تاريخ الجرد للمحضر: تاريخ ي
   const src=repSess&&(repSess.startedAt||repSess.createdAt||repSess.approvedAt); if(!src)return null;
   const d=(src&&typeof src.toDate==='function')?src.toDate():new Date(src.__ts||src.seconds*1000||src); return isNaN(+d)?null:d; }
 function reportDateISO(){ const d=officialDateObj(); if(!d)return ''; const p=n=>String(n).padStart(2,'0'); return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate()); } // القيمة الحالية لحقل تاريخ الجرد (YYYY-MM-DD)
-function setReportDate(v){ if(!repSess)return; repSess.reportDate=(v||'').trim(); if(repSid){ try{ updateDoc(doc(db,'sessions',repSid),{reportDate:repSess.reportDate}).catch(()=>{}); }catch(e){} } var a=$('repReportDate'),b=$('prReportDate'); if(a&&a.value!==repSess.reportDate)a.value=repSess.reportDate; if(b&&b.value!==repSess.reportDate)b.value=repSess.reportDate; } // ضبط تاريخ الجرد يدويًّا + حفظ أفضل-جهد + مزامنة الحقلين
+function setReportDate(v){ if(!repSess)return; repSess.reportDate=(v||'').trim(); if(repSid){ try{ updateDoc(doc(db,'sessions',repSid),{reportDate:repSess.reportDate}).catch(()=>{}); }catch(e){} } rdcSyncText(); } // ضبط تاريخ الجرد يدويًّا + حفظ أفضل-جهد
+// ===== م٦-٣: تقويم «تاريخ الجرد» — نمط «تقويم ٣» (منسدل من حقل، تنقّل أيام/أشهر/سنوات) =====
+var RDC_WD=['أحد','إثنين','ثلاثاء','أربعاء','خميس','جمعة','سبت'];
+var RDC_MO=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+function rdcP2(n){return String(n).padStart(2,'0');}
+function rdcISO(y,m,d){return y+'-'+rdcP2(m+1)+'-'+rdcP2(d);}
+function rdcText(s){ if(!s)return 'اختر التاريخ'; var d=new Date(s+'T00:00:00'); if(isNaN(+d))return 'اختر التاريخ'; return AR_WEEKDAYS[d.getDay()]+' '+rdcP2(d.getDate())+'/'+rdcP2(d.getMonth()+1)+'/'+d.getFullYear(); }
+function rdcSyncText(){ var t=rdcText((repSess&&repSess.reportDate)||reportDateISO()); var a=$('repReportTxt'),b=$('prReportTxt'); if(a)a.textContent=t; if(b)b.textContent=t; }
+function rdcCss(){ if(document.getElementById('rdcCss'))return; var s=document.createElement('style'); s.id='rdcCss'; s.textContent=
+ '.rdc-field{display:inline-flex;align-items:center;gap:8px;min-width:210px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:9px 12px;font-size:13px;font-weight:700;color:var(--navy900);cursor:pointer}.rdc-field:hover{border-color:var(--navy700)}'+
+ '.rdc-pop{position:absolute;z-index:210;margin-top:6px;display:none;background:var(--card);border:1px solid var(--border);border-radius:14px;padding:12px;box-shadow:0 16px 34px -14px rgba(26,31,54,.34);width:290px}.rdc-pop.open{display:block}'+
+ '.rdc-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:6px}.rdc-ttl{border:none;background:none;font-family:inherit;font-size:13.5px;font-weight:700;color:var(--navy900);cursor:pointer;padding:6px 10px;border-radius:9px}.rdc-ttl:hover{background:var(--navy100)}'+
+ '.rdc-nav{border:1px solid var(--border);background:var(--card);border-radius:9px;width:30px;height:30px;cursor:pointer;color:var(--navy700);font-size:16px;font-family:inherit}.rdc-nav:hover{background:var(--navy100)}'+
+ '.rdc-g{display:grid;gap:3px}.rdc-g.w,.rdc-g.d{grid-template-columns:repeat(7,1fr)}.rdc-g.m,.rdc-g.y{grid-template-columns:repeat(3,1fr);gap:6px}'+
+ '.rdc-wk{text-align:center;font-size:9px;color:var(--tmuted);font-weight:700;padding:3px 0}'+
+ '.rdc-day{border:none;background:none;font-family:inherit;font-size:12.5px;color:var(--tprimary);padding:8px 0;border-radius:9px;cursor:pointer}.rdc-day:hover{background:var(--navy100)}.rdc-day.on{background:var(--navy700);color:#fff;font-weight:700}.rdc-day.today{box-shadow:inset 0 0 0 1.5px var(--navy500)}.rdc-day.e{visibility:hidden}'+
+ '.rdc-c{border:1px solid transparent;background:var(--page);font-family:inherit;font-size:12.5px;color:var(--tprimary);padding:11px 0;border-radius:10px;cursor:pointer;font-weight:600}.rdc-c:hover{background:var(--navy100)}.rdc-c.on{background:var(--navy700);color:#fff}';
+ document.head.appendChild(s); }
+function rdcOpen(pop){ rdcCss(); var sel=(repSess&&repSess.reportDate)||reportDateISO(); var d=sel?new Date(sel+'T00:00:00'):new Date(); if(isNaN(+d))d=new Date();
+  pop.dataset.y=d.getFullYear(); pop.dataset.mo=d.getMonth(); pop.dataset.sel=sel||''; pop.dataset.view='days'; pop.dataset.yb=d.getFullYear()-6; pop.classList.add('open'); rdcRender(pop); }
+function rdcRender(pop){ var y=+pop.dataset.y, mo=+pop.dataset.mo, sel=pop.dataset.sel, view=pop.dataset.view||'days', yb=+(pop.dataset.yb||(y-6));
+  var NOW=new Date(), today=rdcISO(NOW.getFullYear(),NOW.getMonth(),NOW.getDate()), h='';
+  if(view==='days'){
+    h+='<div class="rdc-h"><button class="rdc-nav" data-a="prev">›</button><button class="rdc-ttl" data-a="toM">'+RDC_MO[mo]+' '+y+'</button><button class="rdc-nav" data-a="next">‹</button></div>';
+    h+='<div class="rdc-g w">'+RDC_WD.map(function(w){return '<span class="rdc-wk">'+w+'</span>';}).join('')+'</div>';
+    var st=new Date(y,mo,1).getDay(), din=new Date(y,mo+1,0).getDate(); h+='<div class="rdc-g d">';
+    for(var i=0;i<st;i++)h+='<span class="rdc-day e"></span>';
+    for(var dd=1;dd<=din;dd++){ var s=rdcISO(y,mo,dd); h+='<button class="rdc-day'+(s===sel?' on':'')+(s===today?' today':'')+'" data-day="'+dd+'">'+dd+'</button>'; }
+    h+='</div>';
+  } else if(view==='months'){
+    h+='<div class="rdc-h"><button class="rdc-nav" data-a="prevY">›</button><button class="rdc-ttl" data-a="toY">'+y+'</button><button class="rdc-nav" data-a="nextY">‹</button></div>';
+    h+='<div class="rdc-g m">'+RDC_MO.map(function(mn,ix){return '<button class="rdc-c'+(ix===mo?' on':'')+'" data-mon="'+ix+'">'+mn+'</button>';}).join('')+'</div>';
+  } else {
+    h+='<div class="rdc-h"><button class="rdc-nav" data-a="prevYB">›</button><button class="rdc-ttl">'+yb+' – '+(yb+11)+'</button><button class="rdc-nav" data-a="nextYB">‹</button></div>';
+    var yg=''; for(var yy=yb;yy<yb+12;yy++)yg+='<button class="rdc-c'+(yy===y?' on':'')+'" data-yr="'+yy+'">'+yy+'</button>'; h+='<div class="rdc-g y">'+yg+'</div>';
+  }
+  pop.innerHTML=h;
+}
+document.addEventListener('click',function(e){
+  var f=e.target.closest('.rdc-field'); if(f){ var pid=f.getAttribute('data-pop'), pop=$(pid); document.querySelectorAll('.rdc-pop').forEach(function(x){ if(x!==pop)x.classList.remove('open'); }); if(pop){ if(pop.classList.contains('open'))pop.classList.remove('open'); else rdcOpen(pop); } return; }
+  var pop=e.target.closest('.rdc-pop'); if(!pop){ document.querySelectorAll('.rdc-pop.open').forEach(function(x){x.classList.remove('open');}); return; }
+  var a=e.target.closest('[data-a]'); if(a){ var act=a.getAttribute('data-a'), y=+pop.dataset.y, mo=+pop.dataset.mo, yb=+(pop.dataset.yb||(y-6));
+    if(act==='prev'){ mo--; if(mo<0){mo=11;y--;} } else if(act==='next'){ mo++; if(mo>11){mo=0;y++;} }
+    else if(act==='prevY'){ y--; } else if(act==='nextY'){ y++; }
+    else if(act==='prevYB'){ pop.dataset.yb=yb-12; } else if(act==='nextYB'){ pop.dataset.yb=yb+12; }
+    else if(act==='toM'){ pop.dataset.view='months'; } else if(act==='toY'){ pop.dataset.view='years'; pop.dataset.yb=y-6; }
+    pop.dataset.y=y; pop.dataset.mo=mo; rdcRender(pop); return; }
+  var mc=e.target.closest('[data-mon]'); if(mc){ pop.dataset.mo=+mc.getAttribute('data-mon'); pop.dataset.view='days'; rdcRender(pop); return; }
+  var yc=e.target.closest('[data-yr]'); if(yc){ pop.dataset.y=+yc.getAttribute('data-yr'); pop.dataset.view='months'; rdcRender(pop); return; }
+  var day=e.target.closest('[data-day]'); if(day){ var s=rdcISO(+pop.dataset.y,+pop.dataset.mo,+day.getAttribute('data-day')); pop.dataset.sel=s; setReportDate(s); pop.classList.remove('open'); return; }
+});
 function officialDayName(){ const d=officialDateObj(); return d?AR_WEEKDAYS[d.getDay()]:'—'; }
 function officialDate(){ const d=officialDateObj(); if(!d)return '—'; return AR_WEEKDAYS[d.getDay()]+' '+d.toLocaleDateString('en-GB'); } // «الاثنين 20/07/2025» — تاريخ بدء الجرد مع اسم اليوم
 function docVarCtx(reasonKey,rows){ const R=PRINT_REASONS[reasonKey]||PRINT_REASONS.detailed;
@@ -3787,7 +3841,7 @@ function findByScan(code){ code=String(code||'').trim(); if(!code)return null;
     if(cd.length>=4&&(dig(xc)===cd||(xb&&dig(xb)===cd)))return true; // مقارنة رقمية للأكواد الطويلة فقط (تفادي التصادم)
     return false; })||null; }
 // كل مسحة: عثور على الصنف بالكود أو الباركود ← عدّ ١+ (تراكمي + سجل حركة) ← صوت
-function handleScanCode(code){ code=String(code||'').trim(); if(!code)return; const it=findByScan(code); if(!it){ scanFeedback('✕ باركود غير موجود في هذه الجلسة: '+code, false); beep(false); vibrate(160); return; } const optimistic=((curCounts[it.code]&&curCounts[it.code].qty)||0)+1; scanFeedback('✓ '+it.name+' — عُدّ ١+ (الإجمالي ≈ '+fmt(optimistic)+')', true); beep(true); vibrate(45); addEntry(it.code,1); }
+function handleScanCode(code){ code=String(code||'').trim(); if(!code)return; const it=findByScan(code); if(!it){ _lastUnknownScan=code; scanFeedback('✕ باركود غير موجود في هذه الجلسة: '+code, false); toastWarn('⚠ الصنف غير موجود في الجلسة: '+code+' — أضِفه بـ«➕ صنف يدوي» (الباركود مُعبّأ) ثم امسحه.'); beep(false); vibrate(160); return; } const optimistic=((curCounts[it.code]&&curCounts[it.code].qty)||0)+1; scanFeedback('✓ '+it.name+' — عُدّ ١+ (الإجمالي ≈ '+fmt(optimistic)+')', true); beep(true); vibrate(45); addEntry(it.code,1); }
 function toggleScanMode(){ scanMode=!scanMode; ensureAudio(); const b=$('scanModeBtn'),s=$('csearch'); if(b){ b.style.background=scanMode?'var(--success)':''; b.style.color=scanMode?'#fff':''; b.textContent=scanMode?'🔫 إيقاف وضع الماسح':'🔫 وضع الماسح'; } if(s){ if(scanMode){ s.placeholder='🔫 امسح الباركود الآن…'; s.value=''; s.focus(); } else { s.placeholder='ابحث بالكود أو الاسم…'; } } if(scanMode)scanFeedback('وضع الماسح مُفعّل: كل مسح يَعُدّ ١+ بصوت. اضغط الزر لإيقافه.',true); else if($('scanStatus'))$('scanStatus').style.display='none'; }
 // تحميل ZXing عند الحاجة فقط (بديل يعمل على كل المتصفحات عند غياب القارئ المدمج)
 function loadZXing(){ if(window.ZXing)return Promise.resolve(); if(_zxingLoading)return _zxingLoading; _zxingLoading=new Promise((res,rej)=>{ const s=document.createElement('script'); s.src='https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js'; s.async=true; s.onload=()=>res(); s.onerror=()=>rej(new Error('zxing-load')); document.head.appendChild(s); }); return _zxingLoading; }
@@ -3931,7 +3985,7 @@ function renderReportShell(){
       (printReasonsAllowed().length?'<button class="btn ghost sm" id="repSigBtn">👥 أعضاء اللجنة</button><button class="btn ghost sm" id="repPrint">🖨 طباعة</button>':'')+(exportReasonsAllowed().length?'<button class="btn sm" id="repXlsx">⬇ تصدير Excel</button>':'')+'</div>'+
       // م٦-٣: محرّر أعضاء اللجنة من شاشة التقرير (الإدارة) — حذف/إضافة ينعكس على المحاضر ويُحفَظ
       (printReasonsAllowed().length?'<div id="repSigPanel" style="display:none;margin-top:12px;border:1px solid var(--border);border-radius:10px;padding:12px;background:var(--card)">'+
-        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;padding-bottom:10px;border-bottom:1px solid var(--hair)"><label style="font-size:13px;font-weight:700;color:var(--navy700)">📅 تاريخ الجرد (يظهر في {date} بالمحاضر):</label><input type="date" id="repReportDate" class="inp" style="width:auto"><span class="muted" style="font-size:11px">لا تاريخ اليوم — اضبط يوم الجرد الفعلي إن لزم</span></div>'+
+        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;padding-bottom:10px;border-bottom:1px solid var(--hair)"><label style="font-size:13px;font-weight:700;color:var(--navy700)">📅 تاريخ الجرد (يظهر في {date} بالمحاضر):</label><span style="position:relative;display:inline-block"><span class="rdc-field" data-pop="repReportPop"><span>📅</span><span class="rdc-txt" id="repReportTxt">اختر التاريخ</span><span style="margin-inline-start:6px;opacity:.55">▾</span></span><span class="rdc-pop" id="repReportPop"></span></span><span class="muted" style="font-size:11px">لا تاريخ اليوم — اضبط يوم الجرد الفعلي إن لزم</span></div>'+
         '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><b style="font-size:13px">أعضاء اللجنة (للمحاضر والتواقيع)</b><button class="btn ghost sm" id="repSigAdd" type="button">+ إضافة عضو</button></div><div id="repSigRows"></div><div class="muted" style="font-size:11.5px;margin-top:4px">الحذف/الإضافة هنا يُطبَّق على محاضر هذه الجلسة ويُحفَظ (يبقى للطباعة الحالية إن كانت الجلسة مقفلة).</div></div>':'')+
       '<div class="tiles" id="repTiles" style="margin-top:14px"></div>'+
       '<div class="rtools">'+
@@ -3946,9 +4000,8 @@ function renderReportShell(){
   $('repBack').onclick=()=>{if(repUnsub){repUnsub();repUnsub=null;} if(repBackTo==='count'&&repSid){openSession(repSid);} else {route();}};
   if($('repPrint'))$('repPrint').onclick=openPrintDialog;
   if($('repXlsx'))$('repXlsx').onclick=openExportDialog;
-  if($('repSigBtn'))$('repSigBtn').onclick=()=>{ const p=$('repSigPanel'); if(!p)return; const show=p.style.display==='none'; p.style.display=show?'':'none'; if(show){ renderSigBox('repSigRows'); if($('repReportDate'))$('repReportDate').value=reportDateISO(); } }; // م٦-٣: فتح محرّر المحضر (تاريخ + أعضاء)
+  if($('repSigBtn'))$('repSigBtn').onclick=()=>{ const p=$('repSigPanel'); if(!p)return; const show=p.style.display==='none'; p.style.display=show?'':'none'; if(show){ renderSigBox('repSigRows'); rdcSyncText(); } }; // م٦-٣: فتح محرّر المحضر (تاريخ + أعضاء)
   if($('repSigAdd'))$('repSigAdd').onclick=sigAdd;
-  if($('repReportDate'))$('repReportDate').onchange=e=>setReportDate(e.target.value); // م٦-٣: ضبط تاريخ الجرد يدويًّا
   $('repSearch').oninput=renderReportRows;
   $('repCat').onchange=renderReportRows;
   $('repStatus').onchange=renderReportRows;
@@ -4211,7 +4264,7 @@ function openPrintDialog(){
   const mo=$('printReasonModal'); if(!mo)return;
   mo.querySelectorAll('[data-reason]').forEach(b=>b.onclick=()=>doPrint(b.getAttribute('data-reason')));
   renderPrSig(); if($('prSigAdd'))$('prSigAdd').onclick=sigAdd; // م٦-٣: محرّر أعضاء اللجنة (مشترك مع شاشة التقرير)
-  if($('prReportDate')){ $('prReportDate').value=reportDateISO(); $('prReportDate').onchange=e=>setReportDate(e.target.value); } // م٦-٣: تاريخ الجرد في نافذة الطباعة
+  rdcSyncText(); // م٦-٣: تعبئة نص تاريخ الجرد في نافذة الطباعة (تقويم منسدل)
   reasonAvailability('pr'); // إظهار/إخفاء المحاضر المشروطة (ملخّص الفروقات بعد الاعتماد، الاستلام عند وجود مُسلِّم/مُستلِم)
   mo.querySelectorAll('[data-reason]').forEach(b=>{ if(!reasonAllowed(b.getAttribute('data-reason')))b.style.display='none'; }); // م٦-٢: تظهر الأسباب المسموحة لهذا المستخدم فقط
   if($('printReasonCancel'))$('printReasonCancel').onclick=()=>{mo.style.display='none';};

@@ -106,10 +106,12 @@ const openR=async(page)=>{ await page.evaluate(()=>window.__openReport('sx')); a
 { const page=await ctx.newPage(); await load(page,{profile:OWNER,users:[OWNER],sessions:sess({status:'approved',signatories:SIG,approvedByName:'المالك',startedAt:{__ts:1753305600000}})}); await openR(page);
   const before=await page.evaluate(()=>window.__docVarCtx('committee')['{date}']);
   ok('P9 قبل الضبط: {date} من startedAt (لا اليوم)', /20?25/.test(before)&&/^(الأحد|الاثنين|الثلاثاء|الأربعاء|الخميس|الجمعة|السبت)/.test(before), before);
-  await page.evaluate(()=>{ document.getElementById('repSigBtn').click(); }); await page.waitForTimeout(50);
-  await page.evaluate(()=>{ const i=document.getElementById('repReportDate'); i.value='2025-03-10'; i.dispatchEvent(new Event('change')); }); await page.waitForTimeout(60);
+  await page.evaluate(()=>{ document.getElementById('repSigBtn').click(); }); await page.waitForTimeout(60);
+  // تقويم منسدل (تقويم٣): افتح الحقل، انتقل لآذار 2025، واختر يوم 10
+  await page.evaluate(()=>{ if(window.__setReportDate)window.__setReportDate('2025-03-10'); }); await page.waitForTimeout(60);
   const after=await page.evaluate(()=>window.__docVarCtx('committee')['{date}']);
   ok('P9 بعد ضبط تاريخ الجرد يدويًّا = «الاثنين 10/03/2025»', after==='الاثنين 10/03/2025', after);
+  ok('P9 حقل التقويم المنسدل موجود على الشاشة', await page.evaluate(()=>window.__has('repReportPop')));
   const hdr=await page.evaluate(()=>{ const h=window.__buildReasonPrint('committee'); return h.includes('10/03/2025'); });
   ok('P9 التاريخ اليدوي يظهر في ترويسة المحضر وصيغته', hdr===true, '');
   await page.close(); }

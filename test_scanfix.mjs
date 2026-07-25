@@ -43,10 +43,27 @@ const cnt=(page,code)=>page.evaluate(c=>{ const d=window.__store['sessions/sr/co
   // مطابقة عبر الباركود
   await page.fill('#csearch','6281000123456'); await page.press('#csearch','Enter'); await page.waitForTimeout(300);
   ok('S2 مسح الباركود سجّل على كود الصنف', await cnt(page,'99916382')===1, 'qty='+await cnt(page,'99916382'));
-  // نصّ بحث لا يطابق صنفًا: Enter لا يسجّل شيئًا خطأً
+  // نصّ بحث عربي لا يطابق صنفًا: Enter لا يسجّل شيئًا خطأً ولا يُفرَّغ الحقل
   await page.fill('#csearch','صنف'); await page.press('#csearch','Enter'); await page.waitForTimeout(200);
   const anyExtra=await page.evaluate(()=>Object.keys(window.__store).filter(k=>k.indexOf('sessions/sr/counts/')===0).length);
-  ok('S2 بحث نصّي + Enter لا يُنشئ عدّة خاطئة', anyExtra===3, 'countsDocs='+anyExtra);
+  ok('S2 بحث نصّي عربي + Enter لا يُنشئ عدّة خاطئة', anyExtra===3, 'countsDocs='+anyExtra);
+  ok('S2 حقل البحث النصّي يبقى (لا يُفرَّغ)', (await page.inputValue('#csearch'))==='صنف');
+  // كود مجهول يبدو ممسوحًا: يُفرَّغ الحقل فلا تتراكم الأكواد + آخر مجهول محفوظ
+  await page.fill('#csearch','777001'); await page.press('#csearch','Enter'); await page.waitForTimeout(200);
+  ok('S2 كود مجهول يُفرِّغ الحقل (لا تراكم رقم فوق رقم)', (await page.inputValue('#csearch'))==='');
+  ok('S2 الكود المجهول محفوظ للتعبئة', await page.evaluate(()=>window.__lastUnknownScan?window.__lastUnknownScan():null)==='777001');
+  await page.close(); }
+
+// ===== S4 — الصنف المُضاف يدويًّا يُتعرَّف عليه فورًا بالماسح =====
+{ const page=await ctx.newPage(); await load(page,{profile:OWNER,users:[OWNER],sessions:SESS});
+  await page.evaluate(()=>window.__openSession('sr')); await page.waitForTimeout(500);
+  // مسح كود مجهول ثم إضافته يدويًّا برمجيًّا (محاكاة الحوار)
+  await page.fill('#csearch','555999'); await page.press('#csearch','Enter'); await page.waitForTimeout(150);
+  await page.evaluate(()=>window.__addExtraItem({code:'555999',barcode:'555999',name:'صنف مُضاف',category:'ك',cost:2,manual:true})); await page.waitForTimeout(200);
+  const known=await page.evaluate(()=>window.__findByScan(window.__curItemsArr(),'555999'));
+  ok('S4 المُضاف يدويًّا صار ضمن أصناف الجلسة', known==='555999', 'known='+known);
+  await page.fill('#csearch','555999'); await page.press('#csearch','Enter'); await page.waitForTimeout(300);
+  ok('S4 مسحه بعد الإضافة يسجّل عدّة (qty=1)', await cnt(page,'555999')===1, 'qty='+await cnt(page,'555999'));
   await page.close(); }
 
 // ===== S3 — «وضع الماسح» ما زال يعمل (لا انحدار) =====

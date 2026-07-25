@@ -236,7 +236,11 @@ window.__disp = (id)=>{ const e=document.getElementById(id); return e?getCompute
 window.__buildReasonPrint = (k)=>{ buildPrintReport(k); return document.getElementById('repPrintArea').innerHTML; };
 window.__repSigList = ()=>repSigList(); // م٦-٣: محرّر أعضاء اللجنة (للفحص)
 window.__findByScan = (items,code)=>{ var s=(typeof curItems!=='undefined')?curItems:null; try{ curItems=items||[]; var r=findByScan(code); return r?String(r.code):null; } finally { if(s!==null)curItems=s; } }; // م٦-٣: مطابقة الباركود (للفحص)
+window.__lastUnknownScan = ()=>_lastUnknownScan; // م٦-٣: آخر مسحة مجهولة
+window.__curItemsArr = ()=>curItems.map(x=>Object.assign({},x)); // م٦-٣: أصناف الجلسة الحالية
+window.__addExtraItem = (item)=>{ curExtra=curExtra.concat([Object.assign({},item,{manual:true})]); curItems=curBaseItems.concat(curExtra); if(document.getElementById('clist'))renderCountList(); }; // م٦-٣: محاكاة إضافة صنف يدوي (إظهار فوري)
 window.__reasonAvail = (p)=>{ reasonAvailability(p); }; // م٦-٣: تفعيل/تعطيل أزرار الأسباب (للفحص)
+window.__setReportDate = (v)=>setReportDate(v); // م٦-٣: ضبط تاريخ الجرد (للفحص)
 window.__docVarCtx = (k)=>docVarCtx(k, (typeof repRows!=='undefined'?repRows:[])); // م٦-٣: متغيّرات الصيغة (للفحص)
 window.__acBuildBackup = ()=>acBuildBackup();
 window.__acChecksum = (s)=>acChecksum(s); // إصلاح-٥ (بند ١١): بناء بصمة صحيحة في الاختبار
