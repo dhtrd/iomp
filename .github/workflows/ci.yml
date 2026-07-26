@@ -4,6 +4,12 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# نشرة واحدة فقط في كل وقت: تمنع تصادم عمليات تفريغ الـ CDN
+# التي تُبقي النشر عالقًا على purging_cdn حتى انتهاء المهلة.
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   app-tests:
     name: اختبارات التطبيق (١٤٢٧)
@@ -37,12 +43,14 @@ jobs:
     name: نشر GitHub Pages
     needs: [app-tests, rules-tests]
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     permissions:
+      contents: read
       pages: write
       id-token: write
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.deployment.outputs.page_url || steps.deployment-retry.outputs.page_url }}
     steps:
       - uses: actions/checkout@v6
       - name: تجهيز موقع النشر (التطبيق + PWA)
@@ -51,5 +59,20 @@ jobs:
           cp index.html manifest.webmanifest sw.js icon-192.png icon-512.png icon-maskable-192.png icon-maskable-512.png apple-touch-icon.png _site/
       - uses: actions/upload-pages-artifact@v5
         with: { path: _site }
-      - id: deployment
+      - name: نشر الموقع
+        id: deployment
         uses: actions/deploy-pages@v5
+        continue-on-error: true
+        with:
+          # المهلة الافتراضية ١٠ دقائق وهي قصيرة عندما يتباطأ تفريغ CDN لدى GitHub
+          timeout: 1800000        # ٣٠ دقيقة
+          error_count: 15
+          reporting_interval: 15000
+      - name: إعادة محاولة النشر (عند انتهاء المهلة)
+        id: deployment-retry
+        if: steps.deployment.outcome == 'failure'
+        uses: actions/deploy-pages@v5
+        with:
+          timeout: 1800000
+          error_count: 15
+          reporting_interval: 15000
