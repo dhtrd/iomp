@@ -31,6 +31,8 @@ async function open(status) {
 }
 const cnt   = (page, code) => page.evaluate(c => { const d = window.__store['sessions/sr/counts/' + c]; return d ? d.qty : null; }, code);
 const ents  = (page, code) => page.evaluate(c => { const d = window.__store['sessions/sr/counts/' + c]; return d && d.entries ? d.entries.length : null; }, code);
+// ط-١٤: التتابع المتّصل صار سطرًا واحدًا يحمل n = عدد مسحاته. مجموع المسحات = Σn (وغياب n = ١).
+const scans = (page, code) => page.evaluate(c => { const d = window.__store['sessions/sr/counts/' + c]; return d && d.entries ? d.entries.reduce((t, e) => t + (e && e.n > 1 ? e.n : 1), 0) : null; }, code);
 const panel = (page) => page.evaluate(() => window.__scanPanel());
 const focus = (page) => page.evaluate(() => window.__focusId());
 
@@ -109,7 +111,8 @@ async function settle(page, extra) {
     ok('س٢ المسحة ' + k + ' ⇒ الكمية ' + k, await cnt(page, cd(8)) === k, 'qty=' + await cnt(page, cd(8)));
     await page.waitForTimeout(240);                                 // فاصل واقعي بين مسحتين
   }
-  ok('س٢ ثلاث إضافات مستقلّة بالضبط', await ents(page, cd(8)) === 3, 'entries=' + await ents(page, cd(8)));
+  ok('س٢ ط-١٤: التتابع المتّصل سطرٌ واحدٌ لا ثلاثة (إعادة تصميم السجلّ — المرحلة ٤)', await ents(page, cd(8)) === 1, 'entries=' + await ents(page, cd(8)));
+  ok('س٢ ومجموع مسحاته ثلاثٌ بالضبط (لا فقدان ولا ازدواج)', await scans(page, cd(8)) === 3, 'scans=' + await scans(page, cd(8)));
   ok('س٢ لا حوار تأكيد ظهر إطلاقًا', await page.evaluate(() => { const o = document.getElementById('cfOverlay'); return !o || getComputedStyle(o).display === 'none'; }));
   ok('س٢ اللوحة تعرض ٢ ← ٣ بعد آخر مسحة', await page.evaluate(() => { const p = window.__scanPanel(); return p.cells['الكمية الحالية'] === '2' && p.cells['الإجمالي بعد التحديث'] === '3'; }));
   ok('س٢ الزمن الكلّي لثلاث مسحات معقول (< ٤ ثوانٍ)', (Date.now() - t0) < 4000, 'ms=' + (Date.now() - t0));
@@ -202,7 +205,8 @@ async function settle(page, extra) {
     ok('س٦ المسحة ' + k + ' لنفس الباركود ⇒ الكمية ' + k, await cnt(page, cd(20)) === k, 'qty=' + await cnt(page, cd(20)));
   }
   await settle(page);
-  ok('س٦ أربع إضافات مستقلّة بالضبط', await ents(page, cd(20)) === 4, 'entries=' + await ents(page, cd(20)));
+  ok('س٦ ط-١٤: التتابع المتّصل سطرٌ واحدٌ لا أربعة (إعادة تصميم السجلّ — المرحلة ٤)', await ents(page, cd(20)) === 1, 'entries=' + await ents(page, cd(20)));
+  ok('س٦ ومجموع مسحاته أربعٌ بالضبط (لا فقدان ولا ازدواج)', await scans(page, cd(20)) === 4, 'scans=' + await scans(page, cd(20)));
   const p6 = await panel(page);
   ok('س٦ اللوحة تعرض ٣ ← +1 ← ٤', p6 && p6.cells['الكمية الحالية'] === '3' && p6.cells['الكمية المضافة'] === '+1' && p6.cells['الإجمالي بعد التحديث'] === '4',
     JSON.stringify(p6 && p6.cells));

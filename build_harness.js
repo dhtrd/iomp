@@ -95,6 +95,13 @@ __seed();
 /* ===== end stub ===== */
 `;
 
+// ط-١٥ (د-٨): index.html صار يُعرّف الأسماء التسعة كأغلفةٍ تعدّ ثمّ تمرّر إلى `_fs*`.
+// وتكرار تعريف دالّةٍ في المستوى الأعلى من وحدة ES خطأٌ نحويّ — فالمحاكي يُعاد تسميته
+// بالآليّة نفسها تلقائيًّا (لا يدويًّا) كي يستحيل أن يفترق الملفّان مستقبلًا.
+const BILL = ['getDoc','getDocs','setDoc','updateDoc','addDoc','deleteDoc','onSnapshot','writeBatch','runTransaction'];
+let STUB2 = STUB;
+BILL.forEach(n => { STUB2 = STUB2.replace(new RegExp('\\b' + n + '\\b', 'g'), '_fs' + n[0].toUpperCase() + n.slice(1)); });
+
 // Introspection hooks appended at the very end of the module (before </script>).
 const HOOKS = `
 ;window.__can = can; window.__roleCapVal = roleCapVal; window.__canManageSessions = canManageSessions; window.__isOwner = isOwner;
@@ -104,6 +111,7 @@ window.__contentHtml = ()=>document.getElementById('appContent').innerHTML;
 window.__has = id=>!!document.getElementById(id);
 window.__click = id=>{ const e=document.getElementById(id); if(e){e.click();return true;} return false; };
 window.__store = __store;
+window.__mockSet = (path,data)=>{ __store[path]=__clone(data); __afterWrite(path); }; // كتابةٌ تحاكي setDoc فتُطلق المستمعين
 window.__setTab = t=>{ adminTab=t; renderNav(); route(); };
 window.__openSession = sid=>openSession(sid);
 window.__del = sid=>deleteSession(sid);
@@ -359,10 +367,213 @@ window.__cat = {
     const t0=performance.now(); for(let k=0;k<r;k++){ for(let i=0;i<n;i++) catalogFind(codes[i]); }
     return (performance.now()-t0)/(r*n); }
 };
+// ط-١١/ط-١٢: خطاطيف الاستيراد والتقرير — المنطق الصافي بلا واجهة
+window.__cimp = {
+  key:(v)=>catKey(v),
+  itemKey:(it)=>catItemKey(it),
+  opt:(k)=>catOpt(k),
+  on:()=>featuresMasterCatalogOn(),
+  fin:()=>canSeeFinance(),
+  setOpt:(o)=>{ permConfig=permConfig||{}; permConfig.catalog=Object.assign({},permConfig.catalog||{},o||{}); },
+  clrOpt:()=>{ if(permConfig)permConfig.catalog=undefined; },
+  setFeat:(v)=>{ permConfig=permConfig||{}; permConfig.features=Object.assign({},permConfig.features||{},{masterCatalog:v}); },
+  // خرائط الأعمدة الافتراضيّة لملفّ القالب: باركود/اسم/فئة/تكلفة/وحدة/دفتريّ
+  IDX:{code:0,name:1,category:2,cost:3,unit:4,book:5},
+  plan:async(rows,idx,fname)=>{ const P=await catBuildPlan(rows,idx||{code:0,name:1,category:2,cost:3,unit:4,book:5},fname||'f.csv');
+    return P&&JSON.parse(JSON.stringify(P)); },
+  planTimed:async(rows,idx)=>{ let worst=0,last=performance.now();
+    const P=await catBuildPlan(rows,idx||{code:0,name:1,category:2,cost:3,unit:4,book:5},'big.csv',()=>{ const n=performance.now(); if(n-last>worst)worst=n-last; last=n; });
+    const n=performance.now(); if(n-last>worst)worst=n-last;
+    return {ok:!!P,worst:worst,rowsRead:P?P.rowsRead:0,neu:P?P.neu.length:0,upd:P?P.upd.length:0}; },
+  abort:(v)=>{ _catAbort=!!v; },
+  n:(P,k)=>catN(P,k),
+  sec:(P,s,fin)=>catSec(P,s,fin),
+  merge:(P,dn,du)=>{ const m=catMergeOut(P,dn,du); return {out:m.out,dirty:m.dirty,del:m.del,n:m.out.length}; },
+  write:async(P,dn,du)=>{ const m=catMergeOut(P,dn,du); return await catWriteOut(m); },
+  report:(P,dn,du,tot)=>catReportDoc(P,dn,du,tot),
+  saved:(d)=>catSavedToPlan(d),
+  render:(P,m)=>catRenderPlan(P,m),
+  aoa:(P)=>catAoa(P),
+  prev:()=>!!_catPrev,
+  nav:()=>{ renderNav(); return $('appNav').innerHTML; },
+  // الحارس: مسار رفع الجلسة يبقى كما كان بعد إعادة استعمال حوار المواءمة
+  mapLbl:()=>{ pending={headers:['a','b'],rows:[['1','x']],sid:'s1'};
+    showMapping({code:0,name:1,barcode:-1,category:-1,unit:-1,book:-1,cost:-1});
+    const t=$('mapConfirm').textContent; $('mapModal').style.display='none'; pending=null; return t; },
+  shared:()=>(typeof readSheet==='function')&&(typeof handleFile==='function')
+};
+// ط-١٣: خطاطيف الموافقة على صنف الكتالوج أثناء المسح — التدفّقان ٤ و٥
+window.__hist14 = {
+  D:HISTD,
+  opt:(k)=>histOpt(k),
+  n:(e)=>entryN(e),
+  ops:(l)=>entriesOps(l),
+  probe:()=>RUN_PROBE,
+  ptr:()=>(_runPtr?Object.assign({},_runPtr):null),
+  reset:()=>runReset(),
+  brk:(c)=>runBreak(c),
+  idx:(entries,run)=>runIndex(entries,run),
+  canMerge:(c)=>{ const r=runCanMerge(c); return r?Object.assign({},r):null; },
+  advance:(c,run,eid,ri)=>Object.assign({},runAdvance(c,run,eid,ri)),
+  // نافذة حذف التتابع
+  delAsk:(n)=>runDelAsk(n),
+  delShown:()=>{ const o=document.getElementById('rdOverlay'); return !!(o&&o.style.display==='flex'); },
+  delText:()=>{ const o=document.getElementById('rdOverlay'); return o?(o.textContent||'').trim():''; },
+  delOne:()=>{ const b=document.getElementById('rdOne'); if(b)b.click(); return !!b; },
+  delAll:()=>{ const b=document.getElementById('rdAll'); if(b)b.click(); return !!b; },
+  delCancel:()=>{ const b=document.getElementById('rdCancel'); if(b)b.click(); return !!b; },
+  // مخزن سطر الحركة المؤجَّل
+  actRun:()=>(_actRun?Object.assign({},_actRun):null),
+  actFlush:()=>actFlush(),
+  actAdd:(c,n,q)=>actAdd(c,n,q),
+  // منافذ الكتابة والقراءة المباشرة
+  writeAdd:(sid,code,d,at,eid,run)=>countWriteAdd(sid,code,d,at,eid,run),
+  writeDec:(sid,code,eid)=>countWriteDec(sid,code,eid),
+  dec:(code,eid)=>decEntry(code,eid),
+  add:(c,v,o)=>addEntry(c,v,o),
+  rm:(c,i)=>removeEntry(c,i),
+  rsItem:(c)=>resetItem(c),
+  delBtn:(code,i)=>{ const b=document.querySelector('[data-delc="'+code+'"][data-deli="'+i+'"]'); if(!b)return null;
+    const r={n:b.getAttribute('data-deln'),e:b.getAttribute('data-dele')}; b.click(); return r; },
+  pend:()=>JSON.parse(JSON.stringify(_pendingAdds)),
+  counts:()=>JSON.parse(JSON.stringify(curCounts)),
+  clistHtml:()=>{ const el=document.getElementById('clist'); return el?el.innerHTML:''; },
+  actHtml:()=>{ const el=document.getElementById('actlog'); return el?el.innerHTML:''; },
+  renderAct:(rows)=>{ const el=document.getElementById('actlog'); if(!el)return ''; const qs={forEach:(f)=>rows.forEach(r=>f({data:()=>r}))}; renderActivity(qs); return el.innerHTML; },
+  agg:(entries)=>repAgg(entries),
+  who:(w)=>whoDetail(w,false),
+  /* قياس الأداء — القياس الحقيقيّ: تتابعٌ متّصل من الصفر. السجلّ لا ينمو أصلًا مع ط-١٤،
+     فزمن المسحة رقم ٥٠٠٠ = زمن المسحة رقم ١٠. هذا هو ما يراه العدّاد فعلًا. */
+  benchRun:async (sid,code,n)=>{ const path='sessions/'+sid+'/counts/'+code;
+    const uid=(auth.currentUser&&auth.currentUser.uid)||'u1';
+    window.__mockSet(path,{code:code,qty:0,entries:[]});
+    const eid0='r0'; await countWriteAdd(sid,code,1,Date.now(),eid0,null);
+    let r={code:String(code),eid:eid0,ri:0,by:uid,seq:1}; const t=[];
+    for(let k=0;k<n;k++){ const t0=performance.now();
+      const ri=await countWriteAdd(sid,code,1,Date.now(),'r'+(k+1),r);
+      t.push(performance.now()-t0);
+      r={code:r.code,eid:r.eid,ri:(ri>=0?ri:r.ri),by:r.by,seq:r.seq+1}; }
+    const avg=(a)=>a.reduce((x,y)=>x+y,0)/(a.length||1);
+    const d=window.__store[path];
+    return {first:avg(t.slice(0,100)),last:avg(t.slice(-100)),max:Math.max.apply(null,t),
+            rows:d.entries.length,qty:d.qty,n:entryN(d.entries[0])}; },
+  /* أسوأ حالة: مستندٌ قديمٌ ضخم (٥٠٠٠ سطر قبل ط-١٤). مقارنة الدمج بالإلحاق تُثبت
+     أنّ ط-١٤ ليس أبطأ ممّا يستبدله — وكلفة نسخ المستند كانت قائمةً قبله أصلًا. */
+  benchBig:async (sid,code,n,runs,mode)=>{ const path='sessions/'+sid+'/counts/'+code;
+    const uid=(auth.currentUser&&auth.currentUser.uid)||'u1';
+    const ents=[]; for(let i=0;i<n;i++)ents.push({id:'seed-'+i,q:1,by:'u-seed',byName:'بذرة',at:1});
+    const eid0='run-head'; ents.push({id:eid0,q:1,by:uid,byName:'أنا',at:2});
+    window.__mockSet(path,{code:code,qty:n+1,entries:ents});
+    let r={code:String(code),eid:eid0,ri:ents.length-1,by:uid,seq:1};
+    const t0=performance.now();
+    for(let k=0;k<runs;k++){ const use=(mode==='append')?null:r;
+      const ri=await countWriteAdd(sid,code,1,Date.now(),'e-'+k,use);
+      if(use)r={code:r.code,eid:r.eid,ri:(ri>=0?ri:r.ri),by:r.by,seq:r.seq+1}; }
+    const ms=performance.now()-t0; const d=window.__store[path];
+    return {ms:ms,per:ms/runs,rows:d.entries.length,qty:d.qty}; },
+  doc:(sid,code)=>{ const d=window.__store['sessions/'+sid+'/counts/'+code]; return d?JSON.parse(JSON.stringify(d)):null; },
+  acts:(sid)=>{ const out=[]; for(const k in window.__store){ if(k.indexOf('sessions/'+sid+'/activity/')===0)out.push(window.__store[k]); } return JSON.parse(JSON.stringify(out)); },
+  actCount:(sid)=>{ let c=0; for(const k in window.__store){ if(k.indexOf('sessions/'+sid+'/activity/')===0)c++; } return c; },
+};
+window.__cat13 = {
+  on:()=>ca13On(),
+  warm:()=>ca13Warm(),
+  findScan:(c)=>{ const it=catalogFindScan(c); return it?Object.assign({},it):null; },
+  item:(cat,code)=>ca13Item(cat,code),
+  try:(job)=>ca13Try(job),
+  insert:(cat,code)=>ca13Insert(cat,code),
+  // مجموعة المرفوضين — لإثبات «لا تتكرّر النافذة»
+  declined:()=>(_ca13Declined?Array.from(_ca13Declined):[]),
+  clrDeclined:()=>{ _ca13Declined=null; },
+  // السقف اليوميّ المحلّيّ
+  capKey:()=>ca13CapKey(),
+  capUsed:()=>ca13CapUsed(),
+  capBump:()=>ca13CapBump(),
+  capClr:()=>{ try{ for(let i=localStorage.length-1;i>=0;i--){ const x=localStorage.key(i); if(x&&x.indexOf('iomp-cadd-')===0)localStorage.removeItem(x); } }catch(e){} },
+  capSet:(n)=>{ try{ localStorage.setItem(ca13CapKey(),String(n)); }catch(e){} },
+  // نافذة الموافقة — الفحص والضغط برمجيًّا
+  askShown:()=>{ const o=document.getElementById('caOverlay'); return !!(o&&o.style.display==='flex'); },
+  askText:()=>{ const o=document.getElementById('caOverlay'); return o?(o.textContent||'').trim():''; },
+  askCells:()=>{ const o=document.getElementById('caOverlay'); if(!o)return {};
+    const m={}; o.querySelectorAll('.tile').forEach(t=>{ const k=t.querySelector('.k'), v=t.querySelector('.v'); if(k&&v)m[(k.textContent||'').trim()]=(v.textContent||'').trim(); }); return m; },
+  askWarn:()=>{ const e=document.getElementById('caWarn'); return e?(e.textContent||'').trim():''; },
+  yes:()=>{ const b=document.getElementById('caYes'); if(b)b.click(); return !!b; },
+  no:()=>{ const b=document.getElementById('caNo'); if(b)b.click(); return !!b; },
+  key:(k)=>{ document.dispatchEvent(new KeyboardEvent('keydown',{key:k,bubbles:true,cancelable:true})); },
+  setBuf:(v)=>{ const s=document.getElementById('csearch'); if(s)s._scBuf=v; return !!s; },
+  // سجلّ الباركودات المجهولة — محلّيٌّ بالكامل
+  unkKey:()=>UNK_KEY,
+  unkGet:()=>unkGet(),
+  unkLog:(c,sid)=>unkLog(c,sid),
+  unkClr:()=>offlineStore.set(UNK_KEY,[]),
+  unkOpen:()=>unkOpen(),
+  govHtml:()=>{ const e=document.getElementById('govBody')||document.getElementById('govModal'); return e?e.innerHTML:''; },
+  // حالة الجلسة — لإثبات الإدراج والظهور الفوريّ
+  extra:()=>curExtra.map(x=>Object.assign({},x)),
+  codes:()=>curItems.map(x=>String(x.code)),
+  sid:()=>curSid,
+  setBlind:(b)=>{ if(curSess)curSess.blind=!!b; },
+  clistHas:(c)=>{ const e=document.getElementById('clist'); return !!(e&&e.innerHTML.indexOf(String(c))>=0); },
+  clistHtml:()=>{ const e=document.getElementById('clist'); return e?e.innerHTML:''; }
+};
+/* ط-١٥ (د-٨): نداءٌ مباشرٌ للأغلفة التسعة نفسها التي يستعملها التطبيق — لا نسخةٌ منها.
+   الغرض إثباتُ أنّ كلَّ اسمٍ قابلٍ للفوترة يمرّ من العدّاد، بلا الاعتماد على تدفّقٍ يخفي الفرق. */
+window.__probe9 = {
+  getDoc:(p)=>getDoc({path:p}),
+  getDocs:(p)=>getDocs({path:p}),
+  setDoc:(p,d)=>setDoc({path:p},d),
+  updateDoc:(p,d)=>updateDoc({path:p},d),
+  addDoc:(p,d)=>addDoc({path:p},d),
+  deleteDoc:(p)=>deleteDoc({path:p}),
+  batch3:()=>{ const b=writeBatch(db); b.set({path:'t/a'},{x:1}); b.update({path:'t/a'},{x:2}); b.delete({path:'t/a'}); return b.commit(); },
+  txn:()=>runTransaction(db,async(tx)=>{ await tx.get({path:'t/a'}); tx.set({path:'t/a'},{x:9}); }),
+  listen:(p)=>new Promise(res=>{ const u=onSnapshot({path:p},()=>{ try{u();}catch(e){} res(true); },()=>res(false)); })
+};
+window.__setPermCfg = (o)=>{ permConfig=Object.assign({},permConfig||{},o||{}); };
+/* ط-١٥ (د-٧ · د-٨ · د-٩ · د-١١): نوافذُ فحصٍ للاختبار فقط — لا تُغيّر سلوكًا ولا تُستدعى من التطبيق. */
+window.__quota = {
+  D: QUOTAD,
+  opt: (k)=>quotaOpt(k),
+  state: ()=>Object.assign({}, quotaState()),
+  pct: ()=>quotaPct(),
+  bump: (k,n)=>qBump(k,n),
+  mB: (nr)=>mBump(nr),
+  m: (d)=>quotaMAvg(d||7),
+  hist: (d)=>quotaHistory(d||7),
+  day: (t)=>quotaDay(t),
+  key: ()=>QUOTA_KEY,
+  save: ()=>quotaSave(true),
+  storage: (ss)=>storageEstimate(ss),
+  reset: ()=>{ const st=quotaState(); st.r=0; st.w=0; st.warn=0; st.scans=0; st.runs=0; quotaSave(true); return Object.assign({},st); },
+  clr: ()=>{ try{ for(let i=localStorage.length-1;i>=0;i--){ const x=localStorage.key(i); if(x&&x.indexOf(QUOTA_KEY)===0)localStorage.removeItem(x); } }catch(e){} }
+};
+window.__act = {
+  attached: ()=>!!actUnsub,
+  attach: (sid)=>actAttach(sid===undefined?curSid:sid),
+  detach: ()=>{ if(actUnsub){ actUnsub(); actUnsub=null; } },
+  lastQs: ()=>!!_actLastQs,
+  dirty: ()=>_actDirty
+};
+/* ط-١٦ (المهمّة ٨٢): خطاطيف لوحة الإعدادات — قراءةٌ وفحصٌ فقط، ولا تُستدعى من التطبيق. */
+window.__sets = {
+  spec: ()=>SETSPEC.map(s=>({g:s.g,title:s.title,save:s.save,status:s.status,keys:s.fields.map(f=>f.k),
+                             types:s.fields.map(f=>f.t),ids:s.fields.map(f=>'set_'+f.k.replace(/[^a-zA-Z0-9]/g,'_'))})),
+  keys: (g)=>{ const s=SETSPEC.find(x=>x.g===g); return s?s.fields.map(f=>f.k):[]; },
+  id: (k)=>'set_'+k.replace(/[^a-zA-Z0-9]/g,'_'),
+  val: (g,k)=>setsVal(g,k),
+  collect: (g)=>setsCollect(g),
+  save: (g)=>{ const s=SETSPEC.find(x=>x.g===g); return setsSave(g,s.status,'ok'); },
+  reset: (g)=>{ const s=SETSPEC.find(x=>x.g===g); return setsReset(g,s.status); },
+  defaults: (g)=>(g==='catalog'?CATD:(g==='history'?HISTD:QUOTAD)),
+  storageCalc: ()=>setsStorageCalc(),
+  storageOut: ()=>{ const e=document.getElementById('setsStorageOut'); return e?(e.textContent||'').trim():null; },
+  gaugesHtml: ()=>setsGauges(),
+  wire: ()=>setsWire()
+};
 window.__ready = true;
 `;
 
-let out = withoutImports.replace(/<script type="module">/, '<script type="module">' + STUB);
+let out = withoutImports.replace(/<script type="module">/, '<script type="module">' + STUB2);
 // insert hooks before the final </script> of the module (last </script> in file)
 const lastClose = out.lastIndexOf('</script>');
 out = out.slice(0, lastClose) + HOOKS + out.slice(lastClose);
