@@ -400,8 +400,17 @@ window.__cimp = {
   mapLbl:()=>{ pending={headers:['a','b'],rows:[['1','x']],sid:'s1'};
     showMapping({code:0,name:1,barcode:-1,category:-1,unit:-1,book:-1,cost:-1});
     const t=$('mapConfirm').textContent; $('mapModal').style.display='none'; pending=null; return t; },
-  shared:()=>(typeof readSheet==='function')&&(typeof handleFile==='function')
+  shared:()=>(typeof readSheet==='function')&&(typeof handleFile==='function'),
+  // ح-١: تجربة مسار رفع اللقطة مباشرةً — يرجع {err, open, wrote} لإثبات رفض الملفّ المكرّر بلا كتابة
+  mapTry:(rows,idx)=>{ pending={headers:['c','n','co'],rows:rows,sid:'simp'};
+    showMapping(idx||{code:0,name:1,barcode:-1,category:-1,unit:-1,book:-1,cost:2});
+    { const ms=$('mapStatus'); if(ms)ms.textContent=''; }   // امسح أي حالةٍ سابقة كي يعكس err هذا الرفع وحده
+    try{ $('mapConfirm').onclick(); }catch(e){}
+    const err=($('mapStatus')&&$('mapStatus').textContent)||''; const open=$('mapModal').style.display!=='none';
+    const wrote=Object.keys(window.__store).some(k=>k.indexOf('sessions/simp/snapshot/')===0);
+    $('mapModal').style.display='none'; pending=null; return {err:err,open:open,wrote:wrote}; }
 };
+window.__numv = (v)=>numv(v);   // ح-٢: فحص تطبيع الأرقام مباشرةً
 // ط-١٣: خطاطيف الموافقة على صنف الكتالوج أثناء المسح — التدفّقان ٤ و٥
 window.__hist14 = {
   D:HISTD,

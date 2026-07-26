@@ -1460,7 +1460,7 @@ function fmtDateTimeAr(v){ const d=(v instanceof Date)?v:new Date(v); if(!d||isN
   let h=d.getHours(); const ap=h<12?'ص':'م'; h=h%12||12;
   const p=n=>String(n).padStart(2,'0'), ar=s=>String(s).replace(/[0-9]/g,c=>'٠١٢٣٤٥٦٧٨٩'[+c]);
   return ar(p(d.getDate())+'/'+p(d.getMonth()+1)+'، '+p(h)+':'+p(d.getMinutes()))+' '+ap; }
-function numv(v){var n=parseFloat(String(v==null?'':v).replace(/[,٬\s]/g,'').replace(/[٠-٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d)));return isNaN(n)?null:n;}
+function numv(v){var s=String(v==null?'':v).replace(/[,٬\s]/g,'').replace(/٫/g,'.').replace(/[٠-٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d));if(!/^[+-]?(\d+\.?\d*|\.\d+)$/.test(s))return null;var n=parseFloat(s);return isNaN(n)?null:n;}   // ح-٢: الفاصلة العربيّة ٫ تُعامَل عشريّةً، والمدخل غير الرقميّ (مثل «12abc») يُرفض بدل قبولٍ صامتٍ لجزءٍ منه — والفاصلة , تبقى فاصلَ آلافٍ (عُرف العميل: نقطةٌ عشريّة)
 function errAr(code){const m={'auth/invalid-email':'البريد غير صحيح.','auth/user-not-found':'لا يوجد حساب بهذا البريد.','auth/wrong-password':'كلمة المرور غير صحيحة.','auth/invalid-credential':'بيانات الدخول غير صحيحة.','auth/email-already-in-use':'هذا البريد مسجّل مسبقاً.','auth/weak-password':'كلمة المرور ضعيفة (٦ أحرف على الأقل).','auth/too-many-requests':'محاولات كثيرة — انتظر قليلاً.','auth/network-request-failed':'تعذّر الاتصال بالإنترنت.','auth/requires-recent-login':'سجّل الدخول من جديد ثم غيّر كلمة المرور.','auth/operation-not-allowed':'فعّل Email/Password في Firebase.','permission-denied':'رُفض الوصول (تحقّق من قواعد Firestore).'};return m[code]||('خطأ: '+code);}
 
 // ===== LOGIN =====
@@ -3021,6 +3021,8 @@ function showMapping(g){
     const idx={code:gi('mf_code'),barcode:gi('mf_barcode'),name:gi('mf_name'),category:gi('mf_category'),unit:gi('mf_unit'),book:gi('mf_book'),cost:gi('mf_cost')};
     if(idx.code<0||idx.name<0){st('mapStatus','err','حدّد عمودَي الكود والاسم.');return;}
     const items=pending.rows.map(r=>({code:idx.code>=0?String(r[idx.code]!=null?r[idx.code]:'').trim():'',barcode:idx.barcode>=0?String(r[idx.barcode]!=null?r[idx.barcode]:'').trim():'',name:idx.name>=0?String(r[idx.name]!=null?r[idx.name]:'').trim():'',category:idx.category>=0?String(r[idx.category]!=null?r[idx.category]:'').trim():'',unit:idx.unit>=0?String(r[idx.unit]!=null?r[idx.unit]:'').trim():'',book:idx.book>=0?numv(r[idx.book]):null,cost:idx.cost>=0?numv(r[idx.cost]):null})).filter(x=>x.code||x.name);
+    const _dm=Object.create(null),_dups=[]; for(let i=0;i<items.length;i++){ const k=String(items[i].code); if(_dm[k]){ if(_dm[k]===1){ _dups.push(k===''?'(بلا كود)':k); _dm[k]=2; } } else _dm[k]=1; }   // ح-١: كشف الأكواد المكرّرة
+    if(_dups.length){ st('mapStatus','err','⛔ الملفّ يحوي أكوادًا مكرّرة ('+_dups.length+') — تُسبِّب عدًّا مزدوجًا في التقارير. صحّح الملفّ (كودٌ فريدٌ لكلّ صنف) ثمّ أعِد الرفع. المكرّر: '+_dups.slice(0,10).join('، ')+(_dups.length>10?' …':'')); return; }   // قرار العميل: يُرفض حتّى يُصحَّح يدويًّا
     const sid=pending.sid; $('mapModal').style.display='none'; pending=null;
     storeSnapshot(sid,items);
   };

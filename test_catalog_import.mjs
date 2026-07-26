@@ -275,6 +275,31 @@ const plan = (p, rows) => p.evaluate(r => window.__cimp.plan(r), rows);
   await shut(page);
 }
 
+// ═════════ المجموعة ل — ح-٢ (تطبيع الأرقام) و ح-١ (رفض ملفّ الجرد المكرّر) ═════════
+{
+  const page = await open();
+  const nv = (v) => page.evaluate(x => window.__numv(x), v);
+  ok('ل١ numv: الفاصلة تبقى فاصلَ آلاف 1,234.5→1234.5', await nv('1,234.5') === 1234.5);
+  ok('ل٢ numv: النقطة العشريّة 1.5→1.5', await nv('1.5') === 1.5);
+  ok('ل٣ numv: الفاصلة العربيّة ١٫٥→1.5 (كانت تُقتطع إلى 1)', await nv('١٫٥') === 1.5);
+  ok('ل٤ numv: أرقام عربيّة ١٢٣→123', await nv('١٢٣') === 123);
+  ok('ل٥ numv: مدخل بحروف غريبة 12abc يُرفض null (كان يُقبل 12)', await nv('12abc') === null);
+  ok('ل٦ numv: نصّ محض abc يُرفض null', await nv('abc') === null);
+  ok('ل٧ numv: فارغ يُرفض null', await nv('') === null);
+  ok('ل٨ numv: سالب مقبول -3', await nv('-3') === -3);
+  ok('ل٩ numv: صفر يبقى 0', await nv('0') === 0);
+  ok('ل١٠ numv: كسر عشريّ .5→0.5', await nv('.5') === 0.5);
+  const dupRows = [['1001', 'صنف أ', '10'], ['1002', 'صنف ب', '20'], ['1001', 'صنف أ مكرّر', '30']];
+  const rd = await page.evaluate(r => window.__cimp.mapTry(r), dupRows);
+  ok('ل١١ ملفّ الجرد المكرّر يُظهر خطأً', /مكرّر/.test(rd.err), 'err=' + rd.err);
+  ok('ل١٢ ملفّ الجرد المكرّر يُبقي الحوار مفتوحًا', rd.open === true);
+  ok('ل١٣ ملفّ الجرد المكرّر لا يكتب لقطةً', rd.wrote === false);
+  const okRows = [['2001', 'صنف ج', '10'], ['2002', 'صنف د', '20']];
+  const rc = await page.evaluate(r => window.__cimp.mapTry(r), okRows);
+  ok('ل١٤ ملفّ الجرد النظيف يمرّ بلا خطأ ويُغلق الحوار', rc.err === '' && rc.open === false, 'err=' + rc.err + ' open=' + rc.open);
+  await shut(page);
+}
+
 await browser.close();
 const pass = results.filter(r => r.pass).length;
 results.forEach(r => console.log((r.pass ? '  ✓ ' : '  ✗ ') + r.n + (r.pass ? '' : '  ← ' + r.d)));
