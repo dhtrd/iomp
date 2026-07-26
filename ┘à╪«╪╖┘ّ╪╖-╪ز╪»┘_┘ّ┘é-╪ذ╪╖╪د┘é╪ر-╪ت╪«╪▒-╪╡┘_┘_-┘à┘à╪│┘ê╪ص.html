@@ -1,0 +1,94 @@
+<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>مخطّط التدفّق وانتقال الحالات — بطاقة «آخر صنف مُمسوح»</title>
+<style>
+:root{--navy700:#1f3a63;--navy100:#e7eef7;--card:#fff;--border:#d9e0ea;--hair:#e8edf3;--ink:#132038;--tsec:#42506a;--tmuted:#8592a8;--success:#0ca30c;--warn:#c07a00;--danger:#d03b3b;--bg:#f4f7fb}
+*{box-sizing:border-box}body{margin:0;font-family:"Segoe UI",Tahoma,system-ui,sans-serif;background:var(--bg);color:var(--ink);padding:22px;line-height:1.55}
+.wrap{max-width:1000px;margin:0 auto}
+h1{font-size:20px;margin:0 0 4px}h2{font-size:15px;color:var(--navy700);margin:26px 0 12px;border-bottom:2px solid var(--navy100);padding-bottom:5px}
+.sub{color:var(--tsec);font-size:13.5px;margin:0 0 14px}
+.flow{display:flex;flex-direction:column;gap:0;align-items:center}
+.node{background:var(--card);border:1.5px solid var(--border);border-radius:12px;padding:11px 16px;font-size:13.5px;font-weight:700;text-align:center;max-width:560px;box-shadow:0 1px 6px rgba(20,40,80,.05)}
+.node.start{background:var(--navy700);color:#fff;border-color:var(--navy700)}
+.node.dec{background:#fff8e8;border-color:color-mix(in srgb,var(--warn) 45%,var(--border));border-radius:10px}
+.node.card{background:var(--navy100);border-color:color-mix(in srgb,var(--navy700) 35%,var(--border))}
+.node.ok{background:color-mix(in srgb,var(--success) 12%,transparent);border-color:color-mix(in srgb,var(--success) 42%,var(--border))}
+.node.err{background:color-mix(in srgb,var(--danger) 10%,transparent);border-color:color-mix(in srgb,var(--danger) 40%,var(--border))}
+.arr{color:var(--tmuted);font-size:20px;line-height:1;margin:5px 0}
+.arr small{display:block;font-size:11px;font-weight:700;color:var(--tsec);margin-top:1px}
+.split{display:flex;gap:18px;justify-content:center;flex-wrap:wrap;align-items:flex-start}
+.br{display:flex;flex-direction:column;align-items:center;gap:0;flex:1;min-width:230px}
+.brlbl{font-size:11.5px;font-weight:800;color:var(--navy700);background:var(--navy100);border-radius:20px;padding:2px 10px;margin-bottom:4px}
+table{width:100%;border-collapse:collapse;font-size:13px;background:var(--card);border-radius:10px;overflow:hidden}
+th,td{padding:8px 10px;text-align:right;border-bottom:1px solid var(--hair)}
+th{background:var(--navy100);color:var(--navy700);font-size:12.5px}
+td code{background:var(--bg);padding:1px 5px;border-radius:5px;font-size:12px}
+.chip{display:inline-block;font-size:11.5px;font-weight:800;border-radius:20px;padding:2px 9px}
+.c-hide{background:#eef0f4;color:var(--tmuted)}.c-ok{background:color-mix(in srgb,var(--success) 15%,transparent);color:var(--success)}.c-pen{background:var(--navy100);color:var(--navy700)}.c-err{background:color-mix(in srgb,var(--danger) 12%,transparent);color:var(--danger)}
+.legend{font-size:12.5px;color:var(--tsec);margin-top:10px}
+.states{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-top:6px}
+.st{border:1.5px solid var(--border);border-radius:12px;padding:10px 14px;background:var(--card);min-width:150px;text-align:center;font-size:13px}
+.st b{display:block;margin-bottom:3px}
+.t-el{font-size:12px;color:var(--tsec)}
+</style></head><body><div class="wrap">
+<h1>مخطّط التدفّق وانتقال الحالات — بطاقة «آخر صنف مُمسوح»</h1>
+<p class="sub">لِما قبل التنفيذ. يوضّح كيف تصبح البطاقة معاينةً ثابتة، وما الذي يُظهرها ويُستبدلها ويُغلقها.</p>
+
+<h2>١ · مخطّط سير العمل (من المسحة إلى البطاقة الثابتة)</h2>
+<div class="flow">
+  <div class="node start">📷 مسحةٌ واحدة (حقل/كاميرا) → الطابور → مستهلكٌ واحد</div>
+  <div class="arr">▼</div>
+  <div class="node dec">هل الصنف موجودٌ في جلسة الجرد؟ <code>findByScan(code)</code></div>
+  <div class="arr">▼</div>
+  <div class="split">
+    <div class="br">
+      <span class="brlbl">نعم — صنفٌ في الجلسة</span>
+      <div class="node ok">تُكتب المسحة (+١) عبر <code>addEntry</code> — سلوكٌ قائم</div>
+      <div class="arr">▼</div>
+      <div class="node card">🟢 <b>البطاقة تُعرض/تُستبدَل فورًا</b><br>الاسم · الباركود · الدفتريّ · +١ · الفعليّ · <b>الفرق</b> · الحالة · حالة المسح<br><small style="color:var(--tsec)">من الحالة المحلّيّة فقط — صفر Firestore</small></div>
+    </div>
+    <div class="br">
+      <span class="brlbl">لا — ليس في الجلسة</span>
+      <div class="node">هل هو في الكتالوج الرئيسيّ؟</div>
+      <div class="arr">▼<small>نعم ⇐ نافذة م٧ (مسارٌ آخر) · لا ⇓</small></div>
+      <div class="node err">⛔ بطاقةٌ حمراء: «باركود غير معروف» — أضِفه يدويًّا</div>
+    </div>
+  </div>
+  <div class="arr">▼<small>البطاقة معروضةٌ الآن وتبقى</small></div>
+  <div class="node card"><b>البطاقة ثابتةٌ — لا مؤقّت اختفاء</b></div>
+  <div class="arr">▼</div>
+  <div class="split">
+    <div class="br"><span class="brlbl">مسحةٌ لصنفٍ آخر</span><div class="node ok">استبدالٌ فوريّ للمحتوى (بلا اختفاء/وميض)</div></div>
+    <div class="br"><span class="brlbl">مسحةٌ للصنف نفسه</span><div class="node ok">تحديثٌ موضعيّ: الفعليّ والفرق فقط (عقدتان نصّيّتان)</div></div>
+    <div class="br"><span class="brlbl">ضغط ✕</span><div class="node">إخفاء البطاقة — لا تعود إلّا بمسحةٍ جديدة</div></div>
+  </div>
+</div>
+
+<h2>٢ · مخطّط انتقال الحالات</h2>
+<div class="states">
+  <div class="st"><b><span class="chip c-hide">مخفيّة</span></b><span class="t-el">لا بطاقة</span></div>
+  <div class="st"><b><span class="chip c-pen">جارٍ التسجيل…</span></b><span class="t-el">أثناء الكتابة (لحظيّ)</span></div>
+  <div class="st"><b><span class="chip c-ok">معروضة (صنف A)</span></b><span class="t-el">ثابتة — تعرض A</span></div>
+  <div class="st"><b><span class="chip c-ok">معروضة (صنف B)</span></b><span class="t-el">ثابتة — تعرض B</span></div>
+  <div class="st"><b><span class="chip c-err">خطأ/مجهول</span></b><span class="t-el">ثابتة — رسالة</span></div>
+</div>
+<table style="margin-top:14px">
+<tr><th>من الحالة</th><th>الحدث</th><th>إلى الحالة</th><th>ملاحظة</th></tr>
+<tr><td><span class="chip c-hide">مخفيّة</span></td><td>مسح صنفٍ في الجلسة</td><td><span class="chip c-pen">جارٍ</span> → <span class="chip c-ok">معروضة A</span></td><td>تظهر وتبقى</td></tr>
+<tr><td><span class="chip c-ok">معروضة A</span></td><td>مسح الصنف A نفسه</td><td><span class="chip c-ok">معروضة A</span></td><td>تحديثٌ موضعيّ: الفعلي +١ والفرق</td></tr>
+<tr><td><span class="chip c-ok">معروضة A</span></td><td>مسح صنفٍ B</td><td><span class="chip c-ok">معروضة B</span></td><td><b>استبدالٌ فوريّ</b> — لا اختفاء</td></tr>
+<tr><td><span class="chip c-ok">معروضة A</span></td><td>ضغط ✕</td><td><span class="chip c-hide">مخفيّة</span></td><td>الإخفاء الوحيد المتاح يدويًّا</td></tr>
+<tr><td><span class="chip c-ok">معروضة A</span></td><td>مرور الوقت (سكون)</td><td><span class="chip c-ok">معروضة A</span></td><td><b>لا تختفي</b> — أُزيل المؤقّت</td></tr>
+<tr><td><span class="chip c-ok">معروضة</span></td><td>باركود مجهول</td><td><span class="chip c-err">خطأ</span></td><td>رسالةٌ حمراء ثابتة</td></tr>
+<tr><td>أيّ حالة</td><td>مسحٌ متتابع سريع</td><td>تتبع آخر مسحة</td><td>بلا إعادة رسمٍ كاملة، بلا تصفير</td></tr>
+</table>
+<p class="legend">الفرق الجوهريّ عن اليوم: لا يوجد انتقالٌ تلقائيٌّ إلى «مخفيّة» بمرور الوقت. المخارج الوحيدة من العرض: <b>✕</b> أو <b>مسحةٌ جديدة تستبدل</b>.</p>
+
+<h2>٣ · ضمانات الأداء في المخطّط</h2>
+<table>
+<tr><th>النقطة</th><th>الضمان</th></tr>
+<tr><td>عند العرض/الاستبدال</td><td>قراءة <code>curCounts</code> و<code>it</code> المحلّيّة فقط — صفر قراءة/كتابة Firestore</td></tr>
+<tr><td>إعادة مسح الصنف نفسه</td><td>تحديث عقدتين نصّيّتين (فعلي/فرق) — لا إعادة بناء (≈١٩× أسرع، كنمط م٧)</td></tr>
+<tr><td>قائمة العدّ</td><td>غير متأثّرة — البطاقة عنصرٌ منفصلٌ عن <code>renderCountList</code></td></tr>
+<tr><td>الجلسة العمياء</td><td>الدفتريّ/الفرق/الحالة مخفيّة — لا تسريب لِما يُخفيه العمى</td></tr>
+</table>
+</div></body></html>

@@ -1,0 +1,157 @@
+<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>نموذج بطاقة «آخر صنف مُمسوح» — معاينة حيّة ثابتة</title>
+<style>
+:root{--navy700:#1f3a63;--navy100:#e7eef7;--card:#fff;--border:#d9e0ea;--hair:#e8edf3;--ink:#132038;--tprimary:#132038;--tsec:#42506a;--tmuted:#8592a8;--success:#0ca30c;--warn:#c07a00;--danger:#d03b3b;--radius:14px;--bg:#f4f7fb;--ease:cubic-bezier(.4,0,.2,1)}
+*{box-sizing:border-box}
+body{margin:0;font-family:"Segoe UI",Tahoma,system-ui,sans-serif;background:var(--bg);color:var(--ink);padding:22px;line-height:1.5}
+h1{font-size:21px;margin:0 0 4px}h2{font-size:15px;color:var(--navy700);margin:26px 0 10px;border-bottom:2px solid var(--navy100);padding-bottom:5px}
+.sub{color:var(--tsec);font-size:13.5px;margin:0 0 18px}
+.wrap{max-width:1000px;margin:0 auto}
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:16px}
+/* ===== البطاقة ===== */
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 2px 10px rgba(20,40,80,.06);overflow:hidden;position:relative}
+.card.ok{border-color:color-mix(in srgb,var(--success) 42%,var(--border))}
+.card .bar{height:4px}
+.card.pos .bar{background:var(--success)}.card.neg .bar{background:var(--danger)}.card.zero .bar{background:var(--navy700)}
+.hd{display:flex;align-items:flex-start;gap:9px;padding:12px 14px 6px}
+.hd .ic{font-size:19px;line-height:1.2}
+.hd .nm{flex:1;font-weight:800;font-size:16px;color:var(--tprimary)}
+.hd .bc{font-size:12px;color:var(--tmuted);font-variant-numeric:tabular-nums;margin-top:2px}
+.x{border:1px solid var(--border);background:var(--card);color:var(--tsec);width:28px;height:28px;border-radius:8px;font-size:14px;cursor:pointer;flex:none;line-height:1}
+.x:hover{background:var(--navy100);color:var(--navy700);border-color:var(--navy700)}
+.scanst{display:inline-flex;align-items:center;gap:5px;margin:2px 14px 0;font-size:12px;font-weight:700;color:var(--success);background:color-mix(in srgb,var(--success) 12%,transparent);border-radius:20px;padding:3px 10px}
+/* شبكة الأولويّة: دفتري ↓ فعلي ↓ فرق */
+.tiers{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px 14px}
+.t{border:1px solid var(--hair);border-radius:10px;padding:8px 10px;background:#fafcff}
+.t .k{font-size:11px;color:var(--tmuted);font-weight:700}
+.t .v{font-weight:800;font-variant-numeric:tabular-nums;color:var(--tprimary)}
+.t.book .v{font-size:18px}
+.t.act{background:var(--navy100);border-color:color-mix(in srgb,var(--navy700) 22%,var(--hair))}
+.t.act .v{font-size:24px;color:var(--navy700)}
+.t.add .v{font-size:15px;color:var(--success)}
+/* الفرق — أقوى تمييز، يمتدّ العرض */
+.t.diff{grid-column:1/-1;text-align:center;padding:10px}
+.t.diff .k{font-size:12px}
+.t.diff .v{font-size:34px;letter-spacing:.5px}
+.card.pos .t.diff{background:color-mix(in srgb,var(--success) 12%,transparent);border-color:color-mix(in srgb,var(--success) 42%,var(--hair))}
+.card.pos .t.diff .v{color:var(--success)}
+.card.neg .t.diff{background:color-mix(in srgb,var(--danger) 12%,transparent);border-color:color-mix(in srgb,var(--danger) 42%,var(--hair))}
+.card.neg .t.diff .v{color:var(--danger)}
+.card.zero .t.diff{background:var(--navy100);border-color:color-mix(in srgb,var(--navy700) 30%,var(--hair))}
+.card.zero .t.diff .v{color:var(--navy700)}
+.invst{display:block;margin:0 14px 12px;text-align:center;font-size:13px;font-weight:800;border-radius:9px;padding:6px}
+.card.pos .invst{color:var(--success);background:color-mix(in srgb,var(--success) 10%,transparent)}
+.card.neg .invst{color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,transparent)}
+.card.zero .invst{color:var(--navy700);background:var(--navy100)}
+/* ديمو */
+.demo{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-top:8px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.btn{border:1px solid var(--navy700);background:var(--navy700);color:#fff;border-radius:9px;padding:8px 13px;font-size:13.5px;font-weight:700;cursor:pointer;font-family:inherit}
+.btn.g{background:var(--card);color:var(--navy700)}
+.btn:hover{opacity:.92}
+.note{font-size:12.5px;color:var(--tsec);background:var(--navy100);border-radius:9px;padding:9px 11px;margin-top:6px}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:var(--tsec);margin-top:8px}
+.legend b{font-weight:800}
+.hidden{display:none!important}
+.blindnote{font-size:12px;color:var(--warn);font-weight:700;margin:0 14px 12px;text-align:center}
+</style></head>
+<body><div class="wrap">
+<h1>نموذج بطاقة «آخر صنف مُمسوح» — معاينةٌ حيّة ثابتة</h1>
+<p class="sub">نموذجٌ بصريّ لِما قبل التنفيذ — بألوان النظام وطبقاته نفسها (RTL). لا يمثّل شيفرةً نهائيّة، بل شكل السلوك المقترح.</p>
+
+<h2>١ · الحالات الثلاث للفرق (الأولويّة البصريّة: دفتري ↓ فعلي ↓ الفرق أقوى تمييزًا)</h2>
+<div class="grid3">
+  <!-- موجب -->
+  <div class="card ok pos">
+    <div class="bar"></div>
+    <div class="hd"><span class="ic">✅</span><div style="flex:1"><div class="nm">مثقاب كهربائيّ ٧٥٠و</div><div class="bc">٦٢٨١٠٠٠١٢٣٤٥</div></div><button class="x" title="إغلاق">✕</button></div>
+    <span class="scanst">✓ تمّ العدّ</span>
+    <div class="tiers">
+      <div class="t book"><div class="k">الرصيد الدفتريّ</div><div class="v">١٠</div></div>
+      <div class="t add"><div class="k">المضاف بهذا المسح</div><div class="v">+١</div></div>
+      <div class="t act"><div class="k">الكمية الفعلية</div><div class="v">١٣</div></div>
+      <div class="t diff"><div class="k">الفرق</div><div class="v">+٣</div></div>
+    </div>
+    <span class="invst">زيادة</span>
+  </div>
+  <!-- سالب -->
+  <div class="card ok neg">
+    <div class="bar"></div>
+    <div class="hd"><span class="ic">✅</span><div style="flex:1"><div class="nm">علبة مسامير ٤سم</div><div class="bc">٦٢٨١٠٠٠٩٩١٢٣</div></div><button class="x" title="إغلاق">✕</button></div>
+    <span class="scanst">✓ تمّ العدّ</span>
+    <div class="tiers">
+      <div class="t book"><div class="k">الرصيد الدفتريّ</div><div class="v">٨</div></div>
+      <div class="t add"><div class="k">المضاف بهذا المسح</div><div class="v">+١</div></div>
+      <div class="t act"><div class="k">الكمية الفعلية</div><div class="v">٥</div></div>
+      <div class="t diff"><div class="k">الفرق</div><div class="v">−٣</div></div>
+    </div>
+    <span class="invst">عجز</span>
+  </div>
+  <!-- صفر -->
+  <div class="card ok zero">
+    <div class="bar"></div>
+    <div class="hd"><span class="ic">✅</span><div style="flex:1"><div class="nm">شريط لاصق شفّاف</div><div class="bc">٦٢٨١٠٠٠٤٤٥٥٦</div></div><button class="x" title="إغلاق">✕</button></div>
+    <span class="scanst">✓ تمّ العدّ</span>
+    <div class="tiers">
+      <div class="t book"><div class="k">الرصيد الدفتريّ</div><div class="v">٦</div></div>
+      <div class="t add"><div class="k">المضاف بهذا المسح</div><div class="v">+١</div></div>
+      <div class="t act"><div class="k">الكمية الفعلية</div><div class="v">٦</div></div>
+      <div class="t diff"><div class="k">الفرق</div><div class="v">٠</div></div>
+    </div>
+    <span class="invst">مطابق</span>
+  </div>
+</div>
+<div class="legend"><span><b style="color:var(--success)">■</b> موجب (زيادة)</span><span><b style="color:var(--danger)">■</b> سالب (عجز)</span><span><b style="color:var(--navy700)">■</b> صفر (مطابق)</span><span>· الفرق هو أكبر رقمٍ وأقوى تمييزًا</span></div>
+
+<h2>٢ · محاكاةٌ حيّة: الثبات · الاستبدال الفوريّ · الإغلاق (×)</h2>
+<div class="demo">
+  <div class="row">
+    <button class="btn" onclick="scan('drill')">🔫 امسح: مثقاب (دفتري ١٠)</button>
+    <button class="btn" onclick="scan('nails')">🔩 امسح: مسامير (دفتري ٨)</button>
+    <button class="btn" onclick="scan('tape')">🧻 امسح: لاصق (دفتري ٦)</button>
+    <button class="btn g" onclick="scan('unknown')">❓ باركود غير معروف</button>
+    <button class="btn g" onclick="toggleBlind()" id="blindBtn">👁 جلسة عمياء: مُطفأة</button>
+  </div>
+  <div id="mount"></div>
+  <div class="note" id="hint">اضغط «امسح» لصنفٍ ثمّ كرّره: الكمية الفعلية والفرق يتحدّثان لحظيًّا والبطاقة تبقى. امسح صنفًا آخر: تُستبدَل فورًا بلا اختفاء. اضغط ✕: تُغلق (ولن تعود إلّا بمسحةٍ جديدة).</div>
+</div>
+
+<h2>٣ · مقارنةٌ قبل/بعد</h2>
+<div class="demo" style="font-size:13.5px">
+<table style="width:100%;border-collapse:collapse">
+<tr style="background:var(--navy100)"><th style="text-align:right;padding:7px">الجانب</th><th style="text-align:right;padding:7px">الآن</th><th style="text-align:right;padding:7px">المقترح</th></tr>
+<tr><td style="padding:7px">الثبات</td><td style="padding:7px;color:var(--danger)">تختفي بعد ٣٫٢ث</td><td style="padding:7px;color:var(--success)">ثابتةٌ حتّى × أو مسحةٍ جديدة</td></tr>
+<tr><td style="padding:7px">الرصيد الدفتريّ</td><td style="padding:7px;color:var(--danger)">غير معروض</td><td style="padding:7px;color:var(--success)">معروض</td></tr>
+<tr><td style="padding:7px">الفرق</td><td style="padding:7px;color:var(--danger)">غير معروض</td><td style="padding:7px;color:var(--success)">حيّ، أقوى تمييز، ملوّن</td></tr>
+<tr><td style="padding:7px">حالة الجرد</td><td style="padding:7px;color:var(--danger)">غير معروضة</td><td style="padding:7px;color:var(--success)">زيادة/عجز/مطابق</td></tr>
+<tr><td style="padding:7px">الإغلاق</td><td style="padding:7px;color:var(--danger)">مؤقّت فقط</td><td style="padding:7px;color:var(--success)">زرّ × + الاستبدال بالمسح</td></tr>
+<tr><td style="padding:7px">كلفة Firestore</td><td style="padding:7px;color:var(--success)">صفر</td><td style="padding:7px;color:var(--success)">صفر (بلا تغيير)</td></tr>
+</table>
+</div>
+</div>
+<script>
+const P={drill:{nm:'مثقاب كهربائيّ ٧٥٠و',bc:'٦٢٨١٠٠٠١٢٣٤٥',book:10},nails:{nm:'علبة مسامير ٤سم',bc:'٦٢٨١٠٠٠٩٩١٢٣',book:8},tape:{nm:'شريط لاصق شفّاف',bc:'٦٢٨١٠٠٠٤٤٥٥٦',book:6}};
+let actual={},blind=false,cur=null;
+const ar=n=>{const s=(n<0?'−':'')+Math.abs(n).toString().replace(/[0-9]/g,d=>'٠١٢٣٤٥٦٧٨٩'[+d]);return s;};
+const arp=n=>(n>0?'+':n<0?'−':'')+Math.abs(n).toString().replace(/[0-9]/g,d=>'٠١٢٣٤٥٦٧٨٩'[+d]);
+function scan(k){
+  if(k==='unknown'){ document.getElementById('mount').innerHTML='<div class="card ok neg"><div class="bar" style="background:var(--danger)"></div><div class="hd"><span class="ic">⛔</span><div style="flex:1"><div class="nm">باركود غير معروف</div><div class="bc">٦٢٨٩٩٩٩٩٩٩٩٩</div></div><button class="x" title="إغلاق" onclick="closeCard()">✕</button></div><div class="blindnote" style="color:var(--danger)">غير موجودٍ في الجلسة ولا الكتالوج — أضِفه بـ«➕ صنف يدوي».</div></div>'; cur='unknown'; return; }
+  actual[k]=(actual[k]||P[k].book>=0? (actual[k]||0):0)+1; // يبدأ من ٠ ويُضاف
+  render(k);
+}
+function render(k){
+  const p=P[k],a=actual[k],diff=a-p.book,cls=diff>0?'pos':diff<0?'neg':'zero',stlabel=diff>0?'زيادة':diff<0?'عجز':'مطابق';
+  cur=k;
+  let tiers;
+  if(blind){
+    tiers='<div class="tiers"><div class="t add"><div class="k">المضاف بهذا المسح</div><div class="v">+١</div></div><div class="t act" style="grid-column:auto"><div class="k">الكمية الفعلية</div><div class="v">'+ar(a)+'</div></div></div><div class="blindnote">🔒 جلسة عمياء: الرصيد الدفتريّ والفرق وحالة الجرد مخفيّة</div>';
+  }else{
+    tiers='<div class="tiers"><div class="t book"><div class="k">الرصيد الدفتريّ</div><div class="v">'+ar(p.book)+'</div></div><div class="t add"><div class="k">المضاف بهذا المسح</div><div class="v">+١</div></div><div class="t act"><div class="k">الكمية الفعلية</div><div class="v">'+ar(a)+'</div></div><div class="t diff"><div class="k">الفرق</div><div class="v">'+arp(diff)+'</div></div></div><span class="invst">'+stlabel+'</span>';
+  }
+  document.getElementById('mount').innerHTML='<div class="card ok '+cls+'"><div class="bar"></div><div class="hd"><span class="ic">✅</span><div style="flex:1"><div class="nm">'+p.nm+'</div><div class="bc">'+p.bc+'</div></div><button class="x" title="إغلاق" onclick="closeCard()">✕</button></div><span class="scanst">✓ تمّ العدّ</span>'+tiers+'</div>';
+}
+function closeCard(){ document.getElementById('mount').innerHTML='<div class="note">— البطاقة مُغلقة. لن تعود إلّا بمسحةٍ جديدة —</div>'; cur=null; }
+function toggleBlind(){ blind=!blind; document.getElementById('blindBtn').textContent=blind?'👁 جلسة عمياء: مُفعَّلة':'👁 جلسة عمياء: مُطفأة'; if(cur&&cur!=='unknown')render(cur); }
+scan('drill');scan('drill');scan('drill'); // يبدأ بمثال +٣
+</script>
+</body></html>

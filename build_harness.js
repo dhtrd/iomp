@@ -264,9 +264,19 @@ window.__scanQueueLen = ()=>scanQueue.length;
 window.__scanBusy = ()=>!!scanBusy;
 window.__scanIdle = ()=>(!scanBusy && scanQueue.length===0 && !caBusy); // م٧: الاعتماد طورٌ غير متزامنٍ خارج scanPump ⇒ لا سكونَ قبل انتهائه
 window.__scanPanel = ()=>{ const e=document.getElementById('scanStatus'); if(!e)return null;
-  const cells={}; e.querySelectorAll('.sp-c').forEach(c=>{ const k=c.querySelector('.sp-k'), v=c.querySelector('.sp-v'); if(k&&v)cells[(k.textContent||'').trim()]=(v.textContent||'').trim(); });
-  const h=e.querySelector('.sp-h');
-  return { visible:getComputedStyle(e).display!=='none', cls:e.className||'', head:h?(h.textContent||'').trim():'', text:(e.textContent||'').trim(), cells:cells, cellCount:e.querySelectorAll('.sp-c').length }; };
+  const cells={};
+  e.querySelectorAll('.sp-t').forEach(t=>{ const k=t.querySelector('.k'), v=t.querySelector('.v'); if(k&&v)cells[(k.textContent||'').trim()]=(v.textContent||'').trim(); }); // م٨: بلاطات البطاقة الثابتة
+  e.querySelectorAll('.sp-c').forEach(c=>{ const k=c.querySelector('.sp-k'), v=c.querySelector('.sp-v'); if(k&&v)cells[(k.textContent||'').trim()]=(v.textContent||'').trim(); }); // توافقٌ قديم
+  const nm=e.querySelector('.sp-nm'), bc=e.querySelector('.sp-bc'), inv=e.querySelector('.sp-inv'), scan=e.querySelector('.sp-scanst'), diff=e.querySelector('#spDiff'), note=e.querySelector('.sp-n'), h=e.querySelector('.sp-h');
+  return { visible:getComputedStyle(e).display!=='none', cls:e.className||'',
+    head:h?(h.textContent||'').trim():'', name:nm?(nm.textContent||'').trim():'', barcode:bc?(bc.textContent||'').trim():'',
+    inv:inv?(inv.textContent||'').trim():'', scan:scan?(scan.textContent||'').trim():'',
+    diffText:diff?(diff.textContent||'').trim():'', diffCls:(diff&&diff.parentNode)?(diff.parentNode.className||''):'',
+    note:note?(note.textContent||'').trim():'', text:(e.textContent||'').trim(),
+    cells:cells, cellCount:e.querySelectorAll('.sp-t').length,
+    hasCloseBtn:!!e.querySelector('.sp-x'), hasTimer:!!e._t }; };
+window.__spCall = (o)=>scanPanel(o);   // م٨: استدعاءٌ مباشرٌ لقياس الأداء (مسبار)
+window.__spClose = ()=>spClose();
 window.__focusId = ()=>{ const a=document.activeElement; return a?(a.id||a.className||a.tagName):'?'; };
 window.__scanConsts = ()=>({ cadence:SCAN_CADENCE_MS, idle:SCAN_IDLE_MS, minLen:SCAN_MIN_LEN, cap:MANUAL_QTY_CAP,
   dedup:(typeof SCAN_DEDUP_MS!=='undefined'?SCAN_DEDUP_MS:0),   // ط-٩: صفر ⇒ لا نافذة زمنية تمنع تكرار المسح المتعمّد

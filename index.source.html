@@ -557,6 +557,37 @@ td{font-size:13.5px}
 #scanStatus .sp-v.big{font-size:17px;color:var(--navy700)}
 #scanStatus .sp-n{font-size:12px;font-weight:600;color:var(--tsec);margin-top:6px}
 @media(prefers-reduced-motion:reduce){#scanStatus.scanp{animation:none}}
+/* م٨: البطاقة الثابتة — رأسٌ باسمٍ وباركودٍ وزرّ إغلاق، وطبقات الأولويّة (دفتري ↓ فعلي ↓ الفرق أقوى) */
+#scanStatus .sp-hh{display:flex;flex-direction:column;gap:1px;flex:1;min-width:0}
+#scanStatus .sp-nm{font-weight:800;font-size:15px;color:var(--tprimary);line-height:1.3}
+#scanStatus .sp-bc{font-size:11.5px;color:var(--tmuted);font-variant-numeric:tabular-nums}
+#scanStatus .sp-x{border:1px solid var(--hair);background:var(--card);color:var(--tsec);width:26px;height:26px;border-radius:8px;font-size:13px;line-height:1;cursor:pointer;flex:none;font-family:inherit;margin-inline-start:auto;align-self:flex-start}
+#scanStatus .sp-x:hover{background:var(--navy100);color:var(--navy700);border-color:var(--navy700)}
+#scanStatus .sp-scanst{display:inline-block;font-size:11.5px;font-weight:700;border-radius:20px;padding:2px 10px;margin-top:6px;color:var(--tsec);background:color-mix(in srgb,var(--tsec) 8%,transparent)}
+#scanStatus.ok .sp-scanst{color:var(--success);background:color-mix(in srgb,var(--success) 12%,transparent)}
+#scanStatus.err .sp-scanst{color:var(--danger);background:color-mix(in srgb,var(--danger) 12%,transparent)}
+#scanStatus .sp-tiers{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px}
+#scanStatus .sp-t{border:1px solid var(--hair);border-radius:9px;padding:6px 9px;background:var(--card)}
+#scanStatus .sp-t .k{font-size:11px;font-weight:700;color:var(--tmuted);white-space:nowrap}
+#scanStatus .sp-t .v{font-weight:800;font-variant-numeric:tabular-nums;color:var(--tprimary);white-space:nowrap}
+#scanStatus .sp-t.book .v{font-size:17px}
+#scanStatus .sp-t.add .v{font-size:14px;color:var(--success)}
+#scanStatus .sp-t.act{background:var(--navy100);border-color:color-mix(in srgb,var(--navy700) 22%,var(--hair))}
+#scanStatus .sp-t.act .v{font-size:22px;color:var(--navy700)}
+#scanStatus .sp-t.diff{grid-column:1/-1;text-align:center;padding:8px}
+#scanStatus .sp-t.diff .k{font-size:12px}
+#scanStatus .sp-t.diff .v{font-size:29px;letter-spacing:.5px}
+#scanStatus .sp-t.diff.pos{background:color-mix(in srgb,var(--success) 12%,transparent);border-color:color-mix(in srgb,var(--success) 42%,var(--hair))}
+#scanStatus .sp-t.diff.pos .v{color:var(--success)}
+#scanStatus .sp-t.diff.neg{background:color-mix(in srgb,var(--danger) 12%,transparent);border-color:color-mix(in srgb,var(--danger) 42%,var(--hair))}
+#scanStatus .sp-t.diff.neg .v{color:var(--danger)}
+#scanStatus .sp-t.diff.zero{background:var(--navy100);border-color:color-mix(in srgb,var(--navy700) 30%,var(--hair))}
+#scanStatus .sp-t.diff.zero .v{color:var(--navy700)}
+#scanStatus .sp-inv{display:block;text-align:center;font-size:12.5px;font-weight:800;border-radius:8px;padding:4px;margin-top:6px}
+#scanStatus .sp-inv.pos{color:var(--success);background:color-mix(in srgb,var(--success) 10%,transparent)}
+#scanStatus .sp-inv.neg{color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,transparent)}
+#scanStatus .sp-inv.zero{color:var(--navy700);background:var(--navy100)}
+#scanStatus .sp-blind{font-size:11.5px;font-weight:700;color:var(--warn);text-align:center;margin-top:6px}
 /* — القوائم المنبثقة والبحث الشامل: دخول متدرّج + خيارات أنيقة — */
 @keyframes popIn{from{opacity:0;transform:translateY(-5px) scale(.985)}}
 .selx-pop{animation:popIn .15s var(--ease);box-shadow:var(--e3);border-radius:14px}
@@ -4986,19 +5017,61 @@ function findByScan(code){ code=String(code||'').trim(); if(!code)return null;
    ضمانة: زيادة كمية واحدة بالضبط لكل مسحة ناجحة — لا فقدان، لا ازدواج، لا تجميد للواجهة. */
 
 /* ط-٧: لوحة نتيجة المسح — اسم الصنف • الباركود • الكمية الحالية • الكمية المضافة • الإجمالي بعد التحديث • مؤشّر الحالة */
+/* م٨: البطاقة صارت معاينةً حيّةً ثابتة — لا تختفي تلقائيًّا؛ تُغلق فقط بـ(×) أو تُستبدَل بمسحةٍ جديدة.
+   تعرض ثمانية حقول (الاسم·الباركود·الدفتريّ·المضاف·الفعليّ·الفرق·حالة الجرد·حالة المسح)، والفرق حيٌّ
+   ملوّنٌ أقوى تمييزًا. صفر Firestore (حالةٌ محلّيّة)، وتحديثٌ موضعيٌّ عند تكرار الصنف بدل إعادة بناء. */
+let _spShown='';   // رمز الصنف المعروض حاليًّا (لتمييز التحديث الموضعيّ من إعادة البناء)
+function spClose(){ const el=$('scanStatus'); if(el){ el.style.display='none'; el.className=''; el.innerHTML=''; } _spShown=''; try{ scanFocusGuard(); }catch(e){} }
 function scanPanel(o){ const el=$('scanStatus'); if(!el)return; o=o||{};
   const st=o.state||'ok';
-  const ic=(st==='ok')?'✅':(st==='pending'?'⏳':'⛔');
+  if(!el._spWired){ el._spWired=1; el.addEventListener('click',function(ev){ const t=ev&&ev.target; if(t&&t.closest&&t.closest('.sp-x'))spClose(); }); } // ×: الإغلاق اليدويّ الوحيد
+  clearTimeout(el._t); el._t=0;                                          // م٨: لا مؤقّت اختفاء — والبطاقة ثابتةٌ حتّى قرارٍ صريح
   const lbl=(st==='ok')?'تمّ العدّ ✓':(st==='pending'?'جارٍ التسجيل…':'لم تُسجَّل');
-  const cell=(k,v,cls)=>'<div class="sp-c"><span class="sp-k">'+k+'</span><span class="sp-v'+(cls?' '+cls:'')+'">'+v+'</span></div>';
-  let g;
-  if(o.before!=null) g='<div class="sp-g">'+cell('الباركود',esc(String(o.code||'—')))+cell('الكمية الحالية',fmt(o.before))+cell('الكمية المضافة','+'+fmt(o.add==null?1:o.add),'up')+cell('الإجمالي بعد التحديث',fmt(o.after),'big')+cell('الحالة',lbl)+'</div>';
-  else g='<div class="sp-g">'+cell('الباركود',esc(String(o.code||'—')))+cell('الحالة',lbl)+'</div>';
+  const isCount=(o.before!=null);
+  const blind=!!(curSess&&curSess.blind);
+  const book=(o.book!=null&&!isNaN(o.book))?Number(o.book):null;
+  const showBook=(!blind&&book!=null);                                   // العمياء أو غياب الدفتريّ ⇒ لا دفتريّ ولا فرق ولا حالة (لا تسريب)
+  const actual=o.after, added=(o.add==null?1:o.add);
+  const diff=showBook?(actual-book):null;
+  let dcls='zero',dlabel=STLABEL.match,dtxt='0';
+  if(diff!=null&&Math.abs(diff)>=1e-9){ if(diff>0){dcls='pos';dlabel=STLABEL.surplus;dtxt='+'+fmt(diff);} else {dcls='neg';dlabel=STLABEL.deficit;dtxt=fmt(diff);} }
+  // تحديثٌ موضعيّ: الصنف نفسه معروضٌ ⇒ عقدٌ نصّيّة لا إعادة بناء (لا وميض، لا تصفير)
+  if(isCount&&_spShown===String(o.code)&&el.style.display!=='none'&&$('spAct')){
+    el.className='scanp '+st;
+    const IC=el.querySelector('.sp-i'); if(IC)IC.textContent=(st==='ok')?'✅':(st==='pending'?'⏳':'⛔');   // م٨: الأيقونة تُحدَّث موضعيًّا أيضًا (جارٍ ⇒ تمّ)
+    const A=$('spAct'); if(A)A.textContent=fmt(actual);
+    const AD=$('spAdd'); if(AD)AD.textContent='+'+fmt(added);
+    const SC=$('spScan'); if(SC)SC.textContent=lbl;
+    if(showBook){ const B=$('spBook'); if(B)B.textContent=fmt(book);
+      const DF=$('spDiff'); if(DF){DF.textContent=dtxt; if(DF.parentNode)DF.parentNode.className='sp-t diff '+dcls;}
+      const IV=$('spInv'); if(IV){IV.textContent=dlabel; IV.className='sp-inv '+dcls;} }
+    const NT=$('spNote'); if(NT){ if(o.note){NT.textContent=String(o.note);NT.style.display='';}else NT.style.display='none'; }
+    const cl0=$('camLast'); if(cl0)cl0.textContent=String(o.name||o.title||'')+(actual!=null?(' — الإجمالي '+fmt(actual)):'');
+    return;
+  }
+  // إعادة بناءٌ كاملة — تبديل منتجٍ أو بطاقة رسالة
+  const ic=(st==='ok')?'✅':(st==='pending'?'⏳':'⛔');
+  const head='<div class="sp-h"><span class="sp-i">'+ic+'</span><div class="sp-hh"><div class="sp-nm">'+esc(String(o.name||o.title||'—'))+'</div>'+(o.code!=null?'<div class="sp-bc">'+esc(String(o.code))+'</div>':'')+'</div><button class="sp-x" type="button" aria-label="إغلاق">✕</button></div>';
+  const scanline='<div class="sp-scanst" id="spScan">'+lbl+'</div>';
+  let mid='';
+  if(isCount){
+    if(showBook){
+      mid='<div class="sp-tiers"><div class="sp-t book"><div class="k">الرصيد الدفتريّ</div><div class="v" id="spBook">'+fmt(book)+'</div></div>'
+        +'<div class="sp-t add"><div class="k">المضاف بهذا المسح</div><div class="v" id="spAdd">+'+fmt(added)+'</div></div>'
+        +'<div class="sp-t act"><div class="k">الكمية الفعلية</div><div class="v" id="spAct">'+fmt(actual)+'</div></div>'
+        +'<div class="sp-t diff '+dcls+'"><div class="k">الفرق</div><div class="v" id="spDiff">'+dtxt+'</div></div></div>'
+        +'<span class="sp-inv '+dcls+'" id="spInv">'+dlabel+'</span>';
+    } else {
+      mid='<div class="sp-tiers"><div class="sp-t add"><div class="k">المضاف بهذا المسح</div><div class="v" id="spAdd">+'+fmt(added)+'</div></div>'
+        +'<div class="sp-t act" style="grid-column:1/-1"><div class="k">الكمية الفعلية</div><div class="v" id="spAct">'+fmt(actual)+'</div></div></div>'
+        +(blind?'<div class="sp-blind">🔒 جلسة عمياء: الرصيد الدفتريّ والفرق مخفيّان</div>':'');
+    }
+  }
+  const note='<div class="sp-n" id="spNote"'+(o.note?'':' style="display:none"')+'>'+(o.note?esc(String(o.note)):'')+'</div>';
   el.className='scanp '+st;
   el.style.display='block'; el.style.background=''; el.style.color=''; el.style.padding=''; el.style.borderRadius='';
-  el.innerHTML='<div class="sp-h"><span class="sp-i">'+ic+'</span><span>'+esc(String(o.title||o.name||'—'))+'</span></div>'+g+(o.note?'<div class="sp-n">'+esc(String(o.note))+'</div>':'');
-  clearTimeout(el._t);
-  if(st!=='pending') el._t=setTimeout(()=>{ const e2=$('scanStatus'); if(e2&&!scanQueue.length){ e2.style.display='none'; e2.className=''; } }, st==='ok'?3200:6000);
+  el.innerHTML=head+scanline+mid+note;
+  _spShown=isCount?String(o.code):'';                                    // بطاقات العدّ وحدها تُحدَّث موضعيًّا
   const cl=$('camLast'); if(cl)cl.textContent=String(o.name||o.title||'')+(o.after!=null?(' — الإجمالي '+fmt(o.after)):''); }
 
 /* ط-٧: الماسح يبقى جاهزًا دائمًا — التركيز يعود لحقل المسح، إلّا إن كان العدّاد يكتب ملاحظة أو كميّة يدويًّا */
@@ -5042,14 +5115,14 @@ async function scanStep(job){
   if(!assertOpen()){ scanPanel({state:'err',title:'تعذّر العدّ — '+(it.name||''),code:job.code,note:'الجلسة غير متاحة للعدّ الآن؛ لم تُسجَّل أي كمية.'});
     beep(false); vibrate(160); scanFocusGuard(); return false; }
   const before=((curCounts[it.code]&&curCounts[it.code].qty)||0);
-  scanPanel({state:'pending',name:it.name,code:job.code,before:before,add:1,after:before+1});
+  scanPanel({state:'pending',name:it.name,code:job.code,book:it.book,before:before,add:1,after:before+1});
   const r=await addEntry(it.code,1,{quiet:true,eid:job.eid,run:true});      // ط-١٤: مسحة ⇒ تدخل تتابع العدّ
   if(r&&r.ok){ const after=((curCounts[it.code]&&curCounts[it.code].qty)!=null?curCounts[it.code].qty:(before+1));
-    scanPanel({state:'ok',name:it.name,code:job.code,before:before,add:1,after:after,note:r.offline?'دون اتصال — حُفظت محليًّا وستُزامَن تلقائيًّا.':''});
+    scanPanel({state:'ok',name:it.name,code:job.code,book:it.book,before:before,add:1,after:after,note:r.offline?'دون اتصال — حُفظت محليًّا وستُزامَن تلقائيًّا.':''});
     beep(true); vibrate(45); scanFocusGuard(); return false; }
   job.tries++;
   if(job.tries<3){ await new Promise(res=>setTimeout(res,120*job.tries)); return true; } // إعادة محاولة بالمعرّف نفسه ⇒ لا ازدواج (حارس countWriteAdd)
-  scanPanel({state:'err',title:'لم تُسجَّل المسحة — '+(it.name||''),code:job.code,before:before,add:0,after:before,note:'تعذّر الحفظ بعد ٣ محاولات — تحقّق من الاتصال ثم أعِد المسح.'});
+  scanPanel({state:'err',title:'لم تُسجَّل المسحة — '+(it.name||''),code:job.code,book:it.book,before:before,add:0,after:before,note:'تعذّر الحفظ بعد ٣ محاولات — تحقّق من الاتصال ثم أعِد المسح.'});
   toastErr('تعذّر تسجيل المسحة: '+job.code+' — أعِد المسح.');
   beep(false); vibrate(160); scanFocusGuard(); return false; }
 

@@ -137,7 +137,7 @@ async function scanApprove(page, code) { await scan(page, code); await askOpen(p
   ok('ب١٤ زيادةٌ واحدةٌ بالضبط وصلت عبر مسار addEntry القائم', c && c.qty === 1 && c.n === 1, JSON.stringify(c));
 
   const pOk = await panel(page);
-  ok('ب١٥ لوحة النتيجة تعلن النجاح باسم الصنف وإجماليه', pOk && pOk.cls.indexOf('ok') >= 0 && pOk.head.indexOf(TNAME) >= 0 && pOk.cells['الإجمالي بعد التحديث'] === '1', pOk ? JSON.stringify(pOk.cells) : 'null');
+  ok('ب١٥ لوحة النتيجة تعلن النجاح باسم الصنف وإجماليه', pOk && pOk.cls.indexOf('ok') >= 0 && pOk.head.indexOf(TNAME) >= 0 && pOk.cells['الكمية الفعلية'] === '1', pOk ? JSON.stringify(pOk.cells) : 'null');
   ok('ب١٦ الماسح عاد جاهزًا فورًا بلا نقرة', await page.evaluate(() => window.__focusId()) === 'csearch' && await page.evaluate(() => window.__scanIdle()) === true);
   ok('ب١٧ الصنف ظهر في قائمة العدّ بشارة «كتالوج»', await page.evaluate(() => { const h = window.__cat13.clistHtml(); return h.indexOf('6285000200001') >= 0 && h.indexOf('>كتالوج</span>') >= 0 && h.indexOf('>يدوي</span>') < 0; }) === true);
 

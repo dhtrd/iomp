@@ -14,15 +14,15 @@ const cd = (i) => 'P' + String(i).padStart(4, '0');
 const bc = (i) => '6281000' + String(100000 + i);          // باركود ١٣ خانة
 const ITEMS = [];
 for (let i = 1; i <= N; i++) ITEMS.push({ code: cd(i), name: 'صنف رقم ' + i, category: 'ك', book: (i % 9) + 1, cost: (i % 5) + 1, barcode: bc(i) });
-const mkSess = (status) => [{ id:'sr', name:'جرد المسح', status:status||'open', started:true, assignedCounters:['u_owner'], location:'فرع أ', itemCount:N, __chunks:[ITEMS] }];
+const mkSess = (status, blind) => [{ id:'sr', name:'جرد المسح', status:status||'open', started:true, assignedCounters:['u_owner'], location:'فرع أ', itemCount:N, blind:!!blind, __chunks:[ITEMS] }];
 
 const results = []; const ok = (n, c, d = '') => results.push({ n, pass: !!c, d });
 const browser = await chromium.launch({ executablePath: EXE, args: ['--no-sandbox'] });
 const ctx = await browser.newContext({ viewport: { width: 1100, height: 1400 } });
 
-async function open(status) {
+async function open(status, blind) {
   const page = await ctx.newPage();
-  await page.goto(HARNESS + '?s=' + encodeURIComponent(b64({ profile: OWNER, users: [OWNER], sessions: mkSess(status) })));
+  await page.goto(HARNESS + '?s=' + encodeURIComponent(b64({ profile: OWNER, users: [OWNER], sessions: mkSess(status, blind) })));
   await page.waitForFunction('window.__ready===true', { timeout: 12000 });
   await page.evaluate(() => window.__openSession('sr'));
   await page.waitForFunction(() => !!document.getElementById('csearch'), { timeout: 12000 });
@@ -89,12 +89,15 @@ async function settle(page, extra) {
   const p = await panel(page);
   ok('س١ لوحة النتيجة ظاهرة بحالة نجاح', p && p.visible && /\bok\b/.test(p.cls), 'cls=' + (p && p.cls));
   ok('س١ الحقل ١: اسم الصنف في العنوان', p && p.head.indexOf('صنف رقم 3') >= 0, 'head=' + (p && p.head));
-  ok('س١ الحقل ٢: الباركود', p && p.cells['الباركود'] === bc(3), 'v=' + (p && p.cells['الباركود']));
-  ok('س١ الحقل ٣: الكمية الحالية = 0', p && p.cells['الكمية الحالية'] === '0', 'v=' + (p && p.cells['الكمية الحالية']));
-  ok('س١ الحقل ٤: الكمية المضافة = +1', p && p.cells['الكمية المضافة'] === '+1', 'v=' + (p && p.cells['الكمية المضافة']));
-  ok('س١ الحقل ٥: الإجمالي بعد التحديث = 1', p && p.cells['الإجمالي بعد التحديث'] === '1', 'v=' + (p && p.cells['الإجمالي بعد التحديث']));
-  ok('س١ الحقل ٦: مؤشّر نجاح ✅ + «تمّ العدّ»', p && p.head.indexOf('✅') >= 0 && p.cells['الحالة'].indexOf('تمّ العدّ') >= 0, 'v=' + (p && p.cells['الحالة']));
-  ok('س١ الحقول الستة كاملة في اللوحة', p && p.cellCount === 5 && p.head.length > 1, 'cells=' + (p && p.cellCount));
+  ok('س١ الحقل ٢: الباركود', p && p.barcode === bc(3), 'v=' + (p && p.barcode));
+  ok('س١ الحقل ٣: الرصيد الدفتريّ = 4', p && p.cells['الرصيد الدفتريّ'] === '4', 'v=' + (p && p.cells['الرصيد الدفتريّ']));
+  ok('س١ الحقل ٤: المضاف بهذا المسح = +1', p && p.cells['المضاف بهذا المسح'] === '+1', 'v=' + (p && p.cells['المضاف بهذا المسح']));
+  ok('س١ الحقل ٥: الكمية الفعلية = 1', p && p.cells['الكمية الفعلية'] === '1', 'v=' + (p && p.cells['الكمية الفعلية']));
+  ok('س١ الحقل ٦: الفرق = -3 (حيّ)', p && p.cells['الفرق'] === '-3', 'v=' + (p && p.cells['الفرق']));
+  ok('س١ الحقل ٧: حالة الجرد = عجز', p && p.inv.indexOf('عجز') >= 0, 'v=' + (p && p.inv));
+  ok('س١ الحقل ٨: حالة المسح ✅ «تمّ العدّ»', p && p.head.indexOf('✅') >= 0 && p.scan.indexOf('تمّ العدّ') >= 0, 'v=' + (p && p.scan));
+  ok('س١ أربع بلاطات (دفتري·مضاف·فعلي·فرق) + عنوان', p && p.cellCount === 4 && p.head.length > 1, 'cells=' + (p && p.cellCount));
+  ok('س١ البطاقة ثابتة: زرّ × موجود ولا مؤقّت اختفاء', p && p.hasCloseBtn === true && p.hasTimer === false, 'x=' + (p && p.hasCloseBtn) + ' t=' + (p && p.hasTimer));
   ok('س١ الطابور فارغ والمحرّك جاهز للمسحة التالية', await page.evaluate(() => window.__scanIdle() && window.__scanQueueLen() === 0));
   ok('س١ صفّ الصنف يعرض الإجمالي المحدَّث فورًا',
     await page.evaluate(c => { const cl = document.getElementById('clist'); for (const r of cl.children) if (r.getAttribute && r.getAttribute('data-row') === c) return r.textContent.indexOf('الإجمالي: 1') >= 0; return false; }, cd(3)));
@@ -114,7 +117,7 @@ async function settle(page, extra) {
   ok('س٢ ط-١٤: التتابع المتّصل سطرٌ واحدٌ لا ثلاثة (إعادة تصميم السجلّ — المرحلة ٤)', await ents(page, cd(8)) === 1, 'entries=' + await ents(page, cd(8)));
   ok('س٢ ومجموع مسحاته ثلاثٌ بالضبط (لا فقدان ولا ازدواج)', await scans(page, cd(8)) === 3, 'scans=' + await scans(page, cd(8)));
   ok('س٢ لا حوار تأكيد ظهر إطلاقًا', await page.evaluate(() => { const o = document.getElementById('cfOverlay'); return !o || getComputedStyle(o).display === 'none'; }));
-  ok('س٢ اللوحة تعرض ٢ ← ٣ بعد آخر مسحة', await page.evaluate(() => { const p = window.__scanPanel(); return p.cells['الكمية الحالية'] === '2' && p.cells['الإجمالي بعد التحديث'] === '3'; }));
+  ok('س٢ اللوحة تعرض الفعلي ٣ والفرق -6 بعد آخر مسحة', await page.evaluate(() => { const p = window.__scanPanel(); return p.cells['الكمية الفعلية'] === '3' && p.cells['الفرق'] === '-6'; }));
   ok('س٢ الزمن الكلّي لثلاث مسحات معقول (< ٤ ثوانٍ)', (Date.now() - t0) < 4000, 'ms=' + (Date.now() - t0));
   await page.close();
 }
@@ -127,7 +130,7 @@ async function settle(page, extra) {
   const p = await panel(page);
   ok('س٣ لوحة تحذير ظاهرة بحالة خطأ', p && p.visible && /\berr\b/.test(p.cls), 'cls=' + (p && p.cls));
   ok('س٣ نصّ التحذير المطلوب حرفيًّا', p && p.text.indexOf('هذا الباركود غير موجود في جلسة الجرد الحالية') >= 0);
-  ok('س٣ الباركود المجهول معروض في اللوحة', p && p.cells['الباركود'] === '9990001112223', 'v=' + (p && p.cells['الباركود']));
+  ok('س٣ الباركود المجهول معروض في اللوحة', p && p.barcode === '9990001112223', 'v=' + (p && p.barcode));
   ok('س٣ لا مؤشّر نجاح كاذب', p && p.head.indexOf('✅') < 0 && p.head.indexOf('باركود غير معروف') >= 0, 'head=' + (p && p.head));
   ok('س٣ لم تُنشأ أي عدّة للكود المجهول', await page.evaluate(() => Object.keys(window.__store).filter(k => k.indexOf('sessions/sr/counts/') === 0).length) === 0);
   ok('س٣ الكود محفوظ للتعبئة في «صنف يدوي»', await page.evaluate(() => window.__lastUnknownScan()) === '9990001112223');
@@ -208,7 +211,7 @@ async function settle(page, extra) {
   ok('س٦ ط-١٤: التتابع المتّصل سطرٌ واحدٌ لا أربعة (إعادة تصميم السجلّ — المرحلة ٤)', await ents(page, cd(20)) === 1, 'entries=' + await ents(page, cd(20)));
   ok('س٦ ومجموع مسحاته أربعٌ بالضبط (لا فقدان ولا ازدواج)', await scans(page, cd(20)) === 4, 'scans=' + await scans(page, cd(20)));
   const p6 = await panel(page);
-  ok('س٦ اللوحة تعرض ٣ ← +1 ← ٤', p6 && p6.cells['الكمية الحالية'] === '3' && p6.cells['الكمية المضافة'] === '+1' && p6.cells['الإجمالي بعد التحديث'] === '4',
+  ok('س٦ اللوحة: المضاف +1 · الفعلي ٤ · الفرق +1', p6 && p6.cells['المضاف بهذا المسح'] === '+1' && p6.cells['الكمية الفعلية'] === '4' && p6.cells['الفرق'] === '+1',
     JSON.stringify(p6 && p6.cells));
   ok('س٦ لا حوار تأكيد ولا انتظار', await page.evaluate(() => { const o = document.getElementById('cfOverlay'); return !o || getComputedStyle(o).display === 'none'; }));
 
@@ -242,16 +245,16 @@ async function settle(page, extra) {
   await hw(page, bc(25), { cadence: 8 });
   await settle(page);
   const pa = await panel(page);
-  ok('س٧ اللوحة تعرض الصنف الأول', pa && pa.head.indexOf('صنف رقم 25') >= 0 && pa.cells['الباركود'] === bc(25), 'head=' + (pa && pa.head));
+  ok('س٧ اللوحة تعرض الصنف الأول', pa && pa.head.indexOf('صنف رقم 25') >= 0 && pa.barcode === bc(25), 'head=' + (pa && pa.head));
 
   await hw(page, bc(26), { cadence: 8 });
   await settle(page);
   const pb = await panel(page);
   ok('س٧ اللوحة انتقلت للصنف الثاني', pb && pb.head.indexOf('صنف رقم 26') >= 0, 'head=' + (pb && pb.head));
-  ok('س٧ الباركود المعروض هو الجديد', pb && pb.cells['الباركود'] === bc(26), 'v=' + (pb && pb.cells['الباركود']));
+  ok('س٧ الباركود المعروض هو الجديد', pb && pb.barcode === bc(26), 'v=' + (pb && pb.barcode));
   ok('س٧ لا أثر للصنف السابق في اللوحة', pb && pb.text.indexOf('صنف رقم 25') < 0 && pb.text.indexOf(bc(25)) < 0, 'text=' + (pb && pb.text));
-  ok('س٧ أرقام اللوحة تخصّ الصنف الجديد (0 ← +1 ← 1)',
-    pb && pb.cells['الكمية الحالية'] === '0' && pb.cells['الإجمالي بعد التحديث'] === '1', JSON.stringify(pb && pb.cells));
+  ok('س٧ أرقام اللوحة تخصّ الصنف الجديد (الفعلي = 1)',
+    pb && pb.cells['الكمية الفعلية'] === '1', JSON.stringify(pb && pb.cells));
   ok('س٧ كمية الصنف الأول لم تتأثّر', await cnt(page, cd(25)) === 1, 'qty=' + await cnt(page, cd(25)));
 
   // صنف مختلف بعد تكرار: اللوحة لا تحتفظ بإجمالي الصنف السابق
@@ -259,8 +262,8 @@ async function settle(page, extra) {
   await hw(page, bc(27), { cadence: 8 }); await settle(page);
   const pc = await panel(page);
   ok('س٧ بعد تكرار ثم صنف جديد: اللوحة للصنف الجديد وحده',
-    pc && pc.head.indexOf('صنف رقم 27') >= 0 && pc.cells['الإجمالي بعد التحديث'] === '1' && pc.text.indexOf('صنف رقم 25') < 0,
-    'head=' + (pc && pc.head) + ' | after=' + (pc && pc.cells['الإجمالي بعد التحديث']));
+    pc && pc.head.indexOf('صنف رقم 27') >= 0 && pc.cells['الكمية الفعلية'] === '1' && pc.text.indexOf('صنف رقم 25') < 0,
+    'head=' + (pc && pc.head) + ' | actual=' + (pc && pc.cells['الكمية الفعلية']));
   ok('س٧ الصنف المكرَّر بلغ ٢ في المخزن', await cnt(page, cd(25)) === 2, 'qty=' + await cnt(page, cd(25)));
   await page.close();
 }
@@ -397,6 +400,46 @@ async function settle(page, extra) {
   ok('ع١١ كتابة بشرية بطيئة لا تُسجَّل مسحة', await cnt(page, cd(13)) === null, 'qty=' + await cnt(page, cd(13)));
   ok('ع١١ النصّ بقي في حقل البحث', await page.evaluate(() => document.getElementById('csearch').value) === '6281000100013',
     'val=' + await page.evaluate(() => document.getElementById('csearch').value));
+  await page.close();
+}
+
+// ═════════ ف — م٨: البطاقة الثابتة (٨ حقول · فرقٌ ملوّن حيّ · × · بلا اختفاء · العمياء) ═════════
+{
+  const page = await open();
+  await hw(page, bc(3)); await settle(page);                              // cd3 دفتري 4 ⇒ فعلي 1 فرق -3 (عجز)
+  let p = await panel(page);
+  ok('ف١ الاسم معروض', p.name.indexOf('صنف رقم 3') >= 0 || p.head.indexOf('صنف رقم 3') >= 0);
+  ok('ف٢ الباركود معروض', p.barcode === bc(3), 'bc=' + p.barcode);
+  ok('ف٣ الرصيد الدفتريّ = 4', p.cells['الرصيد الدفتريّ'] === '4', JSON.stringify(p.cells));
+  ok('ف٤ الفرق = -3 وتنسيقٌ سالب (neg)', p.cells['الفرق'] === '-3' && /neg/.test(p.diffCls), 'diff=' + p.cells['الفرق'] + ' cls=' + p.diffCls);
+  ok('ف٥ حالة الجرد = عجز', p.inv.indexOf('عجز') >= 0, 'inv=' + p.inv);
+  ok('ف٦ زرّ × موجود ولا مؤقّت اختفاء', p.hasCloseBtn === true && p.hasTimer === false);
+  await page.waitForTimeout(3600);                                        // كانت تختفي بعد ٣٫٢ث
+  p = await panel(page);
+  ok('ف٧ البطاقة لم تختفِ بعد ٣٫٦ث (ثابتة)', p.visible === true);
+  await hw(page, bc(3)); await settle(page);                              // إعادة مسح الصنف نفسه ⇒ تحديثٌ موضعيّ
+  p = await panel(page);
+  ok('ف٨ إعادة المسح: الفعلي 2 والفرق -2 (تحديثٌ موضعيّ)', p.cells['الكمية الفعلية'] === '2' && p.cells['الفرق'] === '-2', JSON.stringify(p.cells));
+  await page.evaluate(() => document.querySelector('#scanStatus .sp-x').click());
+  p = await panel(page);
+  ok('ف٩ ضغط × يُخفي البطاقة', p.visible === false);
+  ok('ف١٠ بعد الإغلاق: التركيز عاد لحقل المسح', await focus(page) === 'csearch', 'focus=' + await focus(page));
+  for (let k = 0; k < 4; k++) { await hw(page, bc(20)); await page.waitForTimeout(70); } await settle(page); // cd20 دفتري 3 ⇒ فعلي 4 فرق +1 (زيادة)
+  p = await panel(page);
+  ok('ف١١ زيادة: الفرق +1 · حالة زيادة · لونٌ موجب', p.cells['الفرق'] === '+1' && p.inv.indexOf('زيادة') >= 0 && /pos/.test(p.diffCls), JSON.stringify(p.cells) + ' inv=' + p.inv);
+  await hw(page, bc(27)); await settle(page);                            // cd27 دفتري 1 ⇒ فعلي 1 فرق 0 (مطابق)
+  p = await panel(page);
+  ok('ف١٢ مطابق: الفرق 0 · حالة مطابق · لونٌ محايد', p.cells['الفرق'] === '0' && p.inv.indexOf('مطابق') >= 0 && /zero/.test(p.diffCls), JSON.stringify(p.cells) + ' inv=' + p.inv);
+  await page.close();
+}
+{
+  const page = await open(null, true);                                    // جلسة عمياء
+  await hw(page, bc(3)); await settle(page);
+  const p = await panel(page);
+  ok('ف١٣ العمياء: الرصيد الدفتريّ مخفيّ', p.cells['الرصيد الدفتريّ'] === undefined, JSON.stringify(p.cells));
+  ok('ف١٤ العمياء: الفرق مخفيّ', p.cells['الفرق'] === undefined);
+  ok('ف١٥ العمياء: حالة الجرد مخفيّة', !p.inv);
+  ok('ف١٦ العمياء: الكمية الفعلية تبقى ظاهرة', p.cells['الكمية الفعلية'] === '1', JSON.stringify(p.cells));
   await page.close();
 }
 
