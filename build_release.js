@@ -72,8 +72,11 @@ if (a !== b) {
 
 fs.writeFileSync(OUT, head + out + tail);
 /* القياس بالبايت لا بالمحارف — الحرف العربيّ محرفٌ واحدٌ وبايتان في UTF-8،
-   والضغط بأداة gzip الرسميّة هي المرجع المعتمد في وثيقة الميزانيّة. */
-const gz = (p) => Number(require('child_process').execSync('gzip -9 -c "' + p + '" | wc -c').toString().trim());
+   والضغط بأداة gzip الرسميّة هي المرجع المعتمد في وثيقة الميزانيّة.
+   والضغط بالمجرى القياسيّ (`< path`) لا بوسيطِ اسمٍ، لأنّ gzip يخزّن اسم الملفّ
+   في ترويسته حين يُعطى اسمًا — فيتغيّر الرقم بتغيّر الاسم وحده. القياس هنا
+   يخصّ المحتوى لا التسمية. */
+const gz = (p) => Number(require('child_process').execSync('gzip -9 -c < "' + p + '" | wc -c').toString().trim());
 const rawS = fs.statSync(SRC).size, rawO = fs.statSync(OUT).size, gzS = gz(SRC), gzO = gz(OUT);
 const kb = (n) => (n / 1024).toFixed(1) + ' ك.ب';
 console.log('تعليقاتٌ حُذفت: ' + removed);
