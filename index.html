@@ -335,6 +335,19 @@ td.num,th.num{text-align:center;font-variant-numeric:tabular-nums}
 #cfOverlay .cfinput,#ppOverlay .cfinput{width:100%;padding:11px 13px;border:1px solid var(--border);border-radius:10px;background:var(--card);color:var(--tprimary);font-family:inherit;font-size:15px;margin-bottom:14px}
 #cfOverlay .cfrow,#ppOverlay .cfrow,#caOverlay .cfrow,#rdOverlay .cfrow{display:flex;gap:10px;justify-content:flex-end}
     #rdOverlay .cfrow{flex-wrap:wrap}
+/* م٧ — المعاينة الحيّة: لا لونَ جديد ولا مقاسَ خارج نظام التصميم؛ كلّها رموز التصميم القائمة */
+#caOverlay .cfcard.capv{max-width:660px}
+.cahd{display:flex;align-items:flex-start;gap:10px}
+.cahd h3{flex:1;margin:0}
+.caxb{border:1px solid var(--border);background:var(--card);color:var(--tsec);width:30px;height:30px;border-radius:9px;font-size:14px;line-height:1;cursor:pointer;flex:none;font-family:inherit}
+.caxb:hover{background:var(--navy100);color:var(--navy700);border-color:var(--navy700)}
+.cabg{margin:8px 0 10px}
+.cabg-t{display:inline-block;background:rgba(12,163,12,.12);color:var(--success);border-radius:20px;padding:4px 12px;font-size:12.5px;font-weight:700}
+.catray{display:flex;flex-wrap:wrap;gap:8px;align-items:center;border-top:1px dashed var(--border);padding-top:10px;margin-bottom:12px}
+.catl{font-size:12px;color:var(--tmuted);font-weight:600}
+.cachip{border:1px solid var(--border);background:var(--card);color:var(--tsec);border-radius:20px;padding:4px 11px;font-size:12.5px;font-family:inherit;cursor:pointer}
+.cachip:hover{background:var(--navy100);color:var(--navy700);border-color:var(--navy700)}
+.cachip b{color:var(--navy700);font-size:13px}
 .btn.danger{background:var(--danger);color:#fff}
 /* ر٦: مركز الإشعارات (م٢٠) */
 #notifBell{position:relative}
@@ -1965,7 +1978,7 @@ const SETSPEC=[
  {k:'catalogAdd.bookZero',t:'b',l:'الصنف المُضاف من الكتالوج رصيده الدفتريّ صفر',h:'مفعَّلٌ افتراضيًّا وهو الصحيح محاسبيًّا: الصنف لم يكن في اللقطة، فرصيده الدفتريّ صفر وكلّ ما يُعدّ منه زيادة.'},
  {k:'catalogAdd.badge',t:'b',l:'أظهِر شارةً على الأصناف المُضافة أثناء الجرد',h:'تميّز في التقرير ما لم يكن في اللقطة الأصليّة — يفيد المراجع كثيرًا.'},
  {k:'catalogAdd.allowInBlind',t:'b',l:'أتِح الإضافة من الكتالوج في الجرد الأعمى',h:'الجرد الأعمى يخفي الرصيد الدفتريّ فقط؛ الإضافة لا تكشفه لأنّ رصيد المُضاف صفرٌ أصلًا.'},
- {k:'catalogAdd.autoCloseSec',t:'n',min:0,max:120,l:'إغلاق نافذة الموافقة تلقائيًّا بعد (ثانية)',h:'صفر = لا إغلاق تلقائيّ (الافتراض). الإغلاق التلقائيّ قد يُلغي قرارًا كان العادّ بصدد اتّخاذه.'},
+ {k:'catalogAdd.autoCloseSec',t:'n',min:0,max:120,l:'إغلاق نافذة الموافقة تلقائيًّا بعد (ثانية) — معطَّل',h:'م٧: المعاينة الحيّة لا تُغلق نفسها أبدًا، فهذا الإعداد بلا أثرٍ الآن وبقي لتوافق الإعدادات المحفوظة. الإغلاق التلقائيّ كان يُلغي قرارًا والعادّ بصدد اتّخاذه — وهو ما اعتُمد منعه.'},
  {k:'catalogAdd.dailyCap',t:'n',min:0,max:100000,l:'سقف الإضافات من الكتالوج في اليوم',h:'صفر = بلا سقف. سقفٌ منخفضٌ يكشف حالةَ ملفِّ جردٍ ناقصٍ بدل أن يُرقَّع بمئات الإضافات اليدويّة.'},
  {k:'catalog.inactiveVisible',t:'b',l:'أظهِر الأصناف غير النشِطة في بحث الكتالوج',h:'إظهارها يمنع حيرة «الصنف موجودٌ ولا يظهر».'},
  {k:'catalog.allowInactiveAdd',t:'b',l:'أتِح إضافة صنفٍ غير نشِطٍ إلى الجلسة',h:'إن وُجد الصنف فعلًا على الرفّ فمنع إضافته يُفقد الجردَ دقّته. المنع يُبلَّغ للعادّ بوضوح.'},
@@ -3742,7 +3755,7 @@ const UNK_KEY='iomp-unknown-v1';
 let _ca13Declined=null;
 function ca13Set(){ if(!_ca13Declined)_ca13Declined=new Set(); return _ca13Declined; }
 function ca13On(){ return featuresMasterCatalogOn()&&catOpt('catalog.autoAdd')!=='off'; }
-function ca13Warm(){ if(!ca13On()||!can('count'))return; _ca13Declined=null;
+function ca13Warm(){ if(!ca13On()||!can('count'))return; _ca13Declined=null; caReset();
   try{ Promise.resolve(catalogEnsure({})).catch(()=>{}); }catch(e){} }
 function ca13CapKey(){ const d=new Date(); return 'iomp-cadd-'+((myProfile&&myProfile.uid)||'-')+'-'+d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate(); }
 function ca13CapUsed(){ try{ return Number(localStorage.getItem(ca13CapKey()))||0; }catch(e){ return 0; } }
@@ -3770,29 +3783,111 @@ async function unkOpen(){ const l=(await unkGet()).slice().sort((a,b)=>(b.at||0)
     catDl('﻿'+rows.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\r\n'),'باركودات-مجهولة.csv'); };
   if($('unkClr'))$('unkClr').onclick=async()=>{ if(!(await confirmDialog({title:'مسح سجلّ الباركودات المجهولة',message:'يُمسح السجلّ من هذا الجهاز نهائيًّا. لا يؤثّر على أي عدّ ولا على أي بيانٍ في السحابة.',confirmLabel:'مسح',danger:true})))return;
     try{ await offlineStore.set(UNK_KEY,[]); }catch(e){} unkOpen(); }; }
-function ca13Ask(cat,code,warn){ return new Promise(resolve=>{
-  let ov=$('caOverlay');
-  if(!ov){ ov=document.createElement('div'); ov.id='caOverlay';
-    ov.innerHTML='<div class="cfcard" style="max-width:520px"><h3>➕ صنفٌ من الكتالوج الرئيسيّ</h3><div class="cfmsg" id="caMsg"></div><div id="caWarn"></div><div class="tiles" id="caDet" style="margin-bottom:14px"></div><div class="cfrow"><button class="btn ghost" id="caNo">إلغاء (Esc)</button><button class="btn" id="caYes">➕ أضِفه وعُدّه (Enter)</button></div></div>';
-    document.body.appendChild(ov); }
+const CA_MAX_PENDING=20;
+const CA_ENTER_MS=120;
+let caPending=null, caFocus='', caBusy=0;
+let _caSwitchAt=0, _caShown='', _caRT=0, _caRPend=false;
+function caMap(){ if(!caPending)caPending=new Map(); return caPending; }
+function caGet(code){ return caPending?(caPending.get(code)||null):null; }
+function caSize(){ return caPending?caPending.size:0; }
+function caReset(){ if(caPending)caPending.clear(); caFocus=''; _caShown=''; _caRPend=false;
+  clearTimeout(_caRT); _caRT=0; const o=$('caOverlay'); if(o)o.style.display='none'; }
+function caPark(job,cat,code,warn){ const m=caMap(); let e=m.get(code);
+  if(!e){ if(m.size>=CA_MAX_PENDING)return false;
+    e={cat:cat,code:code,jobs:[],firstAt:Date.now(),lastAt:0,warn:warn||'',busy:0}; m.set(code,e); }
+  e.jobs.push(job); e.lastAt=Date.now();
+  if(caFocus!==code){ caFocus=code; _caSwitchAt=e.lastAt; }
+  caRenderSoon(); return true; }
+function caRenderSoon(){ const s=$('csearch');
+  if(scanBusy||scanQueue.length||(s&&s._scBuf!=null)){ _caRPend=true;
+    clearTimeout(_caRT); _caRT=setTimeout(function(){ if(_caRPend){ _caRPend=false; caRender(); } },SCAN_IDLE_MS+40); return; }
+  caRender(); }
+function caFlush(){ if(_caRPend){ _caRPend=false; clearTimeout(_caRT); _caRT=0; caRender(); } }
+function caShell(){ let ov=$('caOverlay'); if(ov)return ov;
+  ov=document.createElement('div'); ov.id='caOverlay';
+  ov.innerHTML='<div class="cfcard capv"><div class="cahd"><h3>➕ صنفٌ من الكتالوج الرئيسيّ</h3>'
+    +'<button class="caxb" id="caX" type="button" aria-label="إغلاق ورفض">✕</button></div>'
+    +'<div class="cabg" id="caBadge"></div><div class="cfmsg" id="caMsg"></div><div id="caWarn"></div>'
+    +'<div class="tiles" id="caDet" style="margin-bottom:12px"></div><div id="caTray"></div>'
+    +'<div class="cfrow"><button class="btn ghost" id="caNo" type="button">إغلاق ورفض (Esc)</button>'
+    +'<button class="btn" id="caYes" type="button">➕ أضِفه وعُدّه (Enter)</button></div></div>';
+  document.body.appendChild(ov);
+  $('caNo').onclick=function(){ caDecline(); }; $('caX').onclick=function(){ caDecline(); };
+  $('caYes').onclick=function(){ caApprove(); };
+  $('caTray').onclick=function(ev){ const t=ev&&ev.target; const b=(t&&t.closest)?t.closest('[data-cac]'):null;
+    if(!b)return; const c=b.getAttribute('data-cac'); if(!caGet(c))return;
+    caFocus=c; _caSwitchAt=Date.now(); _caShown=''; caRender(); scanFocusGuard(); };
+  document.addEventListener('keydown',caKey,true);
+  return ov; }
+function caKey(e){ if(!caFocus||!caSize())return;
+  if(e.key==='Escape'){ e.preventDefault(); e.stopPropagation(); caDecline(); return; }
+  if(e.key!=='Enter')return;
+  const s=$('csearch'); if(s&&s._scBuf!=null)return;
+  if(Date.now()-_caSwitchAt<CA_ENTER_MS)return;
+  e.preventDefault(); e.stopPropagation(); caApprove(); }
+function caPaint(e){ const cat=e.cat, code=e.code;
   const showCost=!(curSess&&curSess.blind)&&canSeeFinance();
-  const cell=(k,v)=>'<div class="tile"><div class="k">'+k+'</div><div class="v" style="font-size:15px">'+esc(String(v))+'</div></div>';
+  const bz=catOpt('catalogAdd.bookZero')!==false;
+  const loc=String((curSess&&curSess.location)||'').trim();
+  const brn=String((curSess&&curSess.branch)||'').trim();
+  const cell=function(k,v,tc,vc,id,fs){ return '<div class="tile'+(tc?' '+tc:'')+'"><div class="k">'+k+'</div>'
+    +'<div class="v'+(vc?' '+vc:'')+'" style="font-size:'+(fs||15)+'px"'+(id?' id="'+id+'"':'')+'>'+esc(String(v))+'</div></div>'; };
   $('caMsg').textContent='هذا الصنف غير موجودٍ في جلسة الجرد الحالية، وهو موجودٌ في كتالوج المنتجات الرئيسيّ. هل تريد إضافته إلى الجلسة وعدَّه؟';
-  $('caWarn').innerHTML=warn?('<p class="status show warn" style="margin-bottom:12px">'+esc(warn)+'</p>'):'';
-  $('caDet').innerHTML=cell('اسم المنتج',cat.name||'—')+cell('الباركود',code)+cell('الفئة',cat.category||'—')
-    +(showCost?cell('التكلفة',fmt(numv(cat.cost)||0)):'')+cell('الرصيد الدفتري','0');
-  ov.style.display='flex';
-  let done=false, tid=0;
-  const fin=(v)=>{ if(done)return; done=true; clearTimeout(tid);
-    try{ document.removeEventListener('keydown',onKey,true); }catch(e){}
-    ov.style.display='none'; scanFocusGuard(); resolve(v); };
-  function onKey(e){ if(e.key==='Escape'){ e.preventDefault(); e.stopPropagation(); fin(false); return; }
-    if(e.key==='Enter'){ const s=$('csearch'); if(s&&s._scBuf!=null)return;
-      e.preventDefault(); e.stopPropagation(); fin(true); } }
-  document.addEventListener('keydown',onKey,true);
-  $('caNo').onclick=()=>fin(false); $('caYes').onclick=()=>fin(true);
-  const sec=Number(catOpt('catalogAdd.autoCloseSec'))||0; if(sec>0)tid=setTimeout(()=>fin(false),sec*1000);
-  scanFocusGuard(); }); }
+  $('caBadge').innerHTML='<span class="cabg-t">✓ موجودٌ في كتالوج المنتجات الرئيسيّ</span>';
+  $('caWarn').innerHTML=e.warn?('<p class="status show warn" style="margin-bottom:12px">'+esc(e.warn)+'</p>'):'';
+  $('caDet').innerHTML=
+     cell('اسم المنتج',cat.name||'—')
+    +cell('الباركود',code)
+    +cell('الفئة',cat.category||'—')
+    +cell('الوحدة',cat.unit||'—')
+    +(showCost?cell('التكلفة',fmt(numv(cat.cost)||0)):'')
+    +cell('الرصيد الدفتري',bz?'0':'—','hl','','',20)
+    +cell('الكمية الفعلية',fmt(e.jobs.length),'val','','caQn',28)
+    +cell('الفرق','+'+fmt(e.jobs.length),'hl','pos','caDf',24)
+    +cell('حالة الجرد',bz?STLABEL.surplus:STLABEL.extra,'hl','pos','',18)
+    +(brn?cell('المستودع',loc||'—'):cell('المستودع / الفرع',loc||'—'))
+    +(brn?cell('الفرع',brn):''); }
+function caTouch(e){ const n=e.jobs.length;
+  const a=$('caQn'); if(a)a.textContent=fmt(n);
+  const d=$('caDf'); if(d)d.textContent='+'+fmt(n);
+  const y=$('caYes'); if(y){ y.textContent='➕ أضِفه وعُدّه ('+fmt(n)+') — Enter'; y.disabled=!!e.busy; }
+  const x=$('caNo');  if(x){ x.textContent='إغلاق ورفض ('+fmt(n)+' مسحة) — Esc'; x.disabled=!!e.busy; }
+  caTrayPaint(); }
+function caTrayPaint(){ const t=$('caTray'); if(!t)return;
+  const rest=[]; if(caPending)caPending.forEach(function(e){ if(e.code!==caFocus)rest.push(e); });
+  const sig=rest.map(function(e){ return e.code+':'+e.jobs.length; }).join('|');
+  if(t._sig===sig)return; t._sig=sig;
+  t.innerHTML=rest.length?('<div class="catray"><span class="catl">معلَّقةٌ بانتظار قرارك ('+fmt(rest.length)+'):</span>'
+    +rest.map(function(e){ return '<button class="cachip" type="button" data-cac="'+esc(e.code)+'">'+esc(e.cat.name||e.code)+' <b>'+fmt(e.jobs.length)+'</b></button>'; }).join('')
+    +'</div>'):''; }
+function caRender(){ const ov=$('caOverlay');
+  if(!caSize()){ if(ov)ov.style.display='none'; _caShown=''; caFocus=''; return; }
+  let e=caGet(caFocus);
+  if(!e){ e=caPending.values().next().value; caFocus=e.code; _caSwitchAt=Date.now(); _caShown=''; }
+  caShell();
+  if(_caShown!==e.code){ caPaint(e); _caShown=e.code; }
+  caTouch(e);
+  const o2=$('caOverlay'); if(o2&&o2.style.display!=='flex')o2.style.display='flex';
+  scanFocusGuard(); }
+function caNext(){ _caShown=''; if(!caSize()){ caFocus=''; caRender(); return; }
+  const it=caPending.values().next().value; caFocus=it.code; _caSwitchAt=Date.now(); caRender(); }
+async function caApprove(){ const code=caFocus, e=caGet(code); if(!e||e.busy||caBusy)return;
+  e.busy=1; caBusy=1; caTouch(e);
+  let r=null; try{ r=await ca13Insert(e.cat,code); }catch(err){ r={ok:false,err:(err&&(err.code||err.message))||'write'}; }
+  e.busy=0;
+  if(!r||!r.ok){ caBusy=0; caTouch(e);
+    scanPanel({state:'err',title:'تعذّرت إضافة الصنف — '+(e.cat.name||''),code:code,note:'لم تُسجَّل أي كمية، والمسحات المحجوزة لا تزال محفوظة. تحقّق من الاتصال ثمّ أعِد المحاولة.'});
+    toastErr('تعذّرت إضافة الصنف من الكتالوج: '+errAr(r&&r.err)); beep(false); vibrate(160); scanFocusGuard(); return; }
+  ca13CapBump(); if(_lastUnknownScan===code)_lastUnknownScan='';
+  const jobs=e.jobs.splice(0,e.jobs.length);
+  caPending.delete(code);
+  for(let i=0;i<jobs.length;i++){ jobs[i]._ca13=1; jobs[i].code=code; scanQueue.push(jobs[i]); }
+  caNext(); scanPump(); caBusy=0; scanFocusGuard(); }
+function caDecline(){ const code=caFocus, e=caGet(code); if(!e||e.busy)return;
+  const n=e.jobs.length, raw=(n?e.jobs[n-1].code:code);
+  caPending.delete(code); ca13Set().add(code);
+  scanPanel({state:'err',title:'لم يُضَف — '+(e.cat.name||''),code:raw,note:'أُلغيت الإضافة و'+(n>1?('أُهملت '+fmt(n)+' مسحاتٍ محجوزة'):'لم تُسجَّل أي كمية')+'. لن تتكرّر النافذة لهذا الصنف في هذه الجلسة؛ ولإضافته لاحقًا استعمل «➕ صنف يدوي».'});
+  _lastUnknownScan=raw; beep(false); vibrate(160); caNext(); scanFocusGuard(); }
 function ca13Item(cat,code){ const it={code:code,barcode:code,name:String(cat.name||''),category:String(cat.category||''),
     cost:(numv(cat.cost)==null?0:numv(cat.cost)),unit:String(cat.unit||''),manual:true,src:'catalog',
     addedBy:auth.currentUser.uid,addedByName:(myProfile&&myProfile.name)||''};
@@ -3815,6 +3910,7 @@ async function ca13Try(job){
   const cat=catalogFindScan(job.code); if(!cat)return null;
   const code=catalogNorm(cat.barcode!=null?cat.barcode:cat.code)||job.code;
   if(curItems.some(x=>String(x.code)===code))return null;
+  if(caGet(code)){ caPark(job,cat,code,''); return {handled:true}; }
   const inactive=String(cat.status||'active')!=='active';
   if(inactive&&catOpt('catalog.inactiveVisible')===false)return null;
   const blind=!!(curSess&&curSess.blind);
@@ -3829,13 +3925,12 @@ async function ca13Try(job){
   if(cap>0&&ca13CapUsed()>=cap){
     scanPanel({state:'err',title:'بلغتَ سقف الإضافات اليوميّ',code:job.code,note:'السقف '+fmt(cap)+' صنفًا في اليوم. راجِع مسؤول النظام أو استعمل «➕ صنف يدوي».'});
     toastWarn('⚠ بلغتَ سقف إضافة أصناف الكتالوج اليوم ('+fmt(cap)+').'); beep(false); vibrate(160); scanFocusGuard(); return {handled:true}; }
-  let ok=true;
   if(catOpt('catalog.autoAdd')!=='auto'){
-    scanPanel({state:'pending',title:'بانتظار موافقتك — '+(cat.name||''),code:job.code,note:'الصنف موجودٌ في الكتالوج الرئيسيّ. وافِق لإضافته وعدّه. المسحات القادمة محفوظةٌ في الطابور ولن تُفقد.'});
-    ok=await ca13Ask(cat,code,inactive?'تنبيه: هذا الصنف موقوفٌ (غير نشط) في كتالوج المنتجات الرئيسيّ.':''); }
-  if(!ok){ ca13Set().add(code);
-    scanPanel({state:'err',title:'لم يُضَف — '+(cat.name||''),code:job.code,note:'أُلغيت الإضافة. لن تتكرّر النافذة لهذا الصنف في هذه الجلسة؛ ولإضافته لاحقًا استعمل «➕ صنف يدوي».'});
-    _lastUnknownScan=job.code; beep(false); vibrate(160); scanFocusGuard(); return {handled:true}; }
+    if(!caPark(job,cat,code,inactive?'تنبيه: هذا الصنف موقوفٌ (غير نشط) في كتالوج المنتجات الرئيسيّ.':'')){
+      scanPanel({state:'err',title:'بلغتَ سقف الأصناف المعلَّقة',code:job.code,note:'لديك '+fmt(CA_MAX_PENDING)+' صنفًا بانتظار قرارك. احسِم بعضها (اعتمادًا أو إغلاقًا) ثمّ أعِد المسح — ولم تُفقد أي مسحةٍ سابقة.'});
+      toastWarn('⚠ بلغتَ سقف الأصناف المعلَّقة ('+fmt(CA_MAX_PENDING)+') — احسِم بعضها أولًا.'); beep(false); vibrate(160); scanFocusGuard(); return {handled:true}; }
+    scanPanel({state:'pending',title:'بانتظار موافقتك — '+(cat.name||''),code:job.code,note:'الصنف موجودٌ في الكتالوج الرئيسيّ. وافِق لإضافته وعدّه. المسحات القادمة تُعدّ فورًا ولن تُفقد.'});
+    scanFocusGuard(); return {handled:true}; }
   const r=await ca13Insert(cat,code);
   if(!r.ok){ scanPanel({state:'err',title:'تعذّرت إضافة الصنف — '+(cat.name||''),code:job.code,note:'لم تُسجَّل أي كمية. تحقّق من الاتصال ثمّ أعِد المسح.'});
     toastErr('تعذّرت إضافة الصنف من الكتالوج: '+errAr(r.err)); beep(false); vibrate(160); scanFocusGuard(); return {handled:true}; }
@@ -4601,6 +4696,7 @@ async function scanStep(job){
 
 function scanDrained(){ const s=$('csearch');
   if(_rclPending&&!(s&&s._scBuf!=null)){ _rclPending=false; clearTimeout(_rclT); _rclT=0; if($('clist'))renderCountList(); }
+  if(_caRPend&&!(s&&s._scBuf!=null))caFlush();
   scanFocusGuard(); }
 
 function scanArmField(el,onScan){ if(!el||el._scArmed)return; el._scArmed=true;

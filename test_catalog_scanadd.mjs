@@ -156,16 +156,26 @@ async function scanApprove(page, code) { await scan(page, code); await askOpen(p
   await shut(page);
 }
 
-// ═════════ المجموعة ج — لا مسحةٌ تُفقد، ولا الماسح يوافق نيابةً عن الإنسان ═════════
+// ═════════ المجموعة ج — م٧: المعاينة مُراقِبٌ لا بوّابة — العدّ يستمرّ واللوحة معروضة ═════════
 {
   const page = await open();
   await scan(page, TARGET);
   await askOpen(page);
 
-  // ثلاث مسحاتٍ تصل والنافذة مفتوحة — تدخل الطابور
+  // ثلاث مسحاتٍ تصل واللوحة معروضة — كانت تتجمّد في الطابور، وصارت تُعدّ في حينها
   await scan(page, bc(2)); await scan(page, bc(2)); await scan(page, bc(3));
-  await page.waitForTimeout(200);
-  ok('ج١ المسحات الواردة أثناء النافذة تدخل الطابور ولا تُفقد', await page.evaluate(() => window.__scanQueueLen()) === 4, String(await page.evaluate(() => window.__scanQueueLen())));
+  await idle(page);
+  ok('ج١ المسحات الواردة واللوحة معروضة تُعدّ فورًا — لا تجمّد للطابور',
+    await page.evaluate(() => window.__scanQueueLen()) === 0 && (await countDoc(page, cd(2))).qty === 2 && (await countDoc(page, cd(3))).qty === 1,
+    JSON.stringify([await page.evaluate(() => window.__scanQueueLen()), await countDoc(page, cd(2)), await countDoc(page, cd(3))]));
+  ok('ج١ب واللوحة لم تُغلق ولم يتبدّل معروضها', await page.evaluate(() => window.__cat13.askShown()) === true && await page.evaluate(() => window.__ca7.focus()) === TARGET,
+    await page.evaluate(() => window.__ca7.focus()));
+  ok('ج١ج والمسحة المحجوزة محفوظةٌ بتمامها بانتظار القرار', await page.evaluate(() => window.__ca7.total()) === 1 && await page.evaluate(() => window.__ca7.size()) === 1,
+    String(await page.evaluate(() => window.__ca7.total())));
+  ok('ج١د ولا كتابةَ للصنف المعلَّق قبل الاعتماد', (await extraDoc(page, TARGET)) === null && (await countDoc(page, TARGET)) === null);
+  ok('ج١هـ ولا مستندَ صنفٍ أُنشئ للمعلَّق ولا قراءةَ كتالوجٍ إضافيّة',
+    await keys(page, 'sessions/sr/extraItems/') === 0 && await page.evaluate(() => window.__cat.reads()) === 2,
+    (await keys(page, 'sessions/sr/extraItems/')) + '|' + await page.evaluate(() => window.__cat.reads()));
 
   // «Enter» أثناء حزمة ماسحٍ جارية ليست موافقةً بشريّة
   await page.evaluate(() => window.__cat13.setBuf('628'));
@@ -432,6 +442,113 @@ async function scanApprove(page, code) { await scan(page, code); await askOpen(p
   ok('ط٦ غياب الكتالوج لا يعطب المسح — يسقط لتدفّق ٥ بأمان', (await extraDoc(p2, TARGET)) === null && (await p2.evaluate(() => window.__cat13.unkGet())).length === 1 && await p2.evaluate(() => window.__scanIdle()) === true);
   await shut(p2);
   await shut(page);
+}
+
+// ═════════ المجموعة ي — م٧: المعاينة الحيّة (تراكم · تبديل · درج · حمايات) ═════════
+{
+  const page = await open();
+  const rd0 = await page.evaluate(() => window.__cat.reads());
+  const wk0 = await keys(page, 'sessions/sr/');            // خطّ الأساس: ما كتبه فتح الجلسة نفسه
+  const flush = () => page.evaluate(() => window.__ca7.flush());
+  const cellsOf = () => page.evaluate(() => window.__cat13.askCells());
+
+  // ي-أ: التراكم — الصنف نفسه يُمسح ثلاثًا قبل أيّ قرار
+  await scan(page, TARGET); await askOpen(page);
+  await scan(page, TARGET); await scan(page, TARGET); await idle(page); await flush();
+  const c1 = await cellsOf();
+  ok('ي١ الكمية الفعلية تنمو مع كل مسحةٍ قبل الاعتماد', c1['الكمية الفعلية'] === '3' && await page.evaluate(() => window.__ca7.qty()) === 3, JSON.stringify(c1));
+  ok('ي٢ الفرق يساوي الكمية لأنّ الرصيد الدفتري صفر (مطابقٌ لـcomputeVariance)', c1['الفرق'] === '+3' && c1['الرصيد الدفتري'] === '0', JSON.stringify([c1['الفرق'], c1['الرصيد الدفتري']]));
+  ok('ي٣ وحالة الجرد المعروضة «زيادة» بمصطلح التقارير نفسه', c1['حالة الجرد'] === 'زيادة', String(c1['حالة الجرد']));
+  ok('ي٤ الشارة «موجودٌ في كتالوج المنتجات الرئيسيّ» لا تختفي مهما تكرّر المسح',
+    (await page.evaluate(() => window.__ca7.badge())).indexOf('كتالوج المنتجات الرئيسيّ') >= 0, await page.evaluate(() => window.__ca7.badge()));
+  ok('ي٥ الوحدة والمستودع معروضان (والفرع يندمج مع المستودع حين لا حقلَ فرعٍ للجلسة)',
+    c1['الوحدة'] === 'حبة' && c1['المستودع / الفرع'] === 'فرع أ' && c1['الفرع'] == null, JSON.stringify(c1));
+  ok('ي٦ الأزرار تُسمّي ما ستفعله بعدد المسحات المحجوزة',
+    (await page.evaluate(() => window.__ca7.yesLabel())).indexOf('(3)') >= 0 && (await page.evaluate(() => window.__ca7.noLabel())).indexOf('3') >= 0,
+    (await page.evaluate(() => window.__ca7.yesLabel())) + ' | ' + (await page.evaluate(() => window.__ca7.noLabel())));
+  ok('ي٧ صفر كتابةٍ وصفر قراءةٍ إضافية طوال التعليق', await keys(page, 'sessions/sr/') === wk0 && await page.evaluate(() => window.__cat.reads()) === rd0,
+    wk0 + '→' + (await keys(page, 'sessions/sr/')) + ' | ' + rd0 + '→' + await page.evaluate(() => window.__cat.reads()));
+
+  // إعادة مسح الصنف المعروض تُحدّث عقدتين ولا تُعيد بناء اللوحة (لا رسمَ غير ضروريّ)
+  await page.evaluate(() => { const e = document.getElementById('caQn'); if (e) e.setAttribute('data-mark', 'm7'); });
+  await scan(page, TARGET); await idle(page); await flush();
+  ok('ي٨ إعادة المسح تُحدّث الرقمين موضعيًّا ولا تُعيد بناء البلاطات',
+    await page.evaluate(() => { const e = document.getElementById('caQn'); return e ? (e.getAttribute('data-mark') === 'm7' && (e.textContent || '').trim() === '4') : false; }) === true);
+
+  // الاعتماد يُعيد المسحات الأربع المحجوزة إلى الطابور نفسه
+  await page.evaluate(() => window.__ca7.approve()); await idle(page);
+  const cy = await countDoc(page, TARGET);
+  ok('ي٩ الاعتماد يُعيد كلّ المسحات المحجوزة: أربع مسحاتٍ = أربع زيادات', cy && cy.qty === 4 && cy.s === 4, JSON.stringify(cy));
+  ok('ي١٠ وتندمج في سطر تتابعٍ واحد (ط-١٤) بمستند صنفٍ واحد', cy && cy.n === 1 && await keys(page, 'sessions/sr/extraItems/') === 1, JSON.stringify(cy));
+  ok('ي١١ واللوحة أُغلقت لأنّ دفتر المعلَّق فرغ', await page.evaluate(() => window.__cat13.askShown()) === false && await page.evaluate(() => window.__ca7.size()) === 0);
+
+  // ي-ب: تبديل المنتج — السابق ينتقل إلى الدرج بعدّاده، ولا يُفقد
+  await scan(page, kb(2)); await askOpen(page);
+  await scan(page, kb(2)); await scan(page, kb(3)); await idle(page); await flush();
+  ok('ي١٢ مسحُ منتجٍ آخر يُبدّل المعروض بلا إغلاقٍ ولا نافذةٍ ثانية',
+    await page.evaluate(() => window.__cat13.askShown()) === true && await page.evaluate(() => window.__ca7.focus()) === kb(3), await page.evaluate(() => window.__ca7.focus()));
+  ok('ي١٣ والسابق محفوظٌ في الدرج بكامل عدّاده', await page.evaluate(() => window.__ca7.size()) === 2 && await page.evaluate(k => window.__ca7.qty(k), kb(2)) === 2,
+    JSON.stringify(await page.evaluate(() => window.__ca7.codes())));
+  ok('ي١٤ والدرج يُسمّي الصنف وعدد مسحاته صراحةً',
+    (await page.evaluate(() => window.__ca7.trayHtml())).indexOf('صنف كتالوج 2') >= 0 && (await page.evaluate(() => window.__ca7.trayHtml())).indexOf('معلَّقةٌ بانتظار قرارك') >= 0,
+    (await page.evaluate(() => window.__ca7.trayHtml())).slice(0, 140));
+  ok('ي١٥ النقر على رقاقة الدرج يعيد الصنف إلى المعاينة بكمّيته',
+    await page.evaluate(k => window.__ca7.pick(k), kb(2)) === true && await page.evaluate(() => window.__ca7.focus()) === kb(2) && (await cellsOf())['الكمية الفعلية'] === '2',
+    JSON.stringify(await cellsOf()));
+  ok('ي١٦ والصنف الذي تركناه صار هو الذي في الدرج', (await page.evaluate(() => window.__ca7.trayCodes())).indexOf(kb(3)) >= 0, JSON.stringify(await page.evaluate(() => window.__ca7.trayCodes())));
+
+  // ي-ج: حارس Enter الزمنيّ — لا يُعتمَد صنفٌ تبدّل للتوّ (وليس تنقيحًا للمسح)
+  ok('ي١٧ الحارس ١٢٠ مللي والسقف عشرون — ثابتان معلنان', await page.evaluate(() => window.__ca7.enterMs()) === 120 && await page.evaluate(() => window.__ca7.max()) === 20);
+  await page.evaluate(() => window.__ca7.ageSwitch(0));
+  await page.evaluate(() => window.__cat13.key('Enter'));
+  await page.waitForTimeout(80);
+  ok('ي١٨ Enter عقب تبدّل المعروض مباشرةً لا يعتمد شيئًا', (await extraDoc(page, kb(2))) === null && await page.evaluate(() => window.__ca7.size()) === 2);
+  await page.evaluate(() => window.__ca7.ageSwitch(500));
+  await page.evaluate(() => window.__cat13.key('Enter'));
+  await idle(page); await flush();
+  ok('ي١٩ وبعد انقضاء الحارس يعتمد المعروض وحده', !!(await extraDoc(page, kb(2))) && (await countDoc(page, kb(2))).qty === 2 && (await extraDoc(page, kb(3))) === null, JSON.stringify(await countDoc(page, kb(2))));
+  ok('ي٢٠ واللوحة تنتقل إلى المعلَّق التالي بدل أن تُغلق', await page.evaluate(() => window.__cat13.askShown()) === true && await page.evaluate(() => window.__ca7.focus()) === kb(3));
+
+  // ي-د: الإغلاق يُسمّي ما يُلغيه — وهو رفضٌ للجلسة كما كان
+  ok('ي٢١ زرّ الإغلاق يذكر عدد المسحات التي سيُهملها', (await page.evaluate(() => window.__ca7.noLabel())).indexOf('رفض') >= 0 && (await page.evaluate(() => window.__ca7.noLabel())).indexOf('1') >= 0,
+    await page.evaluate(() => window.__ca7.noLabel()));
+  ok('ي٢٢ زرّ ✕ موجودٌ ويعمل عمل Esc', await page.evaluate(() => window.__ca7.closeX()) === true);
+  await idle(page);
+  ok('ي٢٣ فيُرفض المعروض وحده رفضًا دائمًا لهذه الجلسة', (await page.evaluate(() => window.__cat13.declined())).indexOf(kb(3)) >= 0 && (await extraDoc(page, kb(3))) === null);
+  ok('ي٢٤ واللوحة أُغلقت لفراغ الدفتر', await page.evaluate(() => window.__cat13.askShown()) === false && await page.evaluate(() => window.__ca7.size()) === 0);
+  const pj = await panel(page);
+  ok('ي٢٥ واللوحة تشرح ما أُهمل وتذكر البديل «➕ صنف يدوي»', pj && pj.cls.indexOf('err') >= 0 && pj.text.indexOf('صنف يدوي') >= 0, pj ? pj.text.slice(0, 140) : 'null');
+  ok('ي٢٦ ولا قراءةَ كتالوجٍ واحدةً زائدة في المجموعة كلّها', await page.evaluate(() => window.__cat.reads()) === rd0, rd0 + '→' + await page.evaluate(() => window.__cat.reads()));
+  await shut(page);
+
+  // ي-هـ: سقف الأصناف المعلَّقة — عشرون قرارًا مؤجَّلًا حدُّ ما يُدار
+  const p2 = await open();
+  for (let i = 1; i <= 20; i++) await scan(p2, kb(i));
+  await idle(p2); await p2.evaluate(() => window.__ca7.flush());
+  ok('ي٢٧ عشرون صنفًا معلَّقًا تُدار بلا فقدانِ مسحة', await p2.evaluate(() => window.__ca7.size()) === 20 && await p2.evaluate(() => window.__ca7.total()) === 20,
+    String(await p2.evaluate(() => window.__ca7.size())));
+  await scan(p2, KI.barcode); await idle(p2);
+  ok('ي٢٨ والحادي والعشرون يُمنع دون المساس بالعشرين', await p2.evaluate(() => window.__ca7.size()) === 20 && (await panel(p2)).text.indexOf('سقف الأصناف المعلَّقة') >= 0,
+    (await panel(p2)).text.slice(0, 140));
+  ok('ي٢٩ والماسح جاهزٌ فورًا رغم بلوغ السقف', await p2.evaluate(() => window.__scanIdle()) === true && await p2.evaluate(() => window.__focusId()) === 'csearch');
+  await shut(p2);
+
+  // ي-و: لا إغلاقَ تلقائيّ البتّة — حتى لو ضُبط الإعداد القديم
+  const p3 = await open({ opts: { 'catalogAdd.autoCloseSec': 1 } });
+  await scan(p3, TARGET); await askOpen(p3);
+  await p3.waitForTimeout(1700);
+  ok('ي٣٠ الإعداد القديم للإغلاق التلقائيّ صار بلا أثر — اللوحة لا تُغلق نفسها أبدًا',
+    await p3.evaluate(() => window.__cat13.askShown()) === true && await p3.evaluate(() => window.__ca7.size()) === 1);
+  ok('ي٣١ والمسحة المحجوزة لم تُهدر بمرور الوقت', await p3.evaluate(() => window.__ca7.qty()) === 1);
+  await shut(p3);
+
+  // ي-ز: حقل الفرع حين يوجد في الجلسة — سطران منفصلان
+  const p4 = await open({ sess: { branch: 'الفرع الشماليّ' } });
+  await scan(p4, TARGET); await askOpen(p4); await p4.evaluate(() => window.__ca7.flush());
+  const c4 = await p4.evaluate(() => window.__cat13.askCells());
+  ok('ي٣٢ وجود حقل الفرع يفصل «المستودع» عن «الفرع» في سطرين',
+    c4['المستودع'] === 'فرع أ' && c4['الفرع'] === 'الفرع الشماليّ' && c4['المستودع / الفرع'] == null, JSON.stringify(c4));
+  await shut(p4);
 }
 
 await browser.close();

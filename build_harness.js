@@ -262,7 +262,7 @@ window.__scanCommit = (code,src)=>scanCommit(code,src||'test');
 window.__scanCommitEvt = (code,evt)=>scanCommit(code,'test',evt);
 window.__scanQueueLen = ()=>scanQueue.length;
 window.__scanBusy = ()=>!!scanBusy;
-window.__scanIdle = ()=>(!scanBusy && scanQueue.length===0);
+window.__scanIdle = ()=>(!scanBusy && scanQueue.length===0 && !caBusy); // م٧: الاعتماد طورٌ غير متزامنٍ خارج scanPump ⇒ لا سكونَ قبل انتهائه
 window.__scanPanel = ()=>{ const e=document.getElementById('scanStatus'); if(!e)return null;
   const cells={}; e.querySelectorAll('.sp-c').forEach(c=>{ const k=c.querySelector('.sp-k'), v=c.querySelector('.sp-v'); if(k&&v)cells[(k.textContent||'').trim()]=(v.textContent||'').trim(); });
   const h=e.querySelector('.sp-h');
@@ -501,6 +501,7 @@ window.__cat13 = {
   no:()=>{ const b=document.getElementById('caNo'); if(b)b.click(); return !!b; },
   key:(k)=>{ document.dispatchEvent(new KeyboardEvent('keydown',{key:k,bubbles:true,cancelable:true})); },
   setBuf:(v)=>{ const s=document.getElementById('csearch'); if(s)s._scBuf=v; return !!s; },
+  // م٧: النافذة لم تعد تُرجع وعدًا — لا خطّاف «ask» بعد اليوم؛ الفحص عبر __ca7
   // سجلّ الباركودات المجهولة — محلّيٌّ بالكامل
   unkKey:()=>UNK_KEY,
   unkGet:()=>unkGet(),
@@ -515,6 +516,34 @@ window.__cat13 = {
   setBlind:(b)=>{ if(curSess)curSess.blind=!!b; },
   clistHas:(c)=>{ const e=document.getElementById('clist'); return !!(e&&e.innerHTML.indexOf(String(c))>=0); },
   clistHtml:()=>{ const e=document.getElementById('clist'); return e?e.innerHTML:''; }
+};
+/* م٧ — المعاينة الحيّة: خطاطيفُ دفتر المعلَّق واللوحة. لا تُغيّر سلوكًا ولا يستدعيها التطبيق. */
+window.__ca7 = {
+  size:()=>caSize(),                                   // كم صنفًا معلَّقًا
+  focus:()=>caFocus,                                   // أيّ صنفٍ معروضٌ الآن
+  busy:()=>!!caBusy,
+  codes:()=>(caPending?Array.from(caPending.keys()):[]),   // ترتيب الإدراج = ترتيب الدور
+  qty:(c)=>{ const e=caPending?caPending.get(c||caFocus):null; return e?e.jobs.length:0; },
+  total:()=>{ let n=0; if(caPending)caPending.forEach(e=>{ n+=e.jobs.length; }); return n; },
+  eids:(c)=>{ const e=caPending?caPending.get(c||caFocus):null; return e?e.jobs.map(j=>j.eid):[]; },
+  seqs:(c)=>{ const e=caPending?caPending.get(c||caFocus):null; return e?e.jobs.map(j=>j.seq):[]; },
+  approve:()=>caApprove(),                             // نفس ما يفعله الزرّ — لا مسارَ ثانٍ
+  decline:()=>caDecline(),
+  pick:(c)=>{ const b=document.querySelector('#caTray [data-cac="'+String(c).replace(/"/g,'\\"')+'"]'); if(b)b.click(); return !!b; },
+  reset:()=>caReset(),
+  flush:()=>{ caFlush(); },                            // إجبار الرسم المؤجَّل — لفحص المحتوى دون انتظار المؤقّت
+  pend:()=>!!_caRPend,                                 // هل الرسم مؤجَّلٌ فعلًا (إثبات «الرسم خارج المسار الحرج»)
+  shown:()=>_caShown,                                  // آخر صنفٍ رُسم رسمًا كاملًا
+  trayHtml:()=>{ const e=document.getElementById('caTray'); return e?e.innerHTML:''; },
+  trayCodes:()=>Array.from(document.querySelectorAll('#caTray [data-cac]')).map(b=>b.getAttribute('data-cac')),
+  badge:()=>{ const e=document.getElementById('caBadge'); return e?(e.textContent||'').trim():''; },
+  yesLabel:()=>{ const b=document.getElementById('caYes'); return b?(b.textContent||'').trim():''; },
+  noLabel:()=>{ const b=document.getElementById('caNo'); return b?(b.textContent||'').trim():''; },
+  closeX:()=>{ const b=document.getElementById('caX'); if(b)b.click(); return !!b; },
+  max:()=>CA_MAX_PENDING,
+  enterMs:()=>CA_ENTER_MS,
+  switchAt:()=>_caSwitchAt,
+  ageSwitch:(ms)=>{ _caSwitchAt=Date.now()-Number(ms||0); }   // تقديم لحظة التبديل — لفحص حارس Enter بلا انتظارٍ حقيقيّ
 };
 /* ط-١٥ (د-٨): نداءٌ مباشرٌ للأغلفة التسعة نفسها التي يستعملها التطبيق — لا نسخةٌ منها.
    الغرض إثباتُ أنّ كلَّ اسمٍ قابلٍ للفوترة يمرّ من العدّاد، بلا الاعتماد على تدفّقٍ يخفي الفرق. */

@@ -7,7 +7,7 @@
 npm install
 npx playwright-core install chromium
 export CHROME_EXE=$(node -e "console.log(require('playwright-core').chromium.executablePath())")
-npm test        # ١٬٣٩١ اختبارًا للتطبيق الحي (٥٤ ملفًا)
+npm test        # ١٬٤٢٧ اختبارًا للتطبيق الحي (٥٤ ملفًا)
 ```
 اختبارات قواعد الأمان (تحتاج Java):
 ```bash
@@ -29,16 +29,18 @@ npx firebase emulators:exec --only firestore --project demo-iomp "node firestore
 # ١) عدّل index.source.html (فيه التعليقات)
 node build_release.js        # ٢) يولّد index.html ويتحقّق من تطابق الشيفرة حرفًا بحرف
 node build_harness.js        # ٣) يبني harness.html
-node run_all_tests.mjs       # ٤) يجب أن يُنهي بـ TOTAL: 1391/1391 — ALL GREEN ✓
+node run_all_tests.mjs       # ٤) يجب أن يُنهي بـ TOTAL: 1427/1427 — ALL GREEN ✓
 ```
 لتشغيل الحزمة على ملفٍّ آخر: `SRC_HTML=index.source.html node run_all_tests.mjs`
 
 ## CI/CD
-كل دفع إلى `main`: اختبارات التطبيق (١٬٣٩١) + اختبارات القواعد بالمحاكي ← وعند الخضرة: نشر تلقائي إلى GitHub Pages.
+كل دفع إلى `main`: اختبارات التطبيق (١٬٤٢٧) + اختبارات القواعد بالمحاكي ← وعند الخضرة: نشر تلقائي إلى GitHub Pages.
 
 ## أدوات القياس (لا اختبارات — لا تعدّل شيئًا)
 ```bash
 SRC_HTML=index.html BA_TAG=after node measure_ba.mjs   # قياس أداء المسح (قبل/بعد)
 node measure_rules_ceiling.mjs firestore.rules         # سقف تعابير القواعد
 node measure_catalog.mjs                               # قياس طبقة الكتالوج
+node probe_ca_preview.mjs                              # معاينة الكتالوج الحيّة: الجمود والقراءات والكتابات
+node probe_ca_render.mjs                               # معاينة الكتالوج الحيّة: الرسم الكامل مقابل الموضعيّ
 ```
