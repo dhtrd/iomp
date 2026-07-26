@@ -6,7 +6,7 @@ on:
 
 jobs:
   app-tests:
-    name: اختبارات التطبيق (٤٣٥)
+    name: اختبارات التطبيق (١٣٩١)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -45,9 +45,9 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
-      - name: تجهيز موقع النشر (التطبيق فقط)
+      - name: تجهيز موقع النشر (التطبيق + PWA)
         run: |
-          mkdir -p _site      
+          mkdir -p _site
           cp index.html manifest.webmanifest sw.js icon-192.png icon-512.png icon-maskable-192.png icon-maskable-512.png apple-touch-icon.png _site/
       - uses: actions/upload-pages-artifact@v3
         with: { path: _site }
