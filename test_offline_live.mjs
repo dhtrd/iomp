@@ -200,6 +200,20 @@ const queue=(page)=>page.evaluate(()=>window.__offline.queue());
   ok('O10 featuresOfflineOn() يعكس التفعيل', on===true, 'on='+on);
   await page.close(); }
 
+// ===== O11 — نفاد حصّة Firebase (resource-exhausted): يُدرَج في الطابور فيُعاد لا يُهدَر، ورسالةٌ واضحة =====
+{ const page=await ctx.newPage(); await load(page,{profile:OWNER,users:[OWNER],config:ON,sessions:SESS}); await openSr(page);
+  const cls=(c,m)=>page.evaluate(([c,m])=>window.__offline.classify(c,m),[c,m||'']);
+  ok('O11 resource-exhausted يُصنَّف خطأً مؤقّتًا (يُعاد لا يُعزَل)', await cls('resource-exhausted')===true);
+  ok('O11 والرسالة النصّيّة كذلك (resource exhausted)', await cls('', 'RESOURCE_EXHAUSTED: quota')===true);
+  ok('O11 بخلاف permission-denied الذي يُعزَل رفضًا دائمًا', await cls('permission-denied')===false);
+  const msg=await page.evaluate(()=>window.__offline.errAr('resource-exhausted'));
+  ok('O11 رسالة عربيّة واضحة تشرح الحصّة والحلّ', msg.indexOf('حصّة')>=0 && (msg.indexOf('دون اتصال')>=0||msg.indexOf('Blaze')>=0), msg.slice(0,60));
+  // دون اتصالٍ فعليّ: العدّ يدخل الطابور (نفس مسار الأمان)، وإعادة الاتصال تدفعه
+  await page.evaluate(()=>window.__offline.setOnline(false)); await page.waitForTimeout(80);
+  await page.evaluate(()=>window.__addEntry('A1',1)); await page.waitForTimeout(120);
+  ok('O11 العدّ لا يُفقد بل يدخل الطابور', await qlen(page)>=1, 'q='+await qlen(page));
+  await page.close(); }
+
 await browser.close();
 let pass=0, fail=0;
 for (const r of results){ console.log(`${r.pass?'✓':'✗'} ${r.n}${r.pass?'':'  << '+r.d}`); r.pass?pass++:fail++; }
