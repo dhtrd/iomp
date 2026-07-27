@@ -5310,7 +5310,7 @@ function stopCamera(){ _camOn=false; camReset(); try{ if(_zxingReader&&_zxingRea
 // تجميع «من أضاف» من إدخالات العدّ: اسم الفاعل مقابل مجموع كميّته + تفصيل عدّاته (م٦: المطّلع يراجع العدّات الفردية كما في شاشة العد)
 function repAgg(entries){
   const m={}; (entries||[]).forEach(e=>{const n=(e&&e.byName!=null?String(e.byName).trim():'')||'—'; const g=m[n]||(m[n]={q:0,parts:[]}); const q=(e&&e.q?e.q:0); g.q+=q;
-    const c=entryN(e); if(c>1){ const per=q/c; for(let k=0;k<c;k++)g.parts.push(per); } else g.parts.push(q);}); // ط-١٤: التتابع يُفكّ ⇒ «(١ + ١ + ١)» كما كان تمامًا
+    g.parts.push(q);}); // طلب العميل: مسحات التتابع لا تُفكّ إلى ١+١ — كلّ سطرٍ (تتابعٌ مدموجٌ بكميّته أو إضافةٌ واحدة) جزءٌ واحد، كما تظهر في شاشة العدّ. والإضافات المنفصلة الحقيقيّة تبقى مفصّلةً «(٤ + ٨)».
   return Object.keys(m).map(n=>({name:n,q:m[n].q,parts:m[n].parts})).sort((a,b)=>b.q-a.q);
 }
 // نص تفصيل العدّات لفاعلٍ واحد: «الاسم: الإجمالي (ق١ + ق٢ …)» — يظهر التفصيل فقط عند تعدد العدّات

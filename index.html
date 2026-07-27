@@ -4915,7 +4915,7 @@ function stopCamera(){ _camOn=false; camReset(); try{ if(_zxingReader&&_zxingRea
 
 function repAgg(entries){
   const m={}; (entries||[]).forEach(e=>{const n=(e&&e.byName!=null?String(e.byName).trim():'')||'—'; const g=m[n]||(m[n]={q:0,parts:[]}); const q=(e&&e.q?e.q:0); g.q+=q;
-    const c=entryN(e); if(c>1){ const per=q/c; for(let k=0;k<c;k++)g.parts.push(per); } else g.parts.push(q);});
+    g.parts.push(q);});
   return Object.keys(m).map(n=>({name:n,q:m[n].q,parts:m[n].parts})).sort((a,b)=>b.q-a.q);
 }
 function whoDetail(w,html){ const parts=(w.parts&&w.parts.length>1)?(' ('+w.parts.map(fmt).join(' + ')+')'):'';

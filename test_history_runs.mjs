@@ -258,15 +258,15 @@ const flushAct = (page) => page.evaluate(() => window.__hist14.actFlush());
   const page = await open();
   const agg3 = await page.evaluate(() => window.__hist14.agg([{ q: 3, n: 3, byName: 'المالك' }]));
   const agg1 = await page.evaluate(() => window.__hist14.agg([{ q: 1, byName: 'المالك' }, { q: 1, byName: 'المالك' }, { q: 1, byName: 'المالك' }]));
-  ok('ز١ تفكيك التتابع يعطي الإجمالي نفسه', agg3[0].q === 3 && agg1[0].q === 3);
-  ok('ز٢ وأجزاءً متطابقة (١ + ١ + ١)', JSON.stringify(agg3[0].parts) === JSON.stringify(agg1[0].parts), JSON.stringify(agg3[0].parts) + ' vs ' + JSON.stringify(agg1[0].parts));
+  ok('ز١ الإجمالي لكلّ فاعلٍ هو نفسه (٣)', agg3[0].q === 3 && agg1[0].q === 3);
+  ok('ز٢ التتابع المدموج جزءٌ واحدٌ بكميّته (٣)، والمنفصلة أجزاءٌ مستقلّة (١+١+١)', JSON.stringify(agg3[0].parts) === '[3]' && JSON.stringify(agg1[0].parts) === '[1,1,1]', JSON.stringify(agg3[0].parts) + ' vs ' + JSON.stringify(agg1[0].parts));
   const w3 = await page.evaluate(() => window.__hist14.who(window.__hist14.agg([{ q: 3, n: 3, byName: 'المالك' }])[0]));
   const w1 = await page.evaluate(() => window.__hist14.who(window.__hist14.agg([{ q: 1, byName: 'المالك' }, { q: 1, byName: 'المالك' }, { q: 1, byName: 'المالك' }])[0]));
-  ok('ز٣ نصّ «من عدّ» متطابقٌ حرفًا بحرف', w3 === w1 && w3.indexOf('(1 + 1 + 1)') >= 0, w3 + ' | ' + w1);
+  ok('ز٣ التتابع يُعرض مجموعًا بلا ١+١، والمنفصلة تُفصّل', w3.indexOf('(1 + 1 + 1)') < 0 && w3.indexOf('3') >= 0 && w1.indexOf('(1 + 1 + 1)') >= 0, w3 + ' | ' + w1);
 
   // تتابعٌ لعدّة فاعلين لا يختلط
   const agg2 = await page.evaluate(() => window.__hist14.agg([{ q: 2, n: 2, byName: 'المالك' }, { q: 1, byName: 'زميل' }]));
-  ok('ز٤ التفكيك لكل فاعلٍ على حدة', agg2.length === 2 && agg2[0].q === 2 && agg2[0].parts.length === 2 && agg2[1].q === 1);
+  ok('ز٤ لكلّ فاعلٍ سطره، والتتابع المدموج جزءٌ واحدٌ بكميّته', agg2.length === 2 && agg2[0].q === 2 && agg2[0].parts.length === 1 && agg2[1].q === 1);
 
   // حقل «عدد الإضافات» في التقرير = مجموع المسحات لا عدد السطور
   await scanN(page, A, 3);
