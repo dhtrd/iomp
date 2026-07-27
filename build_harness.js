@@ -117,6 +117,33 @@ window.__openSession = sid=>openSession(sid);
 window.__del = sid=>deleteSession(sid);
 window.__editUser = uid=>renderUserEdit(uid);
 window.__openReport = sid=>openVarianceReport(sid,'home');
+// ط-١٧: خطّافات فلتر الفئات المتعدّد (النمط B) في شاشة التقارير
+window.__catf = {
+  present: ()=>!!document.getElementById('repCatBox'),
+  cats: ()=>repCatAll.slice(),
+  selected: ()=>Array.from(repCatSel),
+  count: ()=>repCatSel.size,
+  results: ()=>catfResults().slice(),
+  rowNames: ()=>Array.from(document.querySelectorAll('#repCatList [data-cn]')).map(r=>r.getAttribute('data-cn')),
+  chips: ()=>Array.from(document.querySelectorAll('#repCatBox [data-crm]')).map(b=>b.getAttribute('data-crm')),
+  note: ()=>{ const n=document.getElementById('repCatNote'); return n?n.textContent:''; },
+  countText: ()=>{ const n=document.getElementById('repCatCount'); return n?n.textContent:''; },
+  search: (v)=>{ const qi=document.getElementById('repCatQ'); if(!qi)return false; qi.value=v; repCatQ=v; repCatHl=0; catfRenderList(); return true; },
+  type: (v)=>{ const qi=document.getElementById('repCatQ'); if(!qi)return false; qi.value=v; qi.dispatchEvent(new Event('input',{bubbles:true})); return true; },
+  key: (k)=>{ const qi=document.getElementById('repCatQ'); if(!qi)return false; qi.dispatchEvent(new KeyboardEvent('keydown',{key:k,bubbles:true,cancelable:true})); return true; },
+  enter: ()=>{ const qi=document.getElementById('repCatQ'); if(!qi)return false; qi.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true})); return true; },
+  toggle: (name)=>{ const r=[...document.querySelectorAll('#repCatList [data-cn]')].find(x=>x.getAttribute('data-cn')===name); if(!r)return false; r.click(); return true; },
+  toggleIdx: (i)=>{ const rs=document.querySelectorAll('#repCatList [data-cn]'); if(!rs[i])return false; rs[i].click(); return true; },
+  removeChip: (name)=>{ const b=[...document.querySelectorAll('#repCatBox [data-crm]')].find(x=>x.getAttribute('data-crm')===name); if(!b)return false; b.click(); return true; },
+  selectAll: ()=>{ const b=document.getElementById('repCatAll'); if(!b)return false; b.click(); return true; },
+  selAllDisabled: ()=>{ const b=document.getElementById('repCatAll'); return b?b.disabled:null; },
+  clear: ()=>{ const b=document.getElementById('repCatClr'); if(!b)return false; b.click(); return true; },
+  clrDisabled: ()=>{ const b=document.getElementById('repCatClr'); return b?b.disabled:null; },
+  hl: ()=>{ const rs=[...document.querySelectorAll('#repCatList .catf-row')]; return rs.findIndex(r=>r.classList.contains('hl')); },
+  tableRows: ()=>document.querySelectorAll('#repTable tbody tr').length,
+  filteredCount: ()=>filteredReportRows().length,
+  filteredCats: ()=>Array.from(new Set(filteredReportRows().map(r=>r.category)))
+};
 // ر٧: خطاطيف شاشة التقارير الموحّدة (م١٩)
 window.__repxReady = ()=>_repxReady;
 window.__repxModel = name=>repxModel(name);
@@ -327,7 +354,9 @@ window.__offline = {
   clearRejected:()=>offlineStore.set(OFFLINE_REJECTED_KEY,[]),
   setOnlineNoFlush:(b)=>{ _forcedOnline=(b===null?null:!!b); offlineUpdateChip(); }, // إصلاح-٢ (بند ٣ب): اتصال بلا مزامنة تلقائية — لاختبار السباق
   backend:()=>offlineStore.backend(),
-  refreshLen:()=>offlineRefreshLen()
+  refreshLen:()=>offlineRefreshLen(),
+  classify:(code,msg)=>offlineIsConnErr({code:code,message:msg}),   // هل يُدرَج هذا الخطأ في الطابور (يُعاد) أم يُعزَل رفضًا؟
+  errAr:(code)=>errAr(code)                                          // رسالة الخطأ العربيّة
 };
 window.__ppShown = ()=>{ const o=document.getElementById('ppOverlay'); return !!(o && o.style.display==='flex'); };
 // ر١١: خطاطيف النسخ الاحتياطي إلى Dropbox — إضافية بجانب __offline (كل HTTP يمرّ عبر dbxFetch الذي تعترضه window.__dbxMock)

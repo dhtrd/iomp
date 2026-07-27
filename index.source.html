@@ -940,6 +940,34 @@ input[type="checkbox"]:not(.rcap):not(.rtask){width:18px!important;min-width:18p
 #appContent .card{border:1.5px solid var(--border);box-shadow:none;position:relative}
 #appContent .card::before{content:"";position:absolute;top:0;inset-inline:18px;height:3px;border-radius:0 0 3px 3px;background:linear-gradient(90deg,var(--navy700),#7C3AED);opacity:.9;z-index:1;pointer-events:none}
 [data-theme="dark"] #appContent .card{border-color:var(--border)}
+/* ط-١٧: فلتر الفئات المتعدّد (النمط B) — لوحةٌ ظاهرةٌ في شريط أدوات التقرير، RTL ومتجاوبة بلا فيض أفقيّ */
+.catf{flex:1 1 260px;min-width:0;max-width:100%;display:flex;flex-direction:column;gap:7px;border:1px solid var(--border);border-radius:12px;background:var(--card);padding:10px 11px;box-sizing:border-box}
+.catf-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.catf-lab{font-size:13px;font-weight:700;color:var(--tsec);display:inline-flex;align-items:center;gap:7px}
+.catf-count{min-width:20px;height:20px;padding:0 6px;border-radius:20px;background:var(--navy100);color:var(--navy700);font-size:11.5px;font-weight:700;display:inline-grid;place-items:center;box-sizing:border-box}
+.catf-srch{width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:9px;background:var(--page);color:var(--tprimary);font-family:inherit;font-size:13.5px;outline:none;box-sizing:border-box;transition:border-color var(--tr),box-shadow var(--tr)}
+.catf-srch:focus{border-color:var(--navy700);box-shadow:0 0 0 3px color-mix(in srgb,var(--navy700) 14%,transparent)}
+.catf-note{font-size:11.5px;color:var(--tmuted);line-height:1.5}
+.catf-chips{display:flex;flex-wrap:wrap;gap:6px}
+.catf-none{color:var(--tmuted);font-size:12px}
+.catf-chip{display:inline-flex;align-items:center;gap:5px;padding:3px 5px 3px 10px;border-radius:20px;background:var(--navy100);color:var(--navy700);font-size:12px;font-weight:600;max-width:100%}
+.catf-chip>.catf-x{flex:none;width:17px;height:17px;border:none;border-radius:50%;background:color-mix(in srgb,var(--navy700) 16%,transparent);color:var(--navy700);font-size:11px;line-height:1;cursor:pointer;display:grid;place-items:center;padding:0;transition:background .15s}
+.catf-chip>.catf-x:hover{background:var(--navy700);color:var(--on-accent)}
+.catf-list{max-height:230px;overflow:auto;overscroll-behavior:contain;border:1px solid var(--hair);border-radius:9px;padding:4px;background:var(--surface-2)}
+.catf-row{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:7px;font-size:13.5px;color:var(--tprimary);cursor:pointer;user-select:none;transition:background .1s linear}
+.catf-row+.catf-row{margin-top:1px}
+.catf-row:hover,.catf-row.hl{background:color-mix(in srgb,var(--navy700) 9%,transparent)}
+.catf-row.hl{box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--navy700) 40%,transparent)}
+.catf-row.sel{color:var(--navy700);font-weight:700;background:color-mix(in srgb,var(--navy700) 7%,transparent)}
+.catf-cb{flex:none;width:18px;height:18px;border:1.5px solid var(--border);border-radius:5px;display:grid;place-items:center;font-size:12px;font-weight:800;color:var(--on-accent);background:var(--card);box-sizing:border-box}
+.catf-row.sel .catf-cb{background:var(--navy700);border-color:var(--navy700)}
+.catf-nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.catf-empty{padding:10px;color:var(--tmuted);font-size:12.5px;text-align:center}
+.catf-actions{display:flex;flex-wrap:wrap;gap:8px}
+.catf-actions .btn{flex:1 1 auto;white-space:nowrap}
+.catf-actions .btn:disabled{opacity:.5;cursor:not-allowed}
+.rtools .catf .btn.ghost.sm{min-width:0}
+@media(max-width:560px){.catf{flex-basis:100%}.catf-list{max-height:190px}}
 </style>
 </head>
 <body>
@@ -1375,6 +1403,8 @@ let sessByLoc=false;
 let repItems=[], repCounts={}, repSess=null, repSid=null, repRows=[], repUnsub=null, repBackTo='home';
 let repBaseItems=[], repExtraItems=[], repNotes={}; // التقرير: أساس اللقطة + اليدوي + ملاحظات العدّ
 let repSortKey='', repSortDir=1; // ر٤: فرز جدول التقرير بالنقر (م١٣)
+// ط-١٧: فلتر الفئات المتعدّد (النمط B) — مجموعة الفئات المختارة (فارغة = كلّ الفئات)، نصّ البحث، مؤشّر التظليل، وقائمة كلّ الفئات
+let repCatSel=new Set(), repCatQ='', repCatHl=0, repCatAll=[];
 // حالة مسح الباركود (كاميرا + ماسح)
 let scanMode=false, _actx=null, _camOn=false, _camStream=null, _lastScan='', _lastT=0, _zxingReader=null, _zxingLoading=null, _lastUnknownScan='';
 /* ===== م٦-٤: إعادة هيكلة سير عمل الماسح — الثوابت في مكان واحد (تُعدَّل بسطر) ===== */
@@ -1493,7 +1523,7 @@ function fmtDateTimeAr(v){ const d=(v instanceof Date)?v:new Date(v); if(!d||isN
   const p=n=>String(n).padStart(2,'0'), ar=s=>String(s).replace(/[0-9]/g,c=>'٠١٢٣٤٥٦٧٨٩'[+c]);
   return ar(p(d.getDate())+'/'+p(d.getMonth()+1)+'، '+p(h)+':'+p(d.getMinutes()))+' '+ap; }
 function numv(v){var s=String(v==null?'':v).replace(/[,٬\s]/g,'').replace(/٫/g,'.').replace(/[٠-٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d));if(!/^[+-]?(\d+\.?\d*|\.\d+)$/.test(s))return null;var n=parseFloat(s);return isNaN(n)?null:n;}   // ح-٢: الفاصلة العربيّة ٫ تُعامَل عشريّةً، والمدخل غير الرقميّ (مثل «12abc») يُرفض بدل قبولٍ صامتٍ لجزءٍ منه — والفاصلة , تبقى فاصلَ آلافٍ (عُرف العميل: نقطةٌ عشريّة)
-function errAr(code){const m={'auth/invalid-email':'البريد غير صحيح.','auth/user-not-found':'لا يوجد حساب بهذا البريد.','auth/wrong-password':'كلمة المرور غير صحيحة.','auth/invalid-credential':'بيانات الدخول غير صحيحة.','auth/email-already-in-use':'هذا البريد مسجّل مسبقاً.','auth/weak-password':'كلمة المرور ضعيفة (٦ أحرف على الأقل).','auth/too-many-requests':'محاولات كثيرة — انتظر قليلاً.','auth/network-request-failed':'تعذّر الاتصال بالإنترنت.','auth/requires-recent-login':'سجّل الدخول من جديد ثم غيّر كلمة المرور.','auth/operation-not-allowed':'فعّل Email/Password في Firebase.','permission-denied':'رُفض الوصول (تحقّق من قواعد Firestore).'};return m[code]||('خطأ: '+code);}
+function errAr(code){const m={'auth/invalid-email':'البريد غير صحيح.','auth/user-not-found':'لا يوجد حساب بهذا البريد.','auth/wrong-password':'كلمة المرور غير صحيحة.','auth/invalid-credential':'بيانات الدخول غير صحيحة.','auth/email-already-in-use':'هذا البريد مسجّل مسبقاً.','auth/weak-password':'كلمة المرور ضعيفة (٦ أحرف على الأقل).','auth/too-many-requests':'محاولات كثيرة — انتظر قليلاً.','auth/network-request-failed':'تعذّر الاتصال بالإنترنت.','auth/requires-recent-login':'سجّل الدخول من جديد ثم غيّر كلمة المرور.','auth/operation-not-allowed':'فعّل Email/Password في Firebase.','permission-denied':'رُفض الوصول (تحقّق من قواعد Firestore).','resource-exhausted':'بلغتَ حصّة Firebase اليوميّة المجّانيّة (٢٠٬٠٠٠ كتابة / ٥٠٬٠٠٠ قراءة يوميًّا) — تتجدّد نحو منتصف الليل بتوقيت المحيط الهادئ. فعّل «العدّ دون اتصال» كي تُحفظ العدّات وتُزامَن تلقائيًّا عند التجدّد، أو رقِّ الخطّة إلى Blaze لرفع الحدّ.'};return m[code]||('خطأ: '+code);}
 
 // ===== LOGIN =====
 // م٦-٤ (هـ٦/ج٥): زر العين يكشف/يُخفي كلمة المرور
@@ -4266,7 +4296,7 @@ function netOnline(){ if(_forcedOnline!==null)return !!_forcedOnline; try{ retur
 function offlineDeviceId(){ try{ let d=localStorage.getItem(OFFLINE_DEVICE_KEY); if(!d){ d='dev-'+Math.random().toString(16).slice(2,10)+Math.random().toString(16).slice(2,6); localStorage.setItem(OFFLINE_DEVICE_KEY,d); } return d; }catch(e){ return 'dev-nostore'; } }
 function offlineGetSyncStatus(){ try{ return JSON.parse(localStorage.getItem(SYNC_STATUS_KEY+((myProfile&&myProfile.uid)||''))||'null'); }catch(e){ return null; } }
 function offlineSetSyncStatus(s){ try{ localStorage.setItem(SYNC_STATUS_KEY+((myProfile&&myProfile.uid)||''), JSON.stringify(s||null)); }catch(e){} }
-function offlineIsConnErr(err){ if(!err)return false; const c=(err.code||'')+'', m=(err.message||'')+''; return /unavailable|network|offline|failed-precondition|deadline-exceeded|internal/i.test(c)||/network|offline|connection|failed to|اتصال/i.test(m); }
+function offlineIsConnErr(err){ if(!err)return false; const c=(err.code||'')+'', m=(err.message||'')+''; return /unavailable|network|offline|failed-precondition|deadline-exceeded|internal|resource-exhausted|resource_exhausted|exhausted|quota/i.test(c)||/network|offline|connection|failed to|اتصال|resource-exhausted|exhausted|quota|حصّة/i.test(m); } // «resource-exhausted» (نفاد حصّة Firebase اليوميّة) خطأٌ مؤقّتٌ يتجدّد ⇒ يُدرَج في الطابور ويُعاد لا يُهدَر ولا يُعزَل رفضًا دائمًا
 async function offlineQueueGet(){ return (await offlineStore.get(OFFLINE_QUEUE_KEY))||[]; }
 async function offlineNextSeq(){ let n=Number(await offlineStore.get(OFFLINE_SEQ_KEY))||0; n++; await offlineStore.set(OFFLINE_SEQ_KEY,n); return n; }
 async function offlineRefreshLen(){ _offlineQueueLen=(await offlineQueueGet()).length; offlineUpdateChip(); try{ syncStripRefresh(); }catch(e){} return _offlineQueueLen; } // ر١١: تحديث مؤشّر المزامنة الموحّد أيضًا
@@ -5417,6 +5447,7 @@ async function openVarianceReport(sid,backTo){
 function renderReportShell(){
   const c=$('appContent');
   const cats=Array.from(new Set(repItems.map(it=>(it.category!=null?String(it.category).trim():'')).filter(x=>x))).sort((a,b)=>a<b?-1:1);
+  repCatAll=cats; repCatSel=new Set(); repCatQ=''; repCatHl=0; // ط-١٧: تصفير حالة فلتر الفئات عند فتح تقرير (كلّ الفئات ظاهرة)
   c.innerHTML=''+
     '<div class="card reportcard"><div id="repHeadBar" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><button class="btn ghost sm" id="repBack">→ رجوع</button>'+
       '<div style="flex:1;min-width:160px"><h2 style="margin:0">تقرير الفروقات — '+esc(repSess.name)+'</h2><div class="muted">'+esc(repSess.location||'')+' • '+(repSess.blind?'جلسة عمياء • ':'')+'الأصناف: '+fmt(repItems.length)+'</div></div>'+
@@ -5428,7 +5459,7 @@ function renderReportShell(){
       '<div class="tiles" id="repTiles" style="margin-top:14px"></div>'+
       '<div class="rtools">'+
         '<input id="repSearch" placeholder="بحث بالكود أو الاسم…">'+
-        '<select id="repCat"><option value="">كل الفئات</option>'+cats.map(x=>'<option value="'+esc(x)+'">'+esc(x)+'</option>').join('')+'</select>'+
+        '<div id="repCatBox" class="catf" role="group" aria-label="فلتر الفئات المتعدّد"></div>'+
         '<select id="repStatus"><option value="all">كل الحالات</option><option value="counted">المعدود فقط</option><option value="var">الفروقات فقط (عجز/زيادة)</option><option value="deficit">العجز (يشمل ما لم يُعدّ بعد)</option><option value="surplus">الزيادات (تشمل خارج الدفتر والدفتري السالب)</option><option value="extra">زيادة خارج الدفتر (يدوي)</option><option value="match">مطابق</option><option value="uncounted">غير معدود</option></select>'+
         '<label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--tsec);white-space:nowrap"><input type="checkbox" id="repWho"'+((!can('count')&&!canManageSessions())?' checked':'')+' style="width:16px;height:16px"> إظهار «من أضاف» (تفاصيل العدّات)</label>'+
       '</div>'+
@@ -5441,10 +5472,56 @@ function renderReportShell(){
   if($('repSigBtn'))$('repSigBtn').onclick=()=>{ const p=$('repSigPanel'); if(!p)return; const show=p.style.display==='none'; p.style.display=show?'':'none'; if(show){ renderSigBox('repSigRows'); rdcSyncText(); } }; // م٦-٣: فتح محرّر المحضر (تاريخ + أعضاء)
   if($('repSigAdd'))$('repSigAdd').onclick=sigAdd;
   $('repSearch').oninput=renderReportRows;
-  $('repCat').onchange=renderReportRows;
+  renderCatFilter(); // ط-١٧: يبني لوحة فلتر الفئات المتعدّد ويربط أحداثها
   $('repStatus').onchange=renderReportRows;
   $('repWho').onchange=renderReportRows;
   recomputeReport();
+}
+/* ═══ ط-١٧: فلتر الفئات المتعدّد (النمط B — بحث + صناديق + رقائق) في شاشة التقارير ═══
+   لوحةٌ ظاهرةٌ دائمًا: بحثٌ (تطبيع عربيّ كـarNorm) + رقائقُ المختار القابلة للإزالة + قائمة صناديق + «اختر كلّ النتائج» + «مسح الكلّ».
+   Enter = اختيار كلّ النتائج المطابقة · ↑↓ تنقّل · مسافة تبديل المظلَّل · Backspace يزيل آخر رقاقة · Esc يمسح البحث.
+   الحالة الفارغة = كلّ الفئات (بلا فلتر). لا مساس بالحسابات ولا البلاطات: catfApply يعيد رسم الصفوف فقط تمامًا كالأحاديّ السابق (repCat.onchange=renderReportRows).
+   الطباعة والتصدير يقرآن الاختيار عبر filteredReportRows نفسها فيتّسقان تلقائيًّا. */
+function catfResults(){ const qn=arNorm(repCatQ.trim()); return qn?repCatAll.filter(c=>arNorm(c).indexOf(qn)>=0):repCatAll.slice(); }
+function catfToggle(n){ if(repCatSel.has(n))repCatSel.delete(n); else repCatSel.add(n); }
+function catfApply(){ renderReportRows(); } // يعيد رسم صفوف الجدول فقط (كـrepCat.onchange السابق) — البلاطات والحسابات دون مساس
+function catfScrollHl(){ const list=$('repCatList'); if(!list)return; const el=list.querySelector('.catf-row.hl'); if(el){ try{ el.scrollIntoView({block:'nearest'}); }catch(_){} } }
+function catfChips(){ if(!repCatSel.size)return '<span class="catf-none">لا فئات مختارة — الكلّ ظاهر</span>';
+  return Array.from(repCatSel).map(n=>'<span class="catf-chip">'+esc(n)+'<button type="button" class="catf-x" data-crm="'+esc(n)+'" title="إزالة الفئة" aria-label="إزالة الفئة">✕</button></span>').join(''); }
+function catfKey(e){ const R=catfResults();
+  if(e.key==='Enter'){ e.preventDefault(); R.forEach(c=>repCatSel.add(c)); catfApply(); catfRenderList(); }               // القرار المعتمَد: Enter = اختيار كلّ النتائج المطابقة
+  else if(e.key==='Escape'){ if(repCatQ){ e.preventDefault(); e.stopPropagation(); repCatQ=''; repCatHl=0; const qi=$('repCatQ'); if(qi)qi.value=''; catfRenderList(); } }
+  else if(e.key==='Backspace'&&!repCatQ){ if(repCatSel.size){ e.preventDefault(); const a=Array.from(repCatSel); repCatSel.delete(a[a.length-1]); catfApply(); catfRenderList(); } } // Backspace على بحثٍ فارغٍ يزيل آخر رقاقة
+  else if(e.key==='ArrowDown'){ e.preventDefault(); repCatHl=R.length?Math.min(R.length-1,repCatHl+1):0; catfRenderList(); catfScrollHl(); }
+  else if(e.key==='ArrowUp'){ e.preventDefault(); repCatHl=Math.max(0,repCatHl-1); catfRenderList(); catfScrollHl(); }
+  else if(e.key===' '){ if(repCatQ){ /* بحثٌ غير فارغ: اترك المسافة تُكتب (فئاتٌ كـ«أدوات مطبخ») */ } else if(R[repCatHl]!=null){ e.preventDefault(); catfToggle(R[repCatHl]); catfApply(); catfRenderList(); } } // مسافة تبدّل المظلَّل حين البحث فارغ
+}
+function catfRenderList(){ const box=$('repCatBox'); if(!box)return; const R=catfResults();
+  if(repCatHl>=R.length)repCatHl=Math.max(0,R.length-1);
+  const cnt=$('repCatCount'); if(cnt)cnt.textContent=fmt(repCatSel.size);
+  const note=$('repCatNote'); if(note)note.textContent=repCatQ.trim()?('نتائج «'+repCatQ.trim()+'»: '+fmt(R.length)+' — Enter يختارها كلّها'):('كلّ الفئات: '+fmt(repCatAll.length));
+  const chips=$('repCatChips'); if(chips){ chips.innerHTML=catfChips();
+    chips.querySelectorAll('[data-crm]').forEach(b=>b.onclick=(e)=>{ e.stopPropagation(); repCatSel.delete(b.getAttribute('data-crm')); catfApply(); catfRenderList(); }); }
+  const list=$('repCatList'); if(list){ list.innerHTML=R.length?R.map((c,i)=>{ const s=repCatSel.has(c);
+      return '<div class="catf-row'+(s?' sel':'')+(i===repCatHl?' hl':'')+'" role="option" aria-selected="'+(s?'true':'false')+'" data-cn="'+esc(c)+'" data-ci="'+i+'"><span class="catf-cb" aria-hidden="true">'+(s?'✓':'')+'</span><span class="catf-nm">'+esc(c)+'</span></div>'; }).join(''):'<div class="catf-empty">لا فئة تطابق «'+esc(repCatQ.trim())+'»</div>';
+    list.querySelectorAll('[data-cn]').forEach(r=>r.onclick=()=>{ catfToggle(r.getAttribute('data-cn')); catfApply(); catfRenderList(); }); }
+  const sa=$('repCatAll'); if(sa){ sa.textContent='✓ اختر كلّ النتائج ('+fmt(R.length)+')'; sa.disabled=!R.length; }
+  const cl=$('repCatClr'); if(cl)cl.disabled=!repCatSel.size;
+}
+function renderCatFilter(){ const box=$('repCatBox'); if(!box)return;
+  box.innerHTML=''+
+    '<div class="catf-head"><span class="catf-lab">الفئات <span class="catf-count" id="repCatCount">٠</span></span></div>'+
+    '<input id="repCatQ" class="catf-srch" placeholder="ابحث عن فئة… ثمّ Enter لاختيار كلّ النتائج" aria-label="بحث في الفئات" autocomplete="off">'+
+    '<div class="catf-note" id="repCatNote"></div>'+
+    '<div class="catf-chips" id="repCatChips"></div>'+
+    '<div class="catf-list" id="repCatList" role="listbox" aria-label="قائمة الفئات" tabindex="-1"></div>'+
+    '<div class="catf-actions"><button type="button" class="btn ghost sm" id="repCatAll">✓ اختر كلّ النتائج</button><button type="button" class="btn ghost sm" id="repCatClr">مسح الكلّ</button></div>';
+  const qi=$('repCatQ'); if(qi){ qi.value=repCatQ;
+    qi.oninput=()=>{ repCatQ=qi.value; repCatHl=0; catfRenderList(); };  // لا نعيد بناء الحقل ⇒ التركيز والمؤشّر يبقيان طبيعيًّا
+    qi.onkeydown=catfKey; }
+  const sa=$('repCatAll'); if(sa)sa.onclick=()=>{ catfResults().forEach(c=>repCatSel.add(c)); catfApply(); catfRenderList(); };
+  const cl=$('repCatClr'); if(cl)cl.onclick=()=>{ repCatSel.clear(); catfApply(); catfRenderList(); };
+  catfRenderList();
 }
 function recomputeReport(){ repRows=computeVariance(repItems,repCounts); repRows.forEach(r=>{ const nn=repNotes[String(r.code)]; r.notes=(nn&&nn.notes)||[]; }); if($('repTiles'))renderReportSummary(); renderReportRows(); }
 function repHasNotes(){ return repRows.some(r=>r.notes&&r.notes.length); } // عمود «الملاحظات» يظهر تلقائيًّا متى وُجدت ملاحظة واحدة على الأقل
@@ -5475,11 +5552,10 @@ function renderReportSummary(){
 // الترشيح المشترك (يستعمله العرض والطباعة) — يُعيد كامل المطابق للمرشّحات الحالية
 function filteredReportRows(){
   const q=($('repSearch')?$('repSearch').value:'').trim().toLowerCase();
-  const cat=$('repCat')?$('repCat').value:'';
   const stf=$('repStatus')?$('repStatus').value:'all';
   if(repSortKey&&!canSeeFinance()&&(repSortKey==='cost'||repSortKey==='bookValue'||repSortKey==='countedValue'||repSortKey==='varValue'))repSortKey=''; // م٦-١: لا فرز بأعمدة مالية محجوبة
   let rows=repRows;
-  if(cat)rows=rows.filter(r=>r.category===cat);
+  if(repCatSel&&repCatSel.size)rows=rows.filter(r=>repCatSel.has(r.category)); // ط-١٧: فلتر الفئات المتعدّد — لا اختيار = كلّ الفئات؛ المطابقة نفسها كالأحاديّ السابق (r.category)
   if(q){ const qn=arNorm(q); rows=rows.filter(r=>(r.code&&arNorm(r.code).indexOf(qn)>=0)||(r.name&&arNorm(r.name).indexOf(qn)>=0)||(r.barcode&&arNorm(r.barcode).indexOf(qn)>=0)||(r.notes&&r.notes.some(n=>arNorm(n.text||'').indexOf(qn)>=0))); }
   if(stf==='var')rows=rows.filter(r=>r.isDown||r.isUp); // الفروقات = العجز الشامل + الزيادات الشاملة
   else if(stf==='counted')rows=rows.filter(r=>r.isCounted);
