@@ -6,7 +6,7 @@ on:
 
 jobs:
   app-tests:
-    name: اختبارات التطبيق (١٥٢٣)
+    name: اختبارات التطبيق (١٥٢٤)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
