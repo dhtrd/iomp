@@ -205,13 +205,13 @@ const SESS1={ id:'sx', name:'جرد الاختبار', status:'approved', approv
   ok('M3 النقر يضبط الأصيلة ويبثّ change (محرّر القالب حاضر) ويغلق اللوحة', picked.val==='detailed'&&picked.closed&&picked.label.includes('مفصل')||picked.val==='detailed'&&picked.closed, JSON.stringify(picked));
   await page.close(); }
 
-// M4 — التقارير: repStatus عصرية + نقر بلاطة «زيادة» يزامن نص الزر
+// M4 — التقارير: فلتر الحالات منبثقٌ متعدّد (.msel) + نقر بلاطة «زيادة» يزامن نص الزر
 { const page=await ctx.newPage(); await load(page, Object.assign(owner(),{sessions:[SESS1]}));
   await page.evaluate(()=>window.__openReport('sx')); await page.waitForTimeout(450);
-  const m=await page.evaluate(()=>{ const s=document.getElementById('repStatus'); return { wrapped:!!s.closest('.msel') }; });
+  const m=await page.evaluate(()=>{ const w=document.getElementById('repStatBox_w'); return { wrapped:!!(w&&w.classList.contains('msel'))&&!!document.getElementById('repStatBox_btn') }; });
   await page.evaluate(()=>{ const t=[...document.querySelectorAll('#repTiles [data-f]')].find(x=>x.getAttribute('data-f')==='surplus'); t.click(); }); await page.waitForTimeout(200);
-  const after=await page.evaluate(()=>{ const s=document.getElementById('repStatus'); return { val:s.value, label:s.closest('.msel').querySelector('.msel-t').textContent }; });
-  ok('M4 التقارير: القائمة عصرية والبلاطة تزامن نص الزر', m.wrapped&&after.val==='surplus'&&after.label.includes('الزيادات'), JSON.stringify(after));
+  const after=await page.evaluate(()=>{ const S=window.__mf('repStatBox'); return { sel:S.selected(), label:S.label() }; });
+  ok('M4 التقارير: فلتر الحالات منبثق والبلاطة تزامن نص الزر', m.wrapped&&after.sel.length===1&&after.sel[0]==='surplus'&&after.label.includes('الزيادات'), JSON.stringify(after));
   await page.close(); }
 
 // M5 — Escape يغلق اللوحة العصرية
@@ -231,7 +231,7 @@ const SESS1={ id:'sx', name:'جرد الاختبار', status:'approved', approv
   await page.evaluate(()=>window.__openReport('sfx')); await page.waitForTimeout(500);
   const m=await page.evaluate(()=>{
     const de=document.documentElement;
-    const nat=document.getElementById('repStatus'); const w=nat?nat.closest('.msel'):null;
+    const nat=document.getElementById('repStatBox_btn'); const w=document.getElementById('repStatBox_w');
     const nr=nat?nat.getBoundingClientRect():null, wr=w?w.getBoundingClientRect():null;
     return { sw:de.scrollWidth, vw:innerWidth,
       natClamped: nr&&wr ? (nr.width<=wr.width+1) : null,

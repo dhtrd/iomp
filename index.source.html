@@ -940,34 +940,23 @@ input[type="checkbox"]:not(.rcap):not(.rtask){width:18px!important;min-width:18p
 #appContent .card{border:1.5px solid var(--border);box-shadow:none;position:relative}
 #appContent .card::before{content:"";position:absolute;top:0;inset-inline:18px;height:3px;border-radius:0 0 3px 3px;background:linear-gradient(90deg,var(--navy700),#7C3AED);opacity:.9;z-index:1;pointer-events:none}
 [data-theme="dark"] #appContent .card{border-color:var(--border)}
-/* ط-١٧: فلتر الفئات المتعدّد (النمط B) — لوحةٌ ظاهرةٌ في شريط أدوات التقرير، RTL ومتجاوبة بلا فيض أفقيّ */
-.catf{flex:1 1 260px;min-width:0;max-width:100%;display:flex;flex-direction:column;gap:7px;border:1px solid var(--border);border-radius:12px;background:var(--card);padding:10px 11px;box-sizing:border-box}
-.catf-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
-.catf-lab{font-size:13px;font-weight:700;color:var(--tsec);display:inline-flex;align-items:center;gap:7px}
-.catf-count{min-width:20px;height:20px;padding:0 6px;border-radius:20px;background:var(--navy100);color:var(--navy700);font-size:11.5px;font-weight:700;display:inline-grid;place-items:center;box-sizing:border-box}
-.catf-srch{width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:9px;background:var(--page);color:var(--tprimary);font-family:inherit;font-size:13.5px;outline:none;box-sizing:border-box;transition:border-color var(--tr),box-shadow var(--tr)}
-.catf-srch:focus{border-color:var(--navy700);box-shadow:0 0 0 3px color-mix(in srgb,var(--navy700) 14%,transparent)}
-.catf-note{font-size:11.5px;color:var(--tmuted);line-height:1.5}
-.catf-chips{display:flex;flex-wrap:wrap;gap:6px}
-.catf-none{color:var(--tmuted);font-size:12px}
-.catf-chip{display:inline-flex;align-items:center;gap:5px;padding:3px 5px 3px 10px;border-radius:20px;background:var(--navy100);color:var(--navy700);font-size:12px;font-weight:600;max-width:100%}
-.catf-chip>.catf-x{flex:none;width:17px;height:17px;border:none;border-radius:50%;background:color-mix(in srgb,var(--navy700) 16%,transparent);color:var(--navy700);font-size:11px;line-height:1;cursor:pointer;display:grid;place-items:center;padding:0;transition:background .15s}
-.catf-chip>.catf-x:hover{background:var(--navy700);color:var(--on-accent)}
-.catf-list{max-height:230px;overflow:auto;overscroll-behavior:contain;border:1px solid var(--hair);border-radius:9px;padding:4px;background:var(--surface-2)}
-.catf-row{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:7px;font-size:13.5px;color:var(--tprimary);cursor:pointer;user-select:none;transition:background .1s linear}
-.catf-row+.catf-row{margin-top:1px}
-.catf-row:hover,.catf-row.hl{background:color-mix(in srgb,var(--navy700) 9%,transparent)}
-.catf-row.hl{box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--navy700) 40%,transparent)}
-.catf-row.sel{color:var(--navy700);font-weight:700;background:color-mix(in srgb,var(--navy700) 7%,transparent)}
+/* ط-١٨: مكوّن الفلترة المنبثق المتعدّد (mf) — يعيد استخدام مظهر .msel (زرّ + منبثق)، ويضيف داخل المنبثق صناديقَ متعدّدةً وبحثًا وأزرارًا. RTL ومتجاوب بلا فيض أفقيّ */
+.mfilt-box{display:inline-flex;min-width:0;max-width:100%}
+.rtools .mfilt-box{flex:0 1 auto}
+.rtools .mfilt-box .msel-btn{min-width:150px;max-width:100%}
+.mfilt-pop{display:flex;flex-direction:column;gap:6px}
+.mfilt-note{font-size:11.5px;color:var(--tmuted);line-height:1.5;padding:0 4px}
+.mfilt-list{max-height:250px;overflow:auto;overscroll-behavior:contain}
+.mfilt-opt{cursor:pointer}
+.mfilt-opt.sel::after{content:none} /* نلغي علامة .msel-opt.sel في الطرف — صندوق البداية يكفي */
 .catf-cb{flex:none;width:18px;height:18px;border:1.5px solid var(--border);border-radius:5px;display:grid;place-items:center;font-size:12px;font-weight:800;color:var(--on-accent);background:var(--card);box-sizing:border-box}
-.catf-row.sel .catf-cb{background:var(--navy700);border-color:var(--navy700)}
-.catf-nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.catf-empty{padding:10px;color:var(--tmuted);font-size:12.5px;text-align:center}
-.catf-actions{display:flex;flex-wrap:wrap;gap:8px}
-.catf-actions .btn{flex:1 1 auto;white-space:nowrap}
-.catf-actions .btn:disabled{opacity:.5;cursor:not-allowed}
-.rtools .catf .btn.ghost.sm{min-width:0}
-@media(max-width:560px){.catf{flex-basis:100%}.catf-list{max-height:190px}}
+.mfilt-opt.sel .catf-cb{background:var(--navy700);border-color:var(--navy700)}
+.mfilt-nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mfilt-empty{padding:10px;color:var(--tmuted);font-size:12.5px;text-align:center}
+.mfilt-actions{display:flex;flex-wrap:wrap;gap:8px;padding-top:6px;border-top:1px solid var(--hair)}
+.mfilt-actions .btn{flex:1 1 auto;white-space:nowrap;min-width:0}
+.mfilt-actions .btn:disabled{opacity:.5;cursor:not-allowed}
+@media(max-width:560px){.rtools .mfilt-box{flex-basis:100%}.rtools .mfilt-box,.rtools .mfilt-box .msel-btn{width:100%}}
 </style>
 </head>
 <body>
@@ -1403,8 +1392,8 @@ let sessByLoc=false;
 let repItems=[], repCounts={}, repSess=null, repSid=null, repRows=[], repUnsub=null, repBackTo='home';
 let repBaseItems=[], repExtraItems=[], repNotes={}; // التقرير: أساس اللقطة + اليدوي + ملاحظات العدّ
 let repSortKey='', repSortDir=1; // ر٤: فرز جدول التقرير بالنقر (م١٣)
-// ط-١٧: فلتر الفئات المتعدّد (النمط B) — مجموعة الفئات المختارة (فارغة = كلّ الفئات)، نصّ البحث، مؤشّر التظليل، وقائمة كلّ الفئات
-let repCatSel=new Set(), repCatQ='', repCatHl=0, repCatAll=[];
+// ط-١٨: فلترا التقرير المتعدّدان (منبثقان) — مجموعتا الفئات والحالات المختارتان (فارغة = الكل)، وقائمة كلّ الفئات؛ حالة البحث/التظليل داخل cfg._st لكلّ مكوّن
+let repCatSel=new Set(), repStatSel=new Set(), repCatAll=[];
 // حالة مسح الباركود (كاميرا + ماسح)
 let scanMode=false, _actx=null, _camOn=false, _camStream=null, _lastScan='', _lastT=0, _zxingReader=null, _zxingLoading=null, _lastUnknownScan='';
 /* ===== م٦-٤: إعادة هيكلة سير عمل الماسح — الثوابت في مكان واحد (تُعدَّل بسطر) ===== */
@@ -5447,7 +5436,7 @@ async function openVarianceReport(sid,backTo){
 function renderReportShell(){
   const c=$('appContent');
   const cats=Array.from(new Set(repItems.map(it=>(it.category!=null?String(it.category).trim():'')).filter(x=>x))).sort((a,b)=>a<b?-1:1);
-  repCatAll=cats; repCatSel=new Set(); repCatQ=''; repCatHl=0; // ط-١٧: تصفير حالة فلتر الفئات عند فتح تقرير (كلّ الفئات ظاهرة)
+  repCatAll=cats; repCatSel=new Set(); repStatSel=new Set(); // ط-١٨: تصفير فلترَي الفئات والحالات عند فتح تقرير (الكلّ ظاهر)
   c.innerHTML=''+
     '<div class="card reportcard"><div id="repHeadBar" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><button class="btn ghost sm" id="repBack">→ رجوع</button>'+
       '<div style="flex:1;min-width:160px"><h2 style="margin:0">تقرير الفروقات — '+esc(repSess.name)+'</h2><div class="muted">'+esc(repSess.location||'')+' • '+(repSess.blind?'جلسة عمياء • ':'')+'الأصناف: '+fmt(repItems.length)+'</div></div>'+
@@ -5459,8 +5448,8 @@ function renderReportShell(){
       '<div class="tiles" id="repTiles" style="margin-top:14px"></div>'+
       '<div class="rtools">'+
         '<input id="repSearch" placeholder="بحث بالكود أو الاسم…">'+
-        '<div id="repCatBox" class="catf" role="group" aria-label="فلتر الفئات المتعدّد"></div>'+
-        '<select id="repStatus"><option value="all">كل الحالات</option><option value="counted">المعدود فقط</option><option value="var">الفروقات فقط (عجز/زيادة)</option><option value="deficit">العجز (يشمل ما لم يُعدّ بعد)</option><option value="surplus">الزيادات (تشمل خارج الدفتر والدفتري السالب)</option><option value="extra">زيادة خارج الدفتر (يدوي)</option><option value="match">مطابق</option><option value="uncounted">غير معدود</option></select>'+
+        '<div id="repCatBox" class="mfilt-box" aria-label="فلتر الفئات المتعدّد"></div>'+
+        '<div id="repStatBox" class="mfilt-box" aria-label="فلتر الحالات المتعدّد"></div>'+
         '<label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--tsec);white-space:nowrap"><input type="checkbox" id="repWho"'+((!can('count')&&!canManageSessions())?' checked':'')+' style="width:16px;height:16px"> إظهار «من أضاف» (تفاصيل العدّات)</label>'+
       '</div>'+
       '<div class="rtable-wrap"><div id="repTable"><p class="muted" style="padding:12px">جارٍ الحساب…</p></div></div>'+
@@ -5472,67 +5461,83 @@ function renderReportShell(){
   if($('repSigBtn'))$('repSigBtn').onclick=()=>{ const p=$('repSigPanel'); if(!p)return; const show=p.style.display==='none'; p.style.display=show?'':'none'; if(show){ renderSigBox('repSigRows'); rdcSyncText(); } }; // م٦-٣: فتح محرّر المحضر (تاريخ + أعضاء)
   if($('repSigAdd'))$('repSigAdd').onclick=sigAdd;
   $('repSearch').oninput=renderReportRows;
-  renderCatFilter(); // ط-١٧: يبني لوحة فلتر الفئات المتعدّد ويربط أحداثها
-  $('repStatus').onchange=renderReportRows;
+  mfInit(REP_CAT_CFG); mfInit(REP_STAT_CFG); // ط-١٨: يبني فلترَي الفئات والحالات المنبثقين المتعدّدين
   $('repWho').onchange=renderReportRows;
   recomputeReport();
 }
-/* ═══ ط-١٧: فلتر الفئات المتعدّد (النمط B — بحث + صناديق + رقائق) في شاشة التقارير ═══
-   لوحةٌ ظاهرةٌ دائمًا: بحثٌ (تطبيع عربيّ كـarNorm) + رقائقُ المختار القابلة للإزالة + قائمة صناديق + «اختر كلّ النتائج» + «مسح الكلّ».
-   Enter = اختيار كلّ النتائج المطابقة · ↑↓ تنقّل · مسافة تبديل المظلَّل · Backspace يزيل آخر رقاقة · Esc يمسح البحث.
-   الحالة الفارغة = كلّ الفئات (بلا فلتر). لا مساس بالحسابات ولا البلاطات: catfApply يعيد رسم الصفوف فقط تمامًا كالأحاديّ السابق (repCat.onchange=renderReportRows).
-   الطباعة والتصدير يقرآن الاختيار عبر filteredReportRows نفسها فيتّسقان تلقائيًّا. */
-function catfResults(){ const qn=arNorm(repCatQ.trim()); return qn?repCatAll.filter(c=>arNorm(c).indexOf(qn)>=0):repCatAll.slice(); }
-function catfToggle(n){ if(repCatSel.has(n))repCatSel.delete(n); else repCatSel.add(n); }
-function catfApply(){ renderReportRows(); } // يعيد رسم صفوف الجدول فقط (كـrepCat.onchange السابق) — البلاطات والحسابات دون مساس
-function catfScrollHl(){ const list=$('repCatList'); if(!list)return; const el=list.querySelector('.catf-row.hl'); if(el){ try{ el.scrollIntoView({block:'nearest'}); }catch(_){} } }
-function catfChips(){ if(!repCatSel.size)return '<span class="catf-none">لا فئات مختارة — الكلّ ظاهر</span>';
-  return Array.from(repCatSel).map(n=>'<span class="catf-chip">'+esc(n)+'<button type="button" class="catf-x" data-crm="'+esc(n)+'" title="إزالة الفئة" aria-label="إزالة الفئة">✕</button></span>').join(''); }
-function catfKey(e){ const R=catfResults();
-  if(e.key==='Enter'){ e.preventDefault(); R.forEach(c=>repCatSel.add(c)); catfApply(); catfRenderList(); }               // القرار المعتمَد: Enter = اختيار كلّ النتائج المطابقة
-  else if(e.key==='Escape'){ if(repCatQ){ e.preventDefault(); e.stopPropagation(); repCatQ=''; repCatHl=0; const qi=$('repCatQ'); if(qi)qi.value=''; catfRenderList(); } }
-  else if(e.key==='Backspace'&&!repCatQ){ if(repCatSel.size){ e.preventDefault(); const a=Array.from(repCatSel); repCatSel.delete(a[a.length-1]); catfApply(); catfRenderList(); } } // Backspace على بحثٍ فارغٍ يزيل آخر رقاقة
-  else if(e.key==='ArrowDown'){ e.preventDefault(); repCatHl=R.length?Math.min(R.length-1,repCatHl+1):0; catfRenderList(); catfScrollHl(); }
-  else if(e.key==='ArrowUp'){ e.preventDefault(); repCatHl=Math.max(0,repCatHl-1); catfRenderList(); catfScrollHl(); }
-  else if(e.key===' '){ if(repCatQ){ /* بحثٌ غير فارغ: اترك المسافة تُكتب (فئاتٌ كـ«أدوات مطبخ») */ } else if(R[repCatHl]!=null){ e.preventDefault(); catfToggle(R[repCatHl]); catfApply(); catfRenderList(); } } // مسافة تبدّل المظلَّل حين البحث فارغ
-}
-function catfRenderList(){ const box=$('repCatBox'); if(!box)return; const R=catfResults();
-  if(repCatHl>=R.length)repCatHl=Math.max(0,R.length-1);
-  const cnt=$('repCatCount'); if(cnt)cnt.textContent=fmt(repCatSel.size);
-  const note=$('repCatNote'); if(note)note.textContent=repCatQ.trim()?('نتائج «'+repCatQ.trim()+'»: '+fmt(R.length)+' — Enter يختارها كلّها'):('كلّ الفئات: '+fmt(repCatAll.length));
-  const chips=$('repCatChips'); if(chips){ chips.innerHTML=catfChips();
-    chips.querySelectorAll('[data-crm]').forEach(b=>b.onclick=(e)=>{ e.stopPropagation(); repCatSel.delete(b.getAttribute('data-crm')); catfApply(); catfRenderList(); }); }
-  const list=$('repCatList'); if(list){ list.innerHTML=R.length?R.map((c,i)=>{ const s=repCatSel.has(c);
-      return '<div class="catf-row'+(s?' sel':'')+(i===repCatHl?' hl':'')+'" role="option" aria-selected="'+(s?'true':'false')+'" data-cn="'+esc(c)+'" data-ci="'+i+'"><span class="catf-cb" aria-hidden="true">'+(s?'✓':'')+'</span><span class="catf-nm">'+esc(c)+'</span></div>'; }).join(''):'<div class="catf-empty">لا فئة تطابق «'+esc(repCatQ.trim())+'»</div>';
-    list.querySelectorAll('[data-cn]').forEach(r=>r.onclick=()=>{ catfToggle(r.getAttribute('data-cn')); catfApply(); catfRenderList(); }); }
-  const sa=$('repCatAll'); if(sa){ sa.textContent='✓ اختر كلّ النتائج ('+fmt(R.length)+')'; sa.disabled=!R.length; }
-  const cl=$('repCatClr'); if(cl)cl.disabled=!repCatSel.size;
-}
-function renderCatFilter(){ const box=$('repCatBox'); if(!box)return;
-  box.innerHTML=''+
-    '<div class="catf-head"><span class="catf-lab">الفئات <span class="catf-count" id="repCatCount">٠</span></span></div>'+
-    '<input id="repCatQ" class="catf-srch" placeholder="ابحث عن فئة… ثمّ Enter لاختيار كلّ النتائج" aria-label="بحث في الفئات" autocomplete="off">'+
-    '<div class="catf-note" id="repCatNote"></div>'+
-    '<div class="catf-chips" id="repCatChips"></div>'+
-    '<div class="catf-list" id="repCatList" role="listbox" aria-label="قائمة الفئات" tabindex="-1"></div>'+
-    '<div class="catf-actions"><button type="button" class="btn ghost sm" id="repCatAll">✓ اختر كلّ النتائج</button><button type="button" class="btn ghost sm" id="repCatClr">مسح الكلّ</button></div>';
-  const qi=$('repCatQ'); if(qi){ qi.value=repCatQ;
-    qi.oninput=()=>{ repCatQ=qi.value; repCatHl=0; catfRenderList(); };  // لا نعيد بناء الحقل ⇒ التركيز والمؤشّر يبقيان طبيعيًّا
-    qi.onkeydown=catfKey; }
-  const sa=$('repCatAll'); if(sa)sa.onclick=()=>{ catfResults().forEach(c=>repCatSel.add(c)); catfApply(); catfRenderList(); };
-  const cl=$('repCatClr'); if(cl)cl.onclick=()=>{ repCatSel.clear(); catfApply(); catfRenderList(); };
-  catfRenderList();
-}
+/* ═══ ط-١٨: مكوّن الفلترة المنبثق المتعدّد (mf) — مُعاد استخدامه لفلترَي «الفئات» و«الحالات» في شاشة التقارير ═══
+   نمطٌ واحدٌ للفلترين (طلب العميل: الفئات كالحالات، والحالات متعدّدةٌ كالفئات): زرٌّ يفتح منبثقًا (يُعيد استخدام أصناف .msel للمظهر نفسه).
+   داخل المنبثق: قائمة صناديق متعدّدة (✓) + بحثٌ اختياريّ (تطبيع عربيّ كـarNorm) + «اختر كلّ النتائج» + «مسح الكلّ».
+   Enter = اختيار كلّ النتائج المطابقة · ↑↓ تنقّل · مسافة تبديل المظلَّل · Backspace يزيل آخر مختار · Esc يمسح البحث ثمّ يغلق.
+   الحالة الفارغة = الكلّ (بلا فلتر). لا مساس بالحسابات ولا بمنطق الأعمدة: onChange يعيد الرسم فقط. الطباعة/التصدير يقرآن الاختيار عبر filteredReportRows نفسها فيتّسقان تلقائيًّا.
+   يُخزَّن حالة كلّ نسخةٍ في cfg._st، وتُقرأ المجموعة المختارة عبر cfg.sel() (دالّة ⇒ تُتابع إعادة الإسناد عند فتح تقرير). */
+function mfState(cfg){ return cfg._st || (cfg._st={q:'',hl:0}); }
+function mfResults(cfg){ const opts=cfg.getOpts(); if(!cfg.search)return opts; const qn=arNorm(mfState(cfg).q.trim()); return qn?opts.filter(o=>arNorm(o.label).indexOf(qn)>=0):opts; }
+function mfToggle(cfg,v){ const s=cfg.sel(); if(s.has(v))s.delete(v); else s.add(v); }
+function mfSyncLabel(cfg){ const lab=$(cfg.box+'_lab'); if(!lab)return; const s=cfg.sel();
+  if(!s.size){ lab.textContent=cfg.allLabel; }
+  else if(s.size===1){ const v=Array.from(s)[0]; const o=cfg.getOpts().find(x=>x.v===v); lab.textContent=o?o.label:cfg.allLabel; }
+  else { lab.textContent=fmt(s.size)+' '+cfg.nounPlural; } }
+function mfScrollHl(cfg){ const list=$(cfg.box+'_list'); if(!list)return; const el=list.querySelector('.mfilt-opt.act'); if(el){ try{ el.scrollIntoView({block:'nearest'}); }catch(_){} } }
+function mfAfterChange(cfg){ mfRenderPop(cfg); mfSyncLabel(cfg); if(cfg.onChange)cfg.onChange(); }
+function mfRenderPop(cfg){ const st=mfState(cfg), R=mfResults(cfg), s=cfg.sel();
+  if(st.hl>=R.length)st.hl=Math.max(0,R.length-1);
+  const note=$(cfg.box+'_note'); if(note){ note.textContent = cfg.search
+      ? (st.q.trim()?('نتائج «'+st.q.trim()+'»: '+fmt(R.length)+' — Enter يختارها كلّها'):(cfg.allLabel+': '+fmt(cfg.getOpts().length)))
+      : (s.size?('المحدَّد: '+fmt(s.size)):'اختر حالةً أو أكثر — لا اختيار = الكلّ'); }
+  const list=$(cfg.box+'_list'); if(list){ list.innerHTML = R.length?R.map((o,i)=>{ const sel=s.has(o.v);
+      return '<div class="msel-opt mfilt-opt'+(sel?' sel':'')+(i===st.hl?' act':'')+'" role="option" aria-selected="'+(sel?'true':'false')+'" data-mv="'+esc(o.v)+'" data-mi="'+i+'"><span class="catf-cb" aria-hidden="true">'+(sel?'✓':'')+'</span><span class="mfilt-nm">'+esc(o.label)+'</span></div>'; }).join('')
+      : '<div class="mfilt-empty">لا نتيجة'+(cfg.search&&st.q.trim()?' تطابق «'+esc(st.q.trim())+'»':'')+'</div>';
+    list.querySelectorAll('[data-mv]').forEach(r=>r.onclick=()=>{ mfToggle(cfg,r.getAttribute('data-mv')); mfAfterChange(cfg); }); }
+  const all=$(cfg.box+'_all'); if(all){ all.textContent='✓ اختر كلّ النتائج ('+fmt(R.length)+')'; all.disabled=!R.length; }
+  const clr=$(cfg.box+'_clr'); if(clr)clr.disabled=!s.size; }
+function mfKey(cfg,e){ const st=mfState(cfg), R=mfResults(cfg), qi=$(cfg.box+'_q'); const inSrch=qi&&document.activeElement===qi;
+  if(e.key==='Enter'){ e.preventDefault(); R.forEach(o=>cfg.sel().add(o.v)); mfAfterChange(cfg); }                 // Enter = اختيار كلّ النتائج المطابقة
+  else if(e.key==='Escape'){ if(st.q){ e.preventDefault(); e.stopPropagation(); st.q=''; st.hl=0; if(qi)qi.value=''; mfRenderPop(cfg); } } // بحثٌ غير فارغ: امسحه؛ وإلّا اترك Esc العامّ يُغلق
+  else if(e.key==='Backspace'&&!st.q){ const s=cfg.sel(); if(s.size){ e.preventDefault(); const a=Array.from(s); s.delete(a[a.length-1]); mfAfterChange(cfg); } }
+  else if(e.key==='ArrowDown'){ e.preventDefault(); st.hl=R.length?Math.min(R.length-1,st.hl+1):0; mfRenderPop(cfg); mfScrollHl(cfg); }
+  else if(e.key==='ArrowUp'){ e.preventDefault(); st.hl=Math.max(0,st.hl-1); mfRenderPop(cfg); mfScrollHl(cfg); }
+  else if(e.key===' '){ if(inSrch&&st.q){ /* بحثٌ غير فارغ: اترك المسافة تُكتب */ } else if(R[st.hl]){ e.preventDefault(); mfToggle(cfg,R[st.hl].v); mfAfterChange(cfg); } } }
+function mfOpen(cfg){ const w=$(cfg.box+'_w'),pop=$(cfg.box+'_pop'),btn=$(cfg.box+'_btn'); if(!w||w.classList.contains('open'))return;
+  document.querySelectorAll('.msel.open').forEach(mselClose);  // منبثقٌ واحدٌ مفتوحٌ في كلّ مرّة (يُعيد استخدام mselClose)
+  const st=mfState(cfg); st.q=''; st.hl=0; const qi=$(cfg.box+'_q'); if(qi)qi.value='';
+  mfRenderPop(cfg); pop.hidden=false; w.classList.add('open'); btn.setAttribute('aria-expanded','true');
+  try{ const r=btn.getBoundingClientRect(); const ph=Math.min(340,window.innerHeight*.5); if(window.innerHeight-r.bottom<ph+14&&r.top>ph+14)w.classList.add('up'); }catch(e){}
+  if(qi)setTimeout(()=>{ try{ qi.focus(); }catch(_){} },0);
+  w._doc=(e)=>{ if(!e.target.closest||e.target.closest('.msel')!==w)mselClose(w); };
+  document.addEventListener('mousedown',w._doc,true); }
+function mfInit(cfg){ const box=$(cfg.box); if(!box)return; const st=mfState(cfg); st.q=''; st.hl=0;
+  box.innerHTML='<span class="msel mfilt" id="'+cfg.box+'_w">'+
+    '<button class="msel-btn" type="button" id="'+cfg.box+'_btn" aria-haspopup="listbox" aria-expanded="false"><span class="msel-t" id="'+cfg.box+'_lab"></span>'+MSEL_CHEV+'</button>'+
+    '<div class="msel-pop mfilt-pop" id="'+cfg.box+'_pop" hidden role="listbox" aria-label="'+esc(cfg.allLabel)+'">'+
+      (cfg.search?'<div class="msel-srch"><input id="'+cfg.box+'_q" placeholder="'+esc(cfg.searchPh||'ابحث…')+'" aria-label="بحث" autocomplete="off"></div>':'')+
+      '<div class="mfilt-note" id="'+cfg.box+'_note"></div>'+
+      '<div class="mfilt-list" id="'+cfg.box+'_list"></div>'+
+      '<div class="mfilt-actions">'+(cfg.search?'<button type="button" class="btn ghost sm" id="'+cfg.box+'_all"></button>':'')+'<button type="button" class="btn ghost sm" id="'+cfg.box+'_clr">مسح الكلّ</button></div>'+
+    '</div></span>';
+  const w=$(cfg.box+'_w'),btn=$(cfg.box+'_btn'),qi=$(cfg.box+'_q');
+  btn.onclick=()=>{ w.classList.contains('open')?mselClose(w):mfOpen(cfg); };
+  if(qi)qi.oninput=()=>{ mfState(cfg).q=qi.value; mfState(cfg).hl=0; mfRenderPop(cfg); }; // لا نعيد بناء الحقل ⇒ التركيز والمؤشّر يبقيان
+  const all=$(cfg.box+'_all'); if(all)all.onclick=()=>{ mfResults(cfg).forEach(o=>cfg.sel().add(o.v)); mfAfterChange(cfg); };
+  const clr=$(cfg.box+'_clr'); if(clr)clr.onclick=()=>{ cfg.sel().clear(); mfAfterChange(cfg); };
+  w.addEventListener('keydown',(e)=>mfKey(cfg,e));
+  mfSyncLabel(cfg); mfRenderPop(cfg); }
+/* حالات فلتر التقرير — نفس مسمّيات القائمة الأحاديّة السابقة + «من الكتالوج» (ط-١٨/طلب العميل) */
+const REP_STAT_OPTS=[{v:'counted',label:'المعدود فقط'},{v:'var',label:'الفروقات فقط (عجز/زيادة)'},{v:'deficit',label:'العجز (يشمل ما لم يُعدّ بعد)'},{v:'surplus',label:'الزيادات (تشمل خارج الدفتر والدفتري السالب)'},{v:'extra',label:'زيادة خارج الدفتر (يدوي)'},{v:'catalog',label:'من الكتالوج'},{v:'match',label:'مطابق'},{v:'uncounted',label:'غير معدود'}];
+const REP_CAT_CFG={box:'repCatBox',allLabel:'كلّ الفئات',nounPlural:'فئات',search:true,searchPh:'ابحث عن فئة… ثمّ Enter لاختيار كلّ النتائج',sel:()=>repCatSel,getOpts:()=>repCatAll.map(c=>({v:c,label:c})),onChange:()=>renderReportRows()};
+const REP_STAT_CFG={box:'repStatBox',allLabel:'كلّ الحالات',nounPlural:'حالات',search:false,sel:()=>repStatSel,getOpts:()=>REP_STAT_OPTS.slice(),onChange:()=>{ renderReportRows(); renderReportSummary(); }};
+function repStatusMatch(r,st){ if(st==='var')return r.isDown||r.isUp; if(st==='counted')return r.isCounted; if(st==='surplus')return r.isUp; if(st==='deficit')return r.isDown; if(st==='catalog')return !!(r.manual&&r.src==='catalog'); return r.status===st; }
 function recomputeReport(){ repRows=computeVariance(repItems,repCounts); repRows.forEach(r=>{ const nn=repNotes[String(r.code)]; r.notes=(nn&&nn.notes)||[]; }); if($('repTiles'))renderReportSummary(); renderReportRows(); }
 function repHasNotes(){ return repRows.some(r=>r.notes&&r.notes.length); } // عمود «الملاحظات» يظهر تلقائيًّا متى وُجدت ملاحظة واحدة على الأقل
 function renderReportSummary(){
   const s=summarize(repRows); const fin=canSeeFinance(); const hasCost=fin&&s.withCost>0; // م٦-١: بلا الصلاحية المالية تُحجب بلاطات القيم كليًّا
   const money=n=>hasCost?fmt(round2(n)):'—';
   const qsfx=q=>(q?' <span class="muted" style="font-size:12px;font-weight:500">('+(q>0?'+':'−')+fmt(Math.abs(q))+' وحدة)</span>':''); // م٦-٣: لاحقة الكميات بجانب المبلغ
-  const active=$('repStatus')?$('repStatus').value:'all';
+  const catN=repRows.filter(r=>r.manual&&r.src==='catalog').length; // ط-١٨: عدّ أصناف الكتالوج (بلاطة + فلتر «من الكتالوج»)
+  const isActive=(f)=>(f==='all')?(repStatSel.size===0):repStatSel.has(f); // البلاطة نشطةٌ متى كانت حالتها ضمن المختار (all = لا اختيار)
   const tile=(k,v,cls)=>'<div class="tile"><div class="k">'+k+'</div><div class="v'+(cls?' '+cls:'')+'">'+v+'</div></div>';
   const vtile=(k,v)=>'<div class="tile val"><div class="k">'+k+'</div><div class="v">'+v+'</div></div>';
-  const ftile=(k,v,cls,f)=>'<div class="tile clk'+(active===f?' active':'')+'" data-f="'+f+'" title="اضغط للترشيح"><div class="k">'+k+'</div><div class="v'+(cls?' '+cls:'')+'">'+v+'</div></div>';
+  const ftile=(k,v,cls,f)=>'<div class="tile clk'+(isActive(f)?' active':'')+'" data-f="'+f+'" title="اضغط للترشيح"><div class="k">'+k+'</div><div class="v'+(cls?' '+cls:'')+'">'+v+'</div></div>';
   $('repTiles').innerHTML=
     ftile('الأصناف',fmt(s.total),'','all')+
     ftile('المعدود',fmt(s.counted),'','counted')+
@@ -5541,27 +5546,24 @@ function renderReportSummary(){
     ftile('عجز',fmt(s.downTotal),s.downTotal?'neg':'','deficit')+
     ftile('زيادة',fmt(s.upTotal),'','surplus')+
     ftile('منها خارج الدفتر',fmt(s.extra),'','extra')+ // م٦-٣: توضيح أنها جزء من الزيادة لا خانة مستقلّة مكرّرة
+    ftile('من الكتالوج',fmt(catN),'','catalog')+ // ط-١٨: بلاطة أصناف الكتالوج — للفلترة والعرض فقط، لكلّ الأدوار، دون مساس بباقي التقرير
     // م٦-٣: مبالغ الزيادة/العجز مع كمّياتها، بحيث «مبلغ الزيادة − مبلغ العجز = صافي الفروقات» (طلب العميل)
     (fin?vtile('مبلغ الزيادة',money(s.surplusVal)+qsfx(s.surplusQty))+
     vtile('مبلغ العجز',money(Math.abs(s.deficitVal))+qsfx(-s.deficitQty))+
     vtile('إجمالي القيمة الدفترية',money(s.bookVal))+
     vtile('إجمالي القيمة الفعلية',money(s.countedVal))+
     tile('صافي قيمة الفروقات (الفارق)',money(s.netVar)+qsfx(s.netQty),hasCost?(s.netVar<-1e-9?'neg':(s.netVar>1e-9?'pos':'')):''):'');
-  $('repTiles').querySelectorAll('[data-f]').forEach(t=>t.onclick=()=>{ const rs=$('repStatus'); if(rs){ rs.value=t.getAttribute('data-f'); if(rs._mselSync)rs._mselSync(); } renderReportRows(); renderReportSummary(); });
+  $('repTiles').querySelectorAll('[data-f]').forEach(t=>t.onclick=()=>{ const f=t.getAttribute('data-f'); repStatSel.clear(); if(f!=='all')repStatSel.add(f); if($('repStatBox_lab')){ mfSyncLabel(REP_STAT_CFG); mfRenderPop(REP_STAT_CFG); } renderReportRows(); renderReportSummary(); }); // ط-١٨: نقر البلاطة يضبط فلتر الحالات على تلك الحالة (all = مسح)
 }
 // الترشيح المشترك (يستعمله العرض والطباعة) — يُعيد كامل المطابق للمرشّحات الحالية
 function filteredReportRows(){
   const q=($('repSearch')?$('repSearch').value:'').trim().toLowerCase();
-  const stf=$('repStatus')?$('repStatus').value:'all';
   if(repSortKey&&!canSeeFinance()&&(repSortKey==='cost'||repSortKey==='bookValue'||repSortKey==='countedValue'||repSortKey==='varValue'))repSortKey=''; // م٦-١: لا فرز بأعمدة مالية محجوبة
   let rows=repRows;
   if(repCatSel&&repCatSel.size)rows=rows.filter(r=>repCatSel.has(r.category)); // ط-١٧: فلتر الفئات المتعدّد — لا اختيار = كلّ الفئات؛ المطابقة نفسها كالأحاديّ السابق (r.category)
   if(q){ const qn=arNorm(q); rows=rows.filter(r=>(r.code&&arNorm(r.code).indexOf(qn)>=0)||(r.name&&arNorm(r.name).indexOf(qn)>=0)||(r.barcode&&arNorm(r.barcode).indexOf(qn)>=0)||(r.notes&&r.notes.some(n=>arNorm(n.text||'').indexOf(qn)>=0))); }
-  if(stf==='var')rows=rows.filter(r=>r.isDown||r.isUp); // الفروقات = العجز الشامل + الزيادات الشاملة
-  else if(stf==='counted')rows=rows.filter(r=>r.isCounted);
-  else if(stf==='surplus')rows=rows.filter(r=>r.isUp); // مرشّح «الزيادات» شامل (طلب العميل): زيادة + خارج الدفتر + دفتري سالب
-  else if(stf==='deficit')rows=rows.filter(r=>r.isDown); // مرشّح «العجز» شامل (طلب العميل): عجز + ما لم يُعدّ بعد — مرآة الزيادات
-  else if(stf!=='all')rows=rows.filter(r=>r.status===stf);
+  // ط-١٨: فلتر الحالات المتعدّد — اتّحاد (OR) الحالات المختارة؛ فارغة = كلّ الحالات. المسمّيات نفسها + «من الكتالوج» (repStatusMatch)
+  if(repStatSel&&repStatSel.size)rows=rows.filter(r=>{ for(const st of repStatSel){ if(repStatusMatch(r,st))return true; } return false; });
   // ر٤: فرز بالنقر — نصّي بالتطبيع، رقمي بالقيمة
   if(repSortKey){ const numK={book:1,counted:1,diff:1,cost:1,bookValue:1,countedValue:1,varValue:1};
     const val=r=>{ let v=r[repSortKey]; if(numK[repSortKey])return (v==null?-Infinity:+v); return arNorm(v==null?'':v); };

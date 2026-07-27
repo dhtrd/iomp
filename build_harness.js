@@ -117,33 +117,40 @@ window.__openSession = sid=>openSession(sid);
 window.__del = sid=>deleteSession(sid);
 window.__editUser = uid=>renderUserEdit(uid);
 window.__openReport = sid=>openVarianceReport(sid,'home');
-// ط-١٧: خطّافات فلتر الفئات المتعدّد (النمط B) في شاشة التقارير
-window.__catf = {
-  present: ()=>!!document.getElementById('repCatBox'),
-  cats: ()=>repCatAll.slice(),
-  selected: ()=>Array.from(repCatSel),
-  count: ()=>repCatSel.size,
-  results: ()=>catfResults().slice(),
-  rowNames: ()=>Array.from(document.querySelectorAll('#repCatList [data-cn]')).map(r=>r.getAttribute('data-cn')),
-  chips: ()=>Array.from(document.querySelectorAll('#repCatBox [data-crm]')).map(b=>b.getAttribute('data-crm')),
-  note: ()=>{ const n=document.getElementById('repCatNote'); return n?n.textContent:''; },
-  countText: ()=>{ const n=document.getElementById('repCatCount'); return n?n.textContent:''; },
-  search: (v)=>{ const qi=document.getElementById('repCatQ'); if(!qi)return false; qi.value=v; repCatQ=v; repCatHl=0; catfRenderList(); return true; },
-  type: (v)=>{ const qi=document.getElementById('repCatQ'); if(!qi)return false; qi.value=v; qi.dispatchEvent(new Event('input',{bubbles:true})); return true; },
-  key: (k)=>{ const qi=document.getElementById('repCatQ'); if(!qi)return false; qi.dispatchEvent(new KeyboardEvent('keydown',{key:k,bubbles:true,cancelable:true})); return true; },
-  enter: ()=>{ const qi=document.getElementById('repCatQ'); if(!qi)return false; qi.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true})); return true; },
-  toggle: (name)=>{ const r=[...document.querySelectorAll('#repCatList [data-cn]')].find(x=>x.getAttribute('data-cn')===name); if(!r)return false; r.click(); return true; },
-  toggleIdx: (i)=>{ const rs=document.querySelectorAll('#repCatList [data-cn]'); if(!rs[i])return false; rs[i].click(); return true; },
-  removeChip: (name)=>{ const b=[...document.querySelectorAll('#repCatBox [data-crm]')].find(x=>x.getAttribute('data-crm')===name); if(!b)return false; b.click(); return true; },
-  selectAll: ()=>{ const b=document.getElementById('repCatAll'); if(!b)return false; b.click(); return true; },
-  selAllDisabled: ()=>{ const b=document.getElementById('repCatAll'); return b?b.disabled:null; },
-  clear: ()=>{ const b=document.getElementById('repCatClr'); if(!b)return false; b.click(); return true; },
-  clrDisabled: ()=>{ const b=document.getElementById('repCatClr'); return b?b.disabled:null; },
-  hl: ()=>{ const rs=[...document.querySelectorAll('#repCatList .catf-row')]; return rs.findIndex(r=>r.classList.contains('hl')); },
-  tableRows: ()=>document.querySelectorAll('#repTable tbody tr').length,
-  filteredCount: ()=>filteredReportRows().length,
-  filteredCats: ()=>Array.from(new Set(filteredReportRows().map(r=>r.category)))
-};
+// ط-١٨: خطّاف موحّد لفلترَي التقرير المنبثقين المتعدّدين — box='repCatBox' (الفئات) أو 'repStatBox' (الحالات)
+window.__mf = (box)=>{ const cfg = box==='repStatBox'?REP_STAT_CFG:REP_CAT_CFG; const $$=(id)=>document.getElementById(id); const qa=(s)=>[...document.querySelectorAll(s)];
+  return {
+    present: ()=>!!$$(box+'_btn'),
+    label: ()=>{ const l=$$(box+'_lab'); return l?l.textContent:''; },
+    isOpen: ()=>{ const w=$$(box+'_w'); return !!(w&&w.classList.contains('open')); },
+    open: ()=>{ mfOpen(cfg); return true; },
+    close: ()=>{ const w=$$(box+'_w'); if(w)mselClose(w); return true; },
+    options: ()=>cfg.getOpts().map(o=>o.v),
+    optionLabels: ()=>cfg.getOpts().map(o=>o.label),
+    results: ()=>mfResults(cfg).map(o=>o.v),
+    rows: ()=>qa('#'+box+'_list [data-mv]').map(r=>r.getAttribute('data-mv')),
+    selected: ()=>Array.from(cfg.sel()),
+    count: ()=>cfg.sel().size,
+    note: ()=>{ const n=$$(box+'_note'); return n?n.textContent:''; },
+    hasSearch: ()=>!!$$(box+'_q'),
+    search: (v)=>{ const qi=$$(box+'_q'); if(!qi)return false; qi.value=v; mfState(cfg).q=v; mfState(cfg).hl=0; mfRenderPop(cfg); return true; },
+    type: (v)=>{ const qi=$$(box+'_q'); if(!qi)return false; qi.value=v; qi.dispatchEvent(new Event('input',{bubbles:true})); return true; },
+    key: (k)=>{ const el=$$(box+'_q')||$$(box+'_w'); if(!el)return false; el.dispatchEvent(new KeyboardEvent('keydown',{key:k,bubbles:true,cancelable:true})); return true; },
+    enter: ()=>{ const el=$$(box+'_q')||$$(box+'_w'); if(!el)return false; el.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true})); return true; },
+    toggle: (v)=>{ const r=qa('#'+box+'_list [data-mv]').find(x=>x.getAttribute('data-mv')===v); if(!r)return false; r.click(); return true; },
+    toggleIdx: (i)=>{ const rs=qa('#'+box+'_list [data-mv]'); if(!rs[i])return false; rs[i].click(); return true; },
+    selectAll: ()=>{ const b=$$(box+'_all'); if(!b)return false; b.click(); return true; },
+    selAllDisabled: ()=>{ const b=$$(box+'_all'); return b?b.disabled:null; },
+    clear: ()=>{ const b=$$(box+'_clr'); if(!b)return false; b.click(); return true; },
+    clrDisabled: ()=>{ const b=$$(box+'_clr'); return b?b.disabled:null; },
+    hl: ()=>qa('#'+box+'_list .mfilt-opt').findIndex(r=>r.classList.contains('act')),
+    tableRows: ()=>document.querySelectorAll('#repTable tbody tr').length,
+    filteredCount: ()=>filteredReportRows().length,
+    filteredCats: ()=>Array.from(new Set(filteredReportRows().map(r=>r.category))),
+    tile: (f)=>{ const t=[...document.querySelectorAll('#repTiles [data-f]')].find(x=>x.getAttribute('data-f')===f); if(!t)return false; t.click(); return true; },
+    tileVal: (f)=>{ const t=[...document.querySelectorAll('#repTiles [data-f]')].find(x=>x.getAttribute('data-f')===f); return t?t.querySelector('.v').textContent.trim():null; },
+    tileActive: (f)=>{ const t=[...document.querySelectorAll('#repTiles [data-f]')].find(x=>x.getAttribute('data-f')===f); return t?t.classList.contains('active'):null; }
+  }; };
 // ر٧: خطاطيف شاشة التقارير الموحّدة (م١٩)
 window.__repxReady = ()=>_repxReady;
 window.__repxModel = name=>repxModel(name);

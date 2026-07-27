@@ -102,7 +102,7 @@ async function load(page,sc){ await page.addInitScript(()=>{ try{ localStorage.c
   await page.evaluate(()=>window.__openReport('sz')); await page.waitForTimeout(500);
   const tile=await page.evaluate(()=>{ const t=[...document.querySelectorAll('#repTiles .tile')].find(x=>x.textContent.includes('زيادة')&&!x.textContent.includes('خارج')); return t?{v:t.querySelector('.v').textContent.trim(),f:t.getAttribute('data-f')}:null; });
   ok('CN8 بلاطة «زيادة» = زيادة + خارج الدفتر + دفتري سالب (٣)', tile&&tile.v==='3'&&tile.f==='surplus', JSON.stringify(tile));
-  await page.evaluate(()=>{ document.getElementById('repStatus').value='surplus'; document.getElementById('repStatus').onchange(); }); await page.waitForTimeout(200);
+  await page.evaluate(()=>{ window.__mf('repStatBox').toggle('surplus'); }); await page.waitForTimeout(200);
   const rows=await page.evaluate(()=>[...document.querySelectorAll('#repTable tbody tr')].map(r=>r.textContent));
   ok('CN8 مرشّح «الزيادات» نفسه يعرض الثلاثة (وهذا هو المطلوب الضروري)', rows.length===3&&rows.some(r=>r.includes('صنف زائد'))&&rows.some(r=>r.includes('دفتري سالب'))&&rows.some(r=>r.includes('يدوي زائد')), String(rows.length));
   const negTag=await page.evaluate(()=>document.getElementById('repTable').textContent.includes('دفتري سالب'));
@@ -124,11 +124,11 @@ async function load(page,sc){ await page.addInitScript(()=>{ try{ localStorage.c
   await page.evaluate(()=>window.__openReport('sd')); await page.waitForTimeout(500);
   const tile=await page.evaluate(()=>{ const t=[...document.querySelectorAll('#repTiles .tile')].find(x=>x.textContent.includes('عجز')); return t?{v:t.querySelector('.v').textContent.trim(),f:t.getAttribute('data-f')}:null; });
   ok('CN9 بلاطة «عجز» = العجز المعدود + ما لم يُعدّ بعد (٢)', tile&&tile.v==='2'&&tile.f==='deficit', JSON.stringify(tile));
-  await page.evaluate(()=>{ document.getElementById('repStatus').value='deficit'; document.getElementById('repStatus').onchange(); }); await page.waitForTimeout(200);
+  await page.evaluate(()=>{ window.__mf('repStatBox').toggle('deficit'); }); await page.waitForTimeout(200);
   const rows=await page.evaluate(()=>[...document.querySelectorAll('#repTable tbody tr')].map(r=>r.textContent));
   ok('CN9 مرشّح «العجز» يعرض الاثنين (الناقص + ما لم يُعدّ) وهذا هو الضروري', rows.length===2&&rows.some(r=>r.includes('صنف ناقص'))&&rows.some(r=>r.includes('صنف لم يُعد')), String(rows.length)+' '+rows.join('|').slice(0,60));
   ok('CN9 الدفتري السالب غير المعدود يبقى زيادةً لا عجزًا (والصفري خارجهما)', !rows.some(r=>r.includes('دفتري سالب'))&&!rows.some(r=>r.includes('صفري')), '');
-  const tag=await page.evaluate(()=>{ document.getElementById('repStatus').value='all'; document.getElementById('repStatus').onchange(); return new Promise(res=>setTimeout(()=>res(document.getElementById('repTable').textContent),200)); });
+  const tag=await page.evaluate(()=>{ window.__mf('repStatBox').clear(); return new Promise(res=>setTimeout(()=>res(document.getElementById('repTable').textContent),200)); });
   ok('CN9 وسم «يُحسب عجزًا» ظاهر في عمود الحالة لغير المعدود', tag.includes('يُحسب عجزًا'), '');
   const pr=await page.evaluate(()=>{ try{ return window.__buildReasonPrint('detailed'); }catch(e){ return 'ERR:'+e.message; } });
   ok('CN9 شريحة «عجز» في الطباعة شاملة أيضًا (٢) مع وسمها في الجدول', (pr.includes('عجز: <b>2</b>'))&&pr.includes('يُحسب عجزًا'), pr.slice(0,60));
