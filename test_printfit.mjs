@@ -43,7 +43,7 @@ const count=(s,needle)=>s.split(needle).length-1;
 { const page=await ctx.newPage(); await load(page,{profile:OWNER,users:[OWNER],sessions:[S1]});
   await openRep(page);
   const html=await page.evaluate(()=>window.__buildReasonPrint('branch'));
-  ok('P2 سبعة أعمدة (٦ + الملاحظات التلقائية) وبنط 11.5px بلا تصغير', count(html,'<col style')===7&&html.includes('font-size:11.5px'), 'cols='+count(html,'<col style'));
+  ok('P2 ثمانية أعمدة (٦ + من أضاف + الملاحظات التلقائية) وبنط 10.8px', count(html,'<col style')===8&&html.includes('font-size:10.8px')&&html.includes('من أضاف'), 'cols='+count(html,'<col style'));
   await page.close(); }
 
 // ===== P3 — إعدادات المخرجات تعمل فعليًّا: أفقي + A5 =====
@@ -90,6 +90,18 @@ const count=(s,needle)=>s.split(needle).length-1;
   await openRep(page);
   const html=await page.evaluate(()=>window.__buildReasonPrint('branch'));
   ok('P8 المطّلع: colgroup ستة أعمدة (بلا ملاحظات لهذه الصفوف؟ تُحسب إن ظهرت) بلا أعمدة مالية', count(html,'<col style')>=6&&!html.includes('التكلفة')&&html.includes('الكمية الفعلية'), 'cols='+count(html,'<col style'));
+  await page.close(); }
+
+// ===== P9 — «من أضاف» يظهر في طباعة مراجعة الفرع: مجموعةً لكلّ عدّاد (تتابعٌ بلا ١+١، ومنفصلةٌ مفصّلة) =====
+{ const page=await ctx.newPage();
+  const CN2=[{code:'99916382',qty:3,entries:[{id:'e1',q:3,n:3,by:'u_owner',byName:'عبدالكريم الضيفي'}]},
+             {code:'99916629',qty:6,entries:[{id:'e2',q:4,by:'u_owner',byName:'عبدالكريم الضيفي'},{id:'e3',q:2,by:'u_owner',byName:'عبدالكريم الضيفي'}]}];
+  const S9=Object.assign({},S1,{__counts:CN2,__notes:[]});
+  await load(page,{profile:OWNER,users:[OWNER],sessions:[S9]});
+  await openRep(page);
+  const html=await page.evaluate(()=>window.__buildReasonPrint('branch'));
+  ok('P9 «من أضاف» يظهر في طباعة الفرع والتتابع مجموعٌ (عبدالكريم: 3 بلا ١+١)', html.includes('من أضاف')&&html.includes('عبدالكريم الضيفي: 3')&&!html.includes('(1 + 1 + 1)'), 'a='+html.includes('عبدالكريم الضيفي: 3'));
+  ok('P9 والإضافات المنفصلة الحقيقيّة تبقى مفصّلة (٤ + ٢)', html.includes('عبدالكريم الضيفي: 6')&&html.includes('(4 + 2)'), 'b='+html.includes('(4 + 2)'));
   await page.close(); }
 
 await browser.close();

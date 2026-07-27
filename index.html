@@ -1087,7 +1087,7 @@ input[type="checkbox"]:not(.rcap):not(.rtask){width:18px!important;min-width:18p
     <h2>سبب الطباعة</h2>
     <p class="muted" style="margin-bottom:12px">اختر الغرض من الطباعة لتُنسّق الأعمدة تلقائياً. (تصدير Excel يبقى مفصّلاً — تخصيصه حسب السبب لاحقاً في الإعدادات.)</p>
     <div style="display:flex;flex-direction:column;gap:8px">
-      <button class="btn ghost" data-reason="branch" style="text-align:right;line-height:1.5">📋 مراجعة الفرع <span class="muted" style="font-weight:400">— باركود، اسم، فئة، دفتري، فعلي، فرق + إجماليات</span></button>
+      <button class="btn ghost" data-reason="branch" style="text-align:right;line-height:1.5">📋 مراجعة الفرع <span class="muted" style="font-weight:400">— باركود، اسم، فئة، دفتري، فعلي، فرق، من أضاف + إجماليات</span></button>
       <button class="btn ghost" data-reason="detailed" style="text-align:right;line-height:1.5">📊 تقرير مفصل <span class="muted" style="font-weight:400">— كل الأعمدة والقيم + ملخص</span></button>
       <button class="btn ghost" data-reason="committee" id="prCommittee" style="text-align:right;line-height:1.5">✍ محضر لجنة الجرد <span class="muted" style="font-weight:400">— ملخص كتابي بالإجماليات + تواقيع اللجنة (بعد الاعتماد)</span></button>
       <button class="btn ghost" data-reason="mgmt" style="text-align:right;line-height:1.5">🏢 تقرير للإدارة <span class="muted" style="font-weight:400">— القيم والإجماليات وحالة كل صنف</span></button>
@@ -3264,7 +3264,7 @@ function appSettings(){ return (permConfig && permConfig.settings) || {}; }
 const PRINT_DEFAULTS={ paperSize:'A4', orientation:'portrait', fontSize:11, showLogo:true, showPageNumbers:true, headerText:'', footerText:'', watermark:'' };
 function printCfg(){ return Object.assign({},PRINT_DEFAULTS, appSettings().print||{}); }
 function printPageCss(pc){ const p=(['A4','A5','Letter'].indexOf(pc&&pc.paperSize)>=0?pc.paperSize:'A4'); const size=p+((pc&&pc.orientation)==='landscape'?' landscape':''); return '<style>@page{size:'+size+'}</style>'; }
-const PRINT_COLW={name:2.3,notes:2.0,barcode:1.5,code:1.5,category:1.05,status:1.15};
+const PRINT_COLW={name:2.3,notes:2.0,who:2.0,barcode:1.5,code:1.5,category:1.05,status:1.15};
 function printColgroup(cols){ const w=(cols||[]).map(c=>PRINT_COLW[c]||1.3); const t=w.reduce((a,b)=>a+b,0)||1;
   return '<colgroup>'+w.map(x=>'<col style="width:'+(Math.round(x/t*1000)/10)+'%">').join('')+'</colgroup>'; }
 function printFontFor(n){ return n>=12?9.5:(n>=10?10.2:(n>=8?10.8:11.5)); }
@@ -5158,7 +5158,7 @@ async function exportDetailedExcel(){
 }
 
 const PRINT_REASONS={
-  branch:   {label:'مراجعة الفرع',   cols:['barcode','name','category','book','counted','diff'], summary:false, totals:true, sign:false},
+  branch:   {label:'مراجعة الفرع',   cols:['barcode','name','category','book','counted','diff','who'], summary:false, totals:true, sign:false},
   detailed: {label:'تقرير مفصل',     cols:['code','barcode','name','category','book','counted','diff','status','cost','bookVal','countedVal','varVal'], summary:true, totals:true, sign:false},
   committee:{label:'محضر لجنة الجرد', cols:['code','name','category','book','counted','diff','status','varVal'], summary:true, totals:true, sign:true, summaryOnly:true},
   mgmt:     {label:'تقرير للإدارة',   cols:['category','name','book','counted','diff','bookVal','countedVal','varVal','status'], summary:true, totals:true, sign:false},
@@ -5181,7 +5181,8 @@ const PRINT_COLDEF={
   bookVal:   {th:'القيمة الدفترية', num:true, get:r=>r.bookValue!=null?fmt(round2(r.bookValue)):'—', sum:r=>r.bookValue},
   countedVal:{th:'القيمة الفعلية',  num:true, get:r=>r.countedValue!=null?fmt(round2(r.countedValue)):'—', sum:r=>r.countedValue},
   varVal:    {th:'قيمة الفرق',      num:true, get:r=>r.varValue!=null?((r.varValue>0?'+':'')+fmt(round2(r.varValue))):'—', sum:r=>r.varValue},
-  notes:     {th:'الملاحظات',       get:r=>((r.notes&&r.notes.length)?r.notes.map(n=>esc(n.text||'')+(n.byName?' <span style="color:#555">('+esc(n.byName)+')</span>':'')).join('<br>'):'—')}
+  notes:     {th:'الملاحظات',       get:r=>((r.notes&&r.notes.length)?r.notes.map(n=>esc(n.text||'')+(n.byName?' <span style="color:#555">('+esc(n.byName)+')</span>':'')).join('<br>'):'—')},
+  who:       {th:'من أضاف',         get:r=>((r.who&&r.who.length)?r.who.map(w=>whoDetail(w,true)).join('<br>'):'—')}
 };
 function buildPrintReport(reasonKey){
   const R=PRINT_REASONS[reasonKey]||PRINT_REASONS.detailed;
