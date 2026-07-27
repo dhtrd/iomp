@@ -944,7 +944,7 @@ input[type="checkbox"]:not(.rcap):not(.rtask){width:18px!important;min-width:18p
 .mfilt-box{display:inline-flex;min-width:0;max-width:100%}
 .rtools .mfilt-box{flex:0 1 auto}
 .rtools .mfilt-box .msel-btn{min-width:150px;max-width:100%}
-.mfilt-pop{display:flex;flex-direction:column;gap:6px}
+.mfilt-pop:not([hidden]){display:flex;flex-direction:column;gap:6px} /* ط-٢٠: flex فقط حين غير مخفيّ — كي يحترم [hidden] (display:none) فيُغلق المنبثق فعلًا */
 .mfilt-note{font-size:11.5px;color:var(--tmuted);line-height:1.5;padding:0 4px}
 .mfilt-list{max-height:250px;overflow:auto;overscroll-behavior:contain}
 .mfilt-opt{cursor:pointer}

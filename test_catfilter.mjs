@@ -115,10 +115,22 @@ async function openRep(page){ await page.evaluate(()=>window.__openReport('s1'))
   ok('ط١٤ «اختر كلّ النتائج» معطّلٌ بلا نتائج', r.res===0&&r.dis===true, JSON.stringify(r));
   await page.close(); }
 
-// ط١٥ — زرّ الفئات يفتح ويغلق المنبثق
+// ط١٥ — زرّ الفئات يفتح ويغلق المنبثق (ظهورٌ فعليٌّ لا مجرّد صنف open)
 { const page=await ctx.newPage(); await load(page,{profile:OWNER,users:[OWNER],sessions:[CATSESS]}); await openRep(page);
-  const r=await page.evaluate(()=>{ const C=window.__mf('repCatBox'); const a=C.isOpen(); C.open(); const b=C.isOpen(); C.close(); const c=C.isOpen(); return {a,b,c}; });
-  ok('ط١٥ الزرّ يفتح ويغلق المنبثق', r.a===false&&r.b===true&&r.c===false, JSON.stringify(r));
+  const r=await page.evaluate(()=>{ const C=window.__mf('repCatBox'); const a=C.popShown(); C.open(); const b=C.popShown(); C.close(); const c=C.popShown(); return {a,b,c}; });
+  ok('ط١٥ الزرّ يفتح المنبثق ويُخفيه فعليًّا عند الإغلاق', r.a===false&&r.b===true&&r.c===false, JSON.stringify(r));
+  await page.close(); }
+
+// ط١٥ب — النقر على الزرّ ذاته وهو مفتوحٌ يُغلقه فعليًّا (toggle)
+{ const page=await ctx.newPage(); await load(page,{profile:OWNER,users:[OWNER],sessions:[CATSESS]}); await openRep(page);
+  const r=await page.evaluate(()=>{ const btn=document.getElementById('repStatBox_btn'); const S=window.__mf('repStatBox'); btn.click(); const open=S.popShown(); btn.click(); const closed=S.popShown(); return {open,closed}; });
+  ok('ط١٥ب نقر الزرّ يفتح ثمّ يغلق فعليًّا (toggle)', r.open===true&&r.closed===false, JSON.stringify(r));
+  await page.close(); }
+
+// ط١٥ج — فتح منبثقٍ يُخفي الآخر فعليًّا (لا يظهر الاثنان معًا)
+{ const page=await ctx.newPage(); await load(page,{profile:OWNER,users:[OWNER],sessions:[CATSESS]}); await openRep(page);
+  const r=await page.evaluate(()=>{ const C=window.__mf('repCatBox'),S=window.__mf('repStatBox'); C.open(); const catOpen=C.popShown(); S.open(); return {catThenStat_cat:C.popShown(),catThenStat_stat:S.popShown(),catWasOpen:catOpen}; });
+  ok('ط١٥ج فتح الحالات يُخفي الفئات (منبثقٌ واحدٌ ظاهرٌ فقط)', r.catWasOpen===true&&r.catThenStat_stat===true&&r.catThenStat_cat===false, JSON.stringify(r));
   await page.close(); }
 
 // ط١٦ — لا فيض أفقيّ على عرض هونر (٤٨٨) مع الفلترين المنبثقين

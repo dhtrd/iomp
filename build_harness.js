@@ -123,6 +123,7 @@ window.__mf = (box)=>{ const cfg = box==='repStatBox'?REP_STAT_CFG:REP_CAT_CFG; 
     present: ()=>!!$$(box+'_btn'),
     label: ()=>{ const l=$$(box+'_lab'); return l?l.textContent:''; },
     isOpen: ()=>{ const w=$$(box+'_w'); return !!(w&&w.classList.contains('open')); },
+    popShown: ()=>{ const p=$$(box+'_pop'); if(!p)return null; return !p.hidden && getComputedStyle(p).display!=='none'; }, // الظهور الفعليّ (يكشف تغلّب CSS على [hidden])
     open: ()=>{ mfOpen(cfg); return true; },
     close: ()=>{ const w=$$(box+'_w'); if(w)mselClose(w); return true; },
     options: ()=>cfg.getOpts().map(o=>o.v),
