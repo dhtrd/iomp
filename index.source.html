@@ -1397,6 +1397,7 @@ let _scanIndex=null, _scanIndexSrc=null;                // ط-٥: فهرس O(١)
 const _scanEvtSeen=(typeof WeakSet==='function')?new WeakSet():null;  // ط-٩: حدث DOM عولج ⇒ لا يُعالَج ثانيةً
 let _camLastCode='', _camMiss=0;                        // ط-٤: قاعدة إعادة الالتقاط
 let _rclPending=false, _rclT=0, _actLastQs=null, _actDirty=false; // ط-٦: كبح إعادة البناء أثناء المسح والسجل الخفيّ
+let _actByFilter=''; // فصل السجلّ بحسب العدّاد: العادّ الموكَّل يرى سجلّه فقط؛ المدير غير الموكَّل يرى الجميع (وله فلترةٌ اختياريّة بعدّاد)
 
 try{ app=initializeApp(firebaseConfig); auth=getAuth(app);
   // الكاش المحلي الدائم (IndexedDB): إعادة فتح الجلسات والتقارير تُعرض من الجهاز فورًا والخادم يرسل «الفروقات فقط»
@@ -3181,7 +3182,7 @@ function renderCountingShell(){
     '<div class="card" id="actPanel" style="display:none"><div style="display:flex;align-items:center;gap:8px"><h2 style="margin:0;font-size:16px;flex:1">📋 سجل الحركة</h2><span class="muted" style="font-size:12px">آخر ٤٠ حركة</span></div><div id="actlog" style="margin-top:8px"><p class="muted">جارٍ التحميل…</p></div></div>'+
     '<div id="clist"></div>';
   scanMode=false; stopCamera();
-  scanQueue=[]; scanBusy=false; _rclPending=false; _actLastQs=null; _actDirty=false; // م٦-٤: تصفير حالة محرّك المسح مع كل بناء لقشرة العد
+  scanQueue=[]; scanBusy=false; _rclPending=false; _actLastQs=null; _actDirty=false; _actByFilter=''; // م٦-٤: تصفير حالة محرّك المسح مع كل بناء لقشرة العد (+فلتر السجلّ بحسب العدّاد)
   $('backBtn').onclick=()=>{stopCamera();scanMode=false;if(countsUnsub){countsUnsub();countsUnsub=null;}if(actUnsub){actUnsub();actUnsub=null;}if(sessUnsub){sessUnsub();sessUnsub=null;}if(extraUnsub){extraUnsub();extraUnsub=null;}if(notesUnsub){notesUnsub();notesUnsub=null;}route();};
   if($('repBtn'))$('repBtn').onclick=()=>openVarianceReport(curSid,'count');
   if($('closeBtn'))$('closeBtn').onclick=closeSessionGate;
@@ -3346,6 +3347,11 @@ function countProgressUpdate(){ if(!$('cprog'))return; const done=Object.keys(cu
   if($('cprogtext'))$('cprogtext').textContent=fmt(done)+' / '+fmt(curItems.length)+' معدود'; }
 function renderCountList(){
   if(!$('clist'))return;
+  // إصلاح التداخل: احفظ حقل الإدخال اليدويّ المركَّز (كمية «أضف» أو محرّر ملاحظة) قبل إعادة البناء، ثمّ استعِده —
+  // فإعادة الرسم النابعة من كتابة عدّادٍ آخر (عبر onSnapshot) لم تعد تمحو ما يكتبه هذا العدّاد ولا تسرق تركيزه.
+  const _ae=document.activeElement; let _keep=null;
+  if(_ae&&_ae.classList&&(_ae.classList.contains('padd')||_ae.classList.contains('cnotetxt'))){
+    _keep={cls:_ae.classList.contains('padd')?'padd':'cnotetxt',code:String(_ae.getAttribute('data-code')||''),val:_ae.value,s:_ae.selectionStart,e:_ae.selectionEnd}; }
   { const _cs=$('csearch'); if(_cs)_cs._scRq=(_cs.value||''); } // بصمة نصّ البحث المرسوم فعليًّا (تمنع إعادة رسم بلا داعٍ بعد كل مسحة)
   const qn=arNorm(($('csearch')?$('csearch').value:'').trim());
   let list=curItems; if(qn)list=curItems.filter(it=>(it.code&&arNorm(it.code).indexOf(qn)>=0)||(it.name&&arNorm(it.name).indexOf(qn)>=0)||(it.barcode&&arNorm(it.barcode).indexOf(qn)>=0));
@@ -3354,6 +3360,8 @@ function renderCountList(){
   const html=list.slice(0,300).map(it=>countRowHtml(it,blind,frozen)).join('');
   $('clist').innerHTML=(list.length?html:'<p class="empty-hint">لا أصناف مطابقة.</p>')+(list.length>300?'<p class="muted" style="padding:8px">عرض أول 300 صنف — استخدم البحث ('+fmt(list.length)+' مطابق).</p>':'');
   bindCountRows($('clist'));
+  if(_keep){ let _t=null; $('clist').querySelectorAll('.'+_keep.cls).forEach(x=>{ if(String(x.getAttribute('data-code'))===_keep.code)_t=x; });
+    if(_t){ _t.value=_keep.val; try{ _t.focus(); if(_keep.s!=null)_t.setSelectionRange(_keep.s,_keep.e); }catch(_){} } }   // استعادة التركيز والقيمة والمؤشّر
 }
 /* م٦-٤ ط-٦: بناء صفٍّ واحد — نفس مخرجات النسخة السابقة حرفًا بحرف، مضافًا إليها data-row للترقيع الموضعي */
 function countRowHtml(it,blind,frozen){ {const cc=curCounts[it.code];const counted=cc!=null;const total=counted?cc.qty:null;
@@ -4031,7 +4039,7 @@ const UNK_KEY='iomp-unknown-v1';
 let _ca13Declined=null;
 function ca13Set(){ if(!_ca13Declined)_ca13Declined=new Set(); return _ca13Declined; }
 function ca13On(){ return featuresMasterCatalogOn()&&catOpt('catalog.autoAdd')!=='off'; }
-function ca13Warm(){ if(!ca13On()||!can('count'))return; _ca13Declined=null; caReset();  // م٧: الجلسة الجديدة تبدأ بلا معلَّقاتٍ من سابقتها
+function ca13Warm(){ if(!ca13On()||!can('count'))return; _ca13Declined=null; caReset(); caRestore(curSid);  // م٧+ح-٣: تُمسح معلَّقات جلسةٍ سابقة، ثمّ تُستعاد معلَّقات هذه الجلسة إن وُجدت محفوظة
   try{ Promise.resolve(catalogEnsure({})).catch(()=>{}); }catch(e){} } // تسخينٌ لا يحجب فتح الجلسة: ٠–١ قراءة (مرآة ثمّ مستند النسخة)
 /* سقف الإضافات اليوميّ (قرار ١١-٣) — عدّادٌ محلّيّ لكل مستخدم/يوم، صفر كلفةٍ سحابيّة. 0 = بلا سقف */
 function ca13CapKey(){ const d=new Date(); return 'iomp-cadd-'+((myProfile&&myProfile.uid)||'-')+'-'+d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate(); }
@@ -4080,13 +4088,30 @@ function caGet(code){ return caPending?(caPending.get(code)||null):null; }
 function caSize(){ return caPending?caPending.size:0; }
 function caReset(){ if(caPending)caPending.clear(); caFocus=''; _caShown=''; _caRPend=false;
   clearTimeout(_caRT); _caRT=0; const o=$('caOverlay'); if(o)o.style.display='none'; }
+/* ح-٣: المعلَّقات تُحفظ محلّيًّا (IndexedDB فقط — صفر سحابة) لكلّ جلسة، فلا تُفقد بتحديثٍ أو تعطّلٍ أو خروجٍ بالخمول.
+   الاعتماد يُعيد المسحات بمعرّفاتها (eid) نفسها ⇒ حتّى لو استُعيد صنفٌ اعتُمِد سلفًا فحارس countWriteAdd يمنع أيّ ازدواج. */
+function CAPEND_KEY(sid){ return 'iomp-capending-'+String(sid||''); }
+function caSerialize(){ const a=[]; if(caPending)caPending.forEach(function(e){ a.push({code:e.code,cat:e.cat,warn:e.warn||'',
+  jobs:(e.jobs||[]).map(function(j){ return {code:j.code,seq:j.seq,src:j.src,eid:j.eid,tries:j.tries||0}; })}); }); return a; }
+function caSaveNow(){ if(!curSid)return Promise.resolve(); try{ return Promise.resolve(offlineStore.set(CAPEND_KEY(curSid),caSerialize())).catch(function(){}); }catch(e){ return Promise.resolve(); } }
+let _caPT=0;
+function caPersist(){ clearTimeout(_caPT); _caPT=setTimeout(function(){ _caPT=0; caSaveNow(); },150); } // كنسٌ للرشقات؛ نافذة الخطر ١٥٠ مللي بدل فقدٍ كامل
+function caRestore(sid){ if(!sid)return Promise.resolve();
+  return Promise.resolve(offlineStore.get(CAPEND_KEY(sid))).then(function(a){
+    if(!Array.isArray(a)||!a.length||curSid!==sid)return;                 // تبدّلت الجلسة أثناء القراءة ⇒ لا تُلوّث الحاليّة
+    const m=caMap();
+    a.forEach(function(x){ if(!x||x.code==null||m.get(String(x.code)))return; if(m.size>=CA_MAX_PENDING)return;
+      m.set(String(x.code),{cat:x.cat||{},code:String(x.code),warn:x.warn||'',busy:0,firstAt:Date.now(),lastAt:Date.now(),
+        jobs:(x.jobs||[]).map(function(j){ return {code:j.code,seq:j.seq,src:j.src||'restore',eid:j.eid,tries:j.tries||0}; })}); });
+    if(caSize()){ if(!caFocus){ const it=caPending.values().next().value; caFocus=it.code; _caSwitchAt=Date.now(); } caRenderSoon(); }
+  }).catch(function(){}); }
 /* الحجز — يُنادى من داخل مستهلك الطابور، فكلّ ما فيه مزامنٌ ورخيص (٠٫٠٣٥ ميكروثانية للمسحة مقيسة) */
 function caPark(job,cat,code,warn){ const m=caMap(); let e=m.get(code);
   if(!e){ if(m.size>=CA_MAX_PENDING)return false;
     e={cat:cat,code:code,jobs:[],firstAt:Date.now(),lastAt:0,warn:warn||'',busy:0}; m.set(code,e); }
   e.jobs.push(job); e.lastAt=Date.now();
   if(caFocus!==code){ caFocus=code; _caSwitchAt=e.lastAt; }        // تبديل المعروض يُصفّر حارس Enter
-  caRenderSoon(); return true; }
+  caRenderSoon(); caPersist(); return true; }                     // ح-٣: احفظ المعلَّق فورًا (مكنوسًا) كي ينجو من التحديث
 /* حماية ٣/٤: الرسم خارج المسار الحرج — النمط نفسه المُثبَت في renderCountList */
 function caRenderSoon(){ const s=$('csearch');
   if(scanBusy||scanQueue.length||(s&&s._scBuf!=null)){ _caRPend=true;
@@ -4178,11 +4203,11 @@ async function caApprove(){ const code=caFocus, e=caGet(code); if(!e||e.busy||ca
   const jobs=e.jobs.splice(0,e.jobs.length);                        // يشمل ما وصل أثناء الكتابة نفسها — لا مسحةَ تسقط بين الخطوتين
   caPending.delete(code);
   for(let i=0;i<jobs.length;i++){ jobs[i]._ca13=1; jobs[i].code=code; scanQueue.push(jobs[i]); }
-  caNext(); scanPump(); caBusy=0; scanFocusGuard(); }
+  caPersist(); caNext(); scanPump(); caBusy=0; scanFocusGuard(); }   // ح-٣: حدّث التخزين بعد إزالة المعتمَد
 /* الإغلاق يُسمّي ما يُلغيه (قرار العميل) — وهو رفضٌ للجلسة كما كان تمامًا، بلا تغييرٍ في القاعدة */
 function caDecline(){ const code=caFocus, e=caGet(code); if(!e||e.busy)return;
   const n=e.jobs.length, raw=(n?e.jobs[n-1].code:code);
-  caPending.delete(code); ca13Set().add(code);
+  caPending.delete(code); ca13Set().add(code); caPersist();   // ح-٣: حدّث التخزين بعد الرفض
   scanPanel({state:'err',title:'لم يُضَف — '+(e.cat.name||''),code:raw,note:'أُلغيت الإضافة و'+(n>1?('أُهملت '+fmt(n)+' مسحاتٍ محجوزة'):'لم تُسجَّل أي كمية')+'. لن تتكرّر النافذة لهذا الصنف في هذه الجلسة؛ ولإضافته لاحقًا استعمل «➕ صنف يدوي».'});
   _lastUnknownScan=raw; beep(false); vibrate(160); caNext(); scanFocusGuard(); }
 /* بناء سجلّ الصنف — التكلفة تُنسَخ وتُجمَّد لحظة الإضافة (قرار ٦-٢): تقرير الجلسة لا يتغيّر لاحقًا برفع كتالوجٍ جديد */
@@ -4829,14 +4854,42 @@ try{ dbxHandleRedirect(); }catch(e){}
 function govShow(html){ const m=$('govModal'); if(!m)return; $('govBody').innerHTML=html; m.style.display='flex'; }
 function govHide(){ const m=$('govModal'); if(m)m.style.display='none'; }
 // بوابة الإقفال: ملخص + قائمة غير المعدود «ستُعامل صفراً»
-function closeSessionGate(){
+/* ح-٤: قبل إظهار بوّابة الإقفال، افحص العمل غير المُزامَن على *هذا الجهاز* لهذه الجلسة (قرار العميل:
+   جهاز المُقفِل + تحذيرٌ إرشاديّ للآخرين · امنع + «زامِن الآن» + تجاوزٌ صريح). البوّابة لا ترى أجهزة
+   العدّادين الآخرين — لذا تحذيرٌ إرشاديٌّ في الشاشة العاديّة، لا فحصٌ خادميّ (بلا كلفةٍ ولا حجزٍ للأبد). */
+async function closeSessionGate(){
   if(!can('session.close')){toastWarn(noPerm('session.close'));return;}
+  let qsid=0; try{ if(featuresOfflineOn()){ const q=await offlineQueueGet(); qsid=q.filter(function(op){ return op&&op.sid===curSid; }).length; } }catch(e){}
+  const parked=caSize(), inflight=(scanBusy?1:0)+scanQueue.length;
+  if(qsid+parked+inflight>0){ closeBlockedDialog(qsid,parked,inflight); return; }
+  closeSessionShow();
+}
+function closeBlockedDialog(qsid,parked,inflight){
+  const parts=[]; if(qsid)parts.push(fmt(qsid)+' عمليّة عدٍّ غير مُزامَنة'); if(parked)parts.push(fmt(parked)+' صنفًا معلَّقًا بانتظار قرارك'); if(inflight)parts.push('مسحاتٌ قيد المعالجة');
+  govShow('<h2>⚠ لا يمكن الإقفال الآن</h2>'+
+    '<p class="muted" style="margin-bottom:8px">على هذا الجهاز عملٌ لم يُزامَن بعد، والإقفال الآن قد يُفقد عدّاتٍ عُدَّت فعلًا. أنهِ أوّلًا: '+esc(parts.join(' · '))+'.</p>'+
+    (parked?'<p class="status show warn" style="margin-bottom:8px">لديك أصنافٌ معلَّقةٌ في نافذة الكتالوج — احسِمها (أضِف أو أغلِق) ثمّ أعِد المحاولة.</p>':'')+
+    '<div style="display:flex;gap:10px;flex-wrap:wrap">'+
+    (qsid?'<button class="btn" id="cbSync">🔄 زامِن الآن</button>':'')+
+    '<button class="btn ghost danger" id="cbForce">تجاوز وأقفِل رغم ذلك</button>'+
+    '<button class="btn ghost" id="govCancel">إلغاء</button></div>');
+  $('govCancel').onclick=govHide;
+  const s=$('cbSync'); if(s)s.onclick=async function(){ s.disabled=true; s.textContent='جارٍ المزامنة…';
+    const r=await offlineFlush(true);
+    if(r&&r.ok&&!r.remaining){ govHide(); closeSessionGate(); }
+    else { s.disabled=false; s.textContent='🔄 زامِن الآن'; toastWarn('بقيت عمليّاتٌ غير مُزامَنة — تحقّق من الاتصال، أو استعمل «تجاوز».'); } };
+  const f=$('cbForce'); if(f)f.onclick=async function(){
+    if(!(await confirmDialog({title:'تجاوز وإقفال',message:'قد تُرفض العدّات غير المُزامَنة نهائيًّا بعد الإقفال ولا يمكن استرجاعها. أتريد الإقفال رغم ذلك؟',confirmLabel:'نعم، أقفِل',danger:true})))return;
+    govHide(); closeSessionShow(); };
+}
+function closeSessionShow(){
   const counts=curCounts, items=curItems;
   const uncounted=items.filter(it=>!counts[it.code]);
   const counted=items.length-uncounted.length;
   const rowsHtml=uncounted.slice(0,200).map(it=>'<div style="display:flex;gap:8px;padding:4px 0;border-bottom:1px solid var(--hair);font-size:13px"><span class="tag">'+esc(it.code)+'</span><span style="flex:1">'+esc(it.name||'')+'</span><span class="muted">'+(it.book!=null?'دفتري: '+fmt(it.book):'')+'</span></div>').join('');
   govShow('<h2>بوابة الإقفال — رفع الجلسة للمراجعة</h2>'+
     '<p class="muted" style="margin-bottom:8px">بعد الإقفال يتوقف العدّ وتنتقل الجلسة إلى «قيد المراجعة».</p>'+
+    '<p class="muted" style="margin-bottom:8px">🔎 تأكّد أنّ بقيّة العدّادين أنهوا المزامنة على أجهزتهم قبل الإقفال — هذا الجهاز خالٍ من العمل المعلَّق.</p>'+
     '<div class="tiles" style="margin-bottom:10px"><div class="tile"><div class="k">الأصناف</div><div class="v">'+fmt(items.length)+'</div></div><div class="tile"><div class="k">المعدود</div><div class="v">'+fmt(counted)+'</div></div><div class="tile"><div class="k">لم تُعد (ستُعامل صفراً)</div><div class="v'+(uncounted.length?' neg':'')+'">'+fmt(uncounted.length)+'</div></div></div>'+
     (uncounted.length?'<div style="max-height:38vh;overflow:auto;border:1px solid var(--hair);border-radius:8px;padding:8px;margin-bottom:10px"><div class="muted" style="margin-bottom:4px">أصناف لم تُعد وستُعامل صفراً بإفصاح'+(uncounted.length>200?' (أول 200)':'')+':</div>'+rowsHtml+'</div>':'<div class="status show ok" style="margin-bottom:10px">كل الأصناف معدودة ✓</div>')+
     '<div style="display:flex;gap:10px"><button class="btn" id="govCloseConfirm">تأكيد الإقفال ورفعها للمراجعة</button><button class="btn ghost" id="govCancel">إلغاء</button></div>');
@@ -4846,7 +4899,9 @@ async function doCloseSession(){
   if(!can('session.close'))return;
   try{ if($('govCloseConfirm'))$('govCloseConfirm').disabled=true;
     await updateDoc(doc(db,'sessions',curSid),{status:'review',closedBy:auth.currentUser.uid,closedByName:myProfile.name||'',closedAt:serverTimestamp()});
-    logActivity('close','','رُفعت للمراجعة',null); sessWriteSummary(curSid,curItems,curCounts); govHide(); curSess.status='review'; renderCountingShell();
+    logActivity('close','','رُفعت للمراجعة',null); sessWriteSummary(curSid,curItems,curCounts);
+    try{ offlineStore.set(CAPEND_KEY(curSid),[]); }catch(e){} caReset();   // ح-٣/ح-٤: بعد الإقفال لا معلَّقات — امسح تخزينها والذاكرة (لا تعود عند إعادة الفتح)
+    govHide(); curSess.status='review'; renderCountingShell();
   }catch(err){toastErr('تعذّر الإقفال: '+errAr(err.code||err.message)); if($('govCloseConfirm'))$('govCloseConfirm').disabled=false;}
 }
 async function doMarkReviewed(){
@@ -4968,17 +5023,31 @@ async function logActivity(type,code,name,qty){ if(_actRun)await actFlush(); ret
 function actWhen(a){ if(a&&a.at&&typeof a.at.toDate==='function')return a.at.toDate(); return null; }
 function renderActivity(qs){
   if(!$('actlog'))return;
-  const rows=[]; qs.forEach(d=>rows.push(d.data()));
-  if(!rows.length){$('actlog').innerHTML='<p class="empty-hint">لا حركات بعد — ستظهر هنا كل إضافة أو حذف مع اسم من قام بها ووقتها.</p>';return;}
+  let rows=[]; qs.forEach(d=>rows.push(d.data()));
+  // فصل السجلّ بحسب العدّاد (طلب العميل): الموكَّل بالجرد يرى سجلّه هو فقط؛ ومَن ليس موكَّلًا (المدير/المطّلع) يرى الجميع
+  const _mine=(myProfile&&myProfile.uid)||''; const _assigned=isAssignedTo(curSess);
+  const _by={}; rows.forEach(a=>{ if(a.by)_by[a.by]=a.byName||a.by; });   // العدّادون الظاهرون في السجلّ
+  let _scope='';
+  if(_assigned){ rows=rows.filter(a=>!a.by||a.by===_mine);              // صفٌّ بلا فاعلٍ (نظاميّ/قديم) يبقى ظاهرًا
+    _scope='<div class="muted" style="font-size:12px;margin-bottom:6px">🧾 سجلّ نشاطك أنت — كلّ عدّادٍ يرى سجلّ عدّه فقط.</div>'; }
+  else { const _ks=Object.keys(_by);
+    if(_ks.length>1){ _scope='<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px"><span class="muted" style="font-size:12px">🧾 سجلّ الجميع — رشِّح بعدّاد:</span>'
+        +'<button class="btn '+(_actByFilter===''?'':'ghost ')+'sm actby" data-actby="">الكلّ</button>'
+        +_ks.map(u=>'<button class="btn '+(_actByFilter===u?'':'ghost ')+'sm actby" data-actby="'+esc(u)+'">'+esc(_by[u])+'</button>').join('')+'</div>';
+      if(_actByFilter)rows=rows.filter(a=>a.by===_actByFilter); }
+    else _scope='<div class="muted" style="font-size:12px;margin-bottom:6px">🧾 سجلّ نشاط الجميع.</div>'; }
+  const _wireBy=()=>{ if($('actlog'))$('actlog').querySelectorAll('.actby').forEach(b=>b.onclick=()=>{ _actByFilter=b.getAttribute('data-actby')||''; if(_actLastQs)renderActivity(_actLastQs); }); };
+  if(!rows.length){$('actlog').innerHTML=_scope+'<p class="empty-hint">لا حركات بعد — ستظهر هنا كل إضافة أو حذف مع اسم من قام بها ووقتها.</p>';_wireBy();return;}
   const tmap={add:'➕ إضافة',remove:'➖ حذف كمية',reset:'↺ تصفير صنف',note:'📝 ملاحظة عدّ',close:'🔒 إغلاق للمراجعة',reviewed:'✔ تمت المراجعة',fin_approve:'🖊 اعتماد مالي',approve:'✅ اعتماد وقفل',return:'↩ إرجاع للعدّ',toreview:'↩ إرجاع للمراجعة',reopen:'🔓 فتح استثنائي',sync:'🔄 مزامنة دون اتصال'};
   const tcol={add:'var(--success)',remove:'var(--danger)',reset:'var(--warn)',note:'var(--navy700)',close:'var(--navy500)',reviewed:'var(--navy500)',fin_approve:'var(--navy500)',approve:'var(--success)',return:'var(--warn)',toreview:'var(--warn)',reopen:'var(--danger)',sync:'var(--navy700)'};
-  $('actlog').innerHTML='<div style="max-height:300px;overflow:auto">'+rows.map(a=>{
+  $('actlog').innerHTML=_scope+'<div style="max-height:300px;overflow:auto">'+rows.map(a=>{
     const t=actWhen(a); const tstr=t?fmtDateTimeAr(t):'الآن';
     return '<div style="display:flex;gap:8px;align-items:baseline;padding:7px 2px;border-bottom:1px solid var(--hair);font-size:13px">'+
       '<span style="font-weight:700;color:'+(tcol[a.type]||'var(--tsec)')+';min-width:82px;white-space:nowrap">'+(tmap[a.type]||esc(a.type))+'</span>'+
       '<span style="flex:1">'+(a.qty!=null?'<b>'+fmt(a.qty)+'</b>'+((a.n>1&&histOpt('history.badge'))?' <span class="muted" title="تتابع عدٍّ واحدٌ متّصل">×'+fmt(a.n)+'</span>':'')+' — ':'')+esc(a.name||'')+(a.code?' <span class="muted" style="direction:ltr;unicode-bidi:embed">('+esc(a.code)+')</span>':'')+'</span>'+
       '<span class="muted" style="text-align:left;white-space:nowrap"><b>'+esc(a.byName||'')+'</b><br>'+esc(tstr)+'</span></div>';
   }).join('')+'</div>';
+  _wireBy();
 }
 
 // ===== BARCODE SCANNING (كاميرا + ماسح متصل، مع صوت بيب فعلي) =====

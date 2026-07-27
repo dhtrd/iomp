@@ -422,6 +422,26 @@ const flushAct = (page) => page.evaluate(() => window.__hist14.actFlush());
   await shut(page);
 }
 
+// ═════════ المجموعة فص — فصل السجلّ بحسب العدّاد (الموكَّل يرى سجلّه · المدير يرى الجميع) ═════════
+{
+  const page = await open();
+  const R = [{ type: 'add', code: 'A1', name: 'صنف أ', qty: 2, by: 'u_owner', byName: 'المالك' },
+             { type: 'add', code: 'B1', name: 'صنف ب', qty: 1, by: 'u_two', byName: 'سعيد' }];
+  await page.evaluate(() => window.__act.setAssigned(true));
+  const hMine = await page.evaluate(r => window.__act.render(r), R);
+  ok('فص١ العادّ الموكَّل يرى سجلّه فقط', hMine.indexOf('صنف أ') >= 0 && hMine.indexOf('صنف ب') < 0, hMine.slice(0, 140));
+  ok('فص٢ ولا يظهر اسم العدّاد الآخر', hMine.indexOf('سعيد') < 0);
+  ok('فص٣ ولافتة «سجلّ نشاطك» ظاهرة', hMine.indexOf('سجلّ نشاطك') >= 0);
+  await page.evaluate(() => window.__act.setAssigned(false));
+  const hAll = await page.evaluate(r => window.__act.render(r), R);
+  ok('فص٤ المدير غير الموكَّل يرى الاثنين', hAll.indexOf('صنف أ') >= 0 && hAll.indexOf('صنف ب') >= 0, hAll.slice(0, 140));
+  ok('فص٥ وأزرار الفلترة بالعدّاد ظاهرة (بالاسمين)', hAll.indexOf('actby') >= 0 && hAll.indexOf('سعيد') >= 0 && hAll.indexOf('المالك') >= 0);
+  const okClick = await page.evaluate(() => window.__act.clickBy('u_two'));
+  const hTwo = await page.evaluate(() => document.getElementById('actlog').innerHTML);
+  ok('فص٦ الفلترة بعدّادٍ تعرض سجلّه وحده', okClick === true && hTwo.indexOf('صنف ب') >= 0 && hTwo.indexOf('صنف أ') < 0, hTwo.slice(0, 140));
+  await shut(page);
+}
+
 // ═════════ المجموعة ل — دون اتصال: الطابور يحمل التتابع ═════════
 {
   const page = await open({ config: ON_OFF });

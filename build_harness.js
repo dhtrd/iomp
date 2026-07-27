@@ -562,8 +562,24 @@ window.__ca7 = {
   max:()=>CA_MAX_PENDING,
   enterMs:()=>CA_ENTER_MS,
   switchAt:()=>_caSwitchAt,
-  ageSwitch:(ms)=>{ _caSwitchAt=Date.now()-Number(ms||0); }   // تقديم لحظة التبديل — لفحص حارس Enter بلا انتظارٍ حقيقيّ
+  ageSwitch:(ms)=>{ _caSwitchAt=Date.now()-Number(ms||0); },  // تقديم لحظة التبديل — لفحص حارس Enter بلا انتظارٍ حقيقيّ
+  // ح-٣: حفظ/استعادة المعلَّقات
+  save:()=>caSaveNow(),                                       // حفظٌ فوريٌّ (بلا كنس) — يُنتظَر
+  saved:(sid)=>offlineStore.get(CAPEND_KEY(sid)),             // ما هو مخزَّنٌ فعلًا لهذه الجلسة
+  serialize:()=>caSerialize(),
+  simRefresh:(sid)=>{ caReset(); return caRestore(sid); }     // يحاكي التحديث: يمسح الذاكرة ثمّ يستعيد من التخزين
 };
+// ح-٤: بوّابة الإقفال — تشغيلٌ وفحص حالة الحوار (محجوب/عاديّ/مزامنة)
+window.__closeGate = ()=>closeSessionGate();
+window.__closeState = ()=>{ const g=document.getElementById('govBody'), m=document.getElementById('govModal'); const txt=g?(g.textContent||''):'';
+  return { open:!!(m&&m.style.display!=='none'),
+    blocked:!!document.getElementById('cbForce'),
+    normal:!!document.getElementById('govCloseConfirm'),
+    sync:!!document.getElementById('cbSync'),
+    advisory:txt.indexOf('أنهوا المزامنة')>=0,
+    text:txt.trim() }; };
+window.__closeForce = ()=>{ const b=document.getElementById('cbForce'); if(b)b.click(); return !!b; };
+window.__closeConfirm = ()=>{ const b=document.getElementById('govCloseConfirm'); if(b)b.click(); return !!b; };
 /* ط-١٥ (د-٨): نداءٌ مباشرٌ للأغلفة التسعة نفسها التي يستعملها التطبيق — لا نسخةٌ منها.
    الغرض إثباتُ أنّ كلَّ اسمٍ قابلٍ للفوترة يمرّ من العدّاد، بلا الاعتماد على تدفّقٍ يخفي الفرق. */
 window.__probe9 = {
@@ -600,8 +616,15 @@ window.__act = {
   attach: (sid)=>actAttach(sid===undefined?curSid:sid),
   detach: ()=>{ if(actUnsub){ actUnsub(); actUnsub=null; } },
   lastQs: ()=>!!_actLastQs,
-  dirty: ()=>_actDirty
+  dirty: ()=>_actDirty,
+  // فصل السجلّ بحسب العدّاد: عرضٌ مباشرٌ لصفوفٍ معطاة، والتحكّم بالإسناد والفلتر
+  render:(rows)=>{ const el=document.getElementById('actlog'); if(!el)return ''; const qs={forEach:(f)=>rows.forEach(r=>f({data:()=>r}))}; _actLastQs=qs; renderActivity(qs); return el.innerHTML; },
+  assigned:()=>isAssignedTo(curSess),
+  setAssigned:(v)=>{ if(curSess)curSess.assignedCounters = v?[(myProfile&&myProfile.uid)||'u_owner']:[]; },
+  clickBy:(u)=>{ const b=document.querySelector('#actlog .actby[data-actby="'+String(u==null?'':u).replace(/"/g,'')+'"]'); if(b)b.click(); return !!b; },
+  byFilter:()=>_actByFilter
 };
+window.__rcl = ()=>renderCountList();   // إصلاح التداخل: تشغيل إعادة الرسم الكاملة (كما يفعلها تحديثُ عدّادٍ آخر)
 /* ط-١٦ (المهمّة ٨٢): خطاطيف لوحة الإعدادات — قراءةٌ وفحصٌ فقط، ولا تُستدعى من التطبيق. */
 window.__sets = {
   spec: ()=>SETSPEC.map(s=>({g:s.g,title:s.title,save:s.save,status:s.status,keys:s.fields.map(f=>f.k),

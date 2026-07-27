@@ -443,6 +443,21 @@ async function settle(page, extra) {
   await page.close();
 }
 
+// ═════════ ص — إصلاح التداخل: إعادة الرسم لا تمحو إدخال العدّاد اليدويّ ولا تسرق تركيزه ═════════
+{
+  const page = await open();
+  await page.evaluate(c => { const el = [...document.querySelectorAll('.padd')].find(p => p.getAttribute('data-code') === c); el.focus(); el.value = '7'; }, cd(5));
+  await page.evaluate(() => window.__rcl());   // إعادة رسمٍ كاملة — كالتي يُطلقها onSnapshot حين يكتب عدّادٌ آخر
+  const st = await page.evaluate(() => { const a = document.activeElement; const p = a && a.classList && a.classList.contains('padd'); return { code: p ? a.getAttribute('data-code') : null, val: p ? a.value : null }; });
+  ok('ص١ إعادة الرسم لا تسرق التركيز من خانة «أضف»', st.code === cd(5), 'code=' + st.code);
+  ok('ص٢ وقيمة الإدخال اليدويّ لم تُمحَ', st.val === '7', 'val=' + st.val);
+  // إعادة رسمٍ ثانية (كتابةٌ متتابعة من الآخر) تبقي التركيز والقيمة
+  await page.evaluate(() => window.__rcl());
+  const st2 = await page.evaluate(() => { const a = document.activeElement; const p = a && a.classList && a.classList.contains('padd'); return { code: p ? a.getAttribute('data-code') : null, val: p ? a.value : null }; });
+  ok('ص٣ ومع تكرار تحديثات الآخر يبقى الإدخال سليمًا', st2.code === cd(5) && st2.val === '7', JSON.stringify(st2));
+  await page.close();
+}
+
 await browser.close();
 let pass = 0; for (const r of results) { console.log((r.pass ? '✓' : '✗') + ' ' + r.n + (r.d && !r.pass ? ('  << ' + r.d) : '')); if (r.pass) pass++; }
 console.log(`\nRECON ${pass}/${results.length} ${pass === results.length ? 'passed' : 'FAILED'}`);
