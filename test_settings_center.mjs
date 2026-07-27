@@ -15,7 +15,7 @@ async function load(page,sc){ await page.goto(HARNESS+'?s='+encodeURIComponent(b
 // ===== SC1 — الافتراضات المعقولة حين لا إعداد =====
 { const page=await ctx.newPage(); await load(page,{profile:OWNER,users:[OWNER]});
   const cfg=await page.evaluate(()=>({ p:window.__printCfg(), e:window.__exportCfg(), r:window.__reportCfg() }));
-  ok('SC1 افتراضات الطباعة (A4/عمودي/شعار/أرقام صفحات)', cfg.p.paperSize==='A4'&&cfg.p.orientation==='portrait'&&cfg.p.showLogo===true&&cfg.p.showPageNumbers===true&&cfg.p.fontSize===11, JSON.stringify(cfg.p));
+  ok('SC1 افتراضات الطباعة (A4/عمودي/شعار/أرقام صفحات/خط تلقائي)', cfg.p.paperSize==='A4'&&cfg.p.orientation==='portrait'&&cfg.p.showLogo===true&&cfg.p.showPageNumbers===true&&cfg.p.fontSize==='auto', JSON.stringify(cfg.p));
   ok('SC1 افتراضات التصدير والتقارير', cfg.e.includeFilters===true&&cfg.r.defaultReport==='executive', JSON.stringify({e:cfg.e,r:cfg.r}));
   await page.close(); }
 

@@ -104,6 +104,35 @@ const count=(s,needle)=>s.split(needle).length-1;
   ok('P9 والإضافات المنفصلة الحقيقيّة تبقى مفصّلة (٤ + ٢)', html.includes('عبدالكريم الضيفي: 6')&&html.includes('(4 + 2)'), 'b='+html.includes('(4 + 2)'));
   await page.close(); }
 
+// ===== P10 (ط-١٩) — حجم خط الطباعة من الإدارة فعّال: ٨ نقاط ⇒ خطٌّ ٨px وحشوٌ أضيق (صفحاتٌ أقلّ) =====
+{ const page=await ctx.newPage(); await load(page,{profile:OWNER,users:[OWNER],sessions:[S1],config:{settings:{print:{fontSize:8}}}});
+  await openRep(page);
+  const html=await page.evaluate(()=>window.__buildReasonPrint('branch'));
+  ok('P10 خط الطباعة ٨ من الإدارة مُطبَّق (يتجاوز التلقائي 10.8) وحشوٌ أضيق', html.includes('font-size:8px')&&!html.includes('font-size:10.8px')&&html.includes('padding:2px 4px'), 'f8='+html.includes('font-size:8px'));
+  await page.close(); }
+
+// ===== P11 (ط-١٩) — خطٌّ أكبر (١٣) على المفصّل ⇒ ١٣px (يتجاوز التلقائي 9.5) مع بقاء colgroup (بلا قصّ) =====
+{ const page=await ctx.newPage(); await load(page,{profile:OWNER,users:[OWNER],sessions:[S1],config:{settings:{print:{fontSize:13}}}});
+  await openRep(page);
+  const html=await page.evaluate(()=>window.__buildReasonPrint('detailed'));
+  ok('P11 خط ١٣ يتجاوز التلقائي (9.5) على المفصّل ⇒ صفحاتٌ أكثر', html.includes('font-size:13px')&&!html.includes('font-size:9.5px'), 'f13='+html.includes('font-size:13px'));
+  ok('P11 colgroup باقٍ فالأعمدة تبقى داخل الورقة رغم الخط الأكبر', html.includes('<colgroup')&&count(html,'<col style')===13, 'cols='+count(html,'<col style'));
+  await page.close(); }
+
+// ===== P12 (ط-١٩) — خطٌّ صغيرٌ على المفصّل العريض (١٣ عمودًا) ⇒ ٨px مع بقاء كلّ الأعمدة (بلا فقدان بيانات) =====
+{ const page=await ctx.newPage(); await load(page,{profile:OWNER,users:[OWNER],sessions:[S1],config:{settings:{print:{fontSize:8}}}});
+  await openRep(page);
+  const html=await page.evaluate(()=>window.__buildReasonPrint('detailed'));
+  ok('P12 المفصّل العريض بخط ٨: البنط مُطبَّق وكلّ أعمدة القيم حاضرة (بلا قصّ)', html.includes('font-size:8px')&&count(html,'<col style')===13&&html.includes('القيمة الدفترية')&&html.includes('قيمة الفرق'), 'f8='+html.includes('font-size:8px')+' cols='+count(html,'<col style'));
+  await page.close(); }
+
+// ===== P13 (ط-١٩) — «تلقائي» (فارغ) يعود للاحتساب حسب الأعمدة (سلوك م٦): مراجعة الفرع 10.8px =====
+{ const page=await ctx.newPage(); await load(page,{profile:OWNER,users:[OWNER],sessions:[S1],config:{settings:{print:{fontSize:'auto'}}}});
+  await openRep(page);
+  const html=await page.evaluate(()=>window.__buildReasonPrint('branch'));
+  ok('P13 «تلقائي» يعيد البنط الآليّ (10.8 لمراجعة الفرع)', html.includes('font-size:10.8px'), 'auto='+html.includes('font-size:10.8px'));
+  await page.close(); }
+
 await browser.close();
 let pass=0; for(const r of results){ console.log((r.pass?'✓':'✗')+' '+r.n+(r.d&&!r.pass?('  << '+r.d):'')); if(r.pass)pass++; }
 console.log(`\nRECON ${pass}/${results.length} ${pass===results.length?'passed':'FAILED'}`);

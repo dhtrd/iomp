@@ -2461,7 +2461,7 @@ function renderAdminCenter(c){
     '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px">'+
     '<div class="field"><label>حجم الورق</label><select id="opPaper">'+['A4','A5','Letter'].map(x=>'<option'+(pc.paperSize===x?' selected':'')+'>'+x+'</option>').join('')+'</select></div>'+
     '<div class="field"><label>اتجاه الصفحة</label><select id="opOrient"><option value="portrait"'+(pc.orientation==='portrait'?' selected':'')+'>عمودي</option><option value="landscape"'+(pc.orientation==='landscape'?' selected':'')+'>أفقي</option></select></div>'+
-    '<div class="field"><label>حجم الخط (نقطة)</label><input id="opFont" type="number" min="8" max="18" step="0.5" value="'+esc(pc.fontSize)+'"></div>'+
+    '<div class="field"><label>حجم خط الطباعة (نقطة)</label><input id="opFont" type="number" min="7" max="18" step="0.5" placeholder="تلقائي (حسب الأعمدة)" value="'+esc(pc.fontSize==='auto'?'':pc.fontSize)+'"><div class="muted" style="font-size:11.5px;margin-top:3px">فارغ = تلقائيّ. أصغر ⇒ نصٌّ أصغر وحشوٌ أضيق فصفحاتٌ أقلّ · أكبر ⇒ صفحاتٌ أكثر. يسري على كلّ المطبوعات.</div></div>'+
     '<div class="field"><label>التقرير الافتراضي</label><select id="opReport">'+REPX_CATALOG.reduce((a,g)=>a.concat(g.items),[]).filter(it=>it.kind!=='ledger').map(it=>'<option value="'+esc(it.id)+'"'+(rc.defaultReport===it.id?' selected':'')+'>'+esc(it.title)+'</option>').join('')+'</select></div>'+
     '</div>'+
     '<div class="field" style="margin-top:8px"><label>ترويسة المطبوعات (اختياري)</label><input id="opHeader" value="'+esc(pc.headerText||'')+'" placeholder="مثال: إدارة المخزون — شركة الضبيبي التجارية"></div>'+
@@ -2588,7 +2588,7 @@ async function acSaveCounting(){
 }
 // المحطّة ٢: حفظ إعدادات المخرجات المركزية (طباعة/تصدير/تقارير) في config/permissions.settings
 async function acSaveOutput(){ if(!can('perms.manage'))return;
-  const print={ paperSize:($('opPaper')?$('opPaper').value:'A4'), orientation:($('opOrient')?$('opOrient').value:'portrait'), fontSize:Number($('opFont')&&$('opFont').value)||11,
+  const print={ paperSize:($('opPaper')?$('opPaper').value:'A4'), orientation:($('opOrient')?$('opOrient').value:'portrait'), fontSize:(($('opFont')&&String($('opFont').value).trim()!=='')?(Number($('opFont').value)>0?Number($('opFont').value):'auto'):'auto'),
     headerText:($('opHeader')?$('opHeader').value.trim():''), footerText:($('opFooter')?$('opFooter').value.trim():''), watermark:($('opWater')?$('opWater').value.trim():''),
     showLogo:!!($('opLogo')&&$('opLogo').checked), showPageNumbers:!!($('opPageNum')&&$('opPageNum').checked) };
   const colKeys=DOC_COL_KEYS.filter(k=>document.querySelector('#opCols .opcol[value="'+k+'"]:checked')); // المحطّة ٣: أعمدة التصدير المختارة بالترتيب المعياري
@@ -3452,7 +3452,7 @@ function featuresSessionSummaryOn(){ return !!(permConfig && permConfig.features
 // م١٨: الإعدادات المركزية تعيش في config/permissions.settings (بلا وثيقة/قاعدة جديدة — perms.manage يكتبها بالفعل). غيابها ⇒ لا تغيّر سلوك.
 function appSettings(){ return (permConfig && permConfig.settings) || {}; }
 // المحطّة ٢ (مركز الإعدادات الموحّد): إعدادات المخرجات المركزية (طباعة/تصدير/تقارير) — تُحفظ في config/permissions.settings وتقودها قوالب المحطّة ٣
-const PRINT_DEFAULTS={ paperSize:'A4', orientation:'portrait', fontSize:11, showLogo:true, showPageNumbers:true, headerText:'', footerText:'', watermark:'' };
+const PRINT_DEFAULTS={ paperSize:'A4', orientation:'portrait', fontSize:'auto', showLogo:true, showPageNumbers:true, headerText:'', footerText:'', watermark:'' }; // ط-١٩: fontSize الافتراضيّ «auto» = احتسابٌ تلقائيّ حسب الأعمدة (سلوك م٦)؛ رقمٌ صريحٌ يتحكّم بالكثافة
 function printCfg(){ return Object.assign({},PRINT_DEFAULTS, appSettings().print||{}); }
 // إصلاح م٦ (قصّ أعمدة الطباعة): (أ) تفعيل «حجم الورق/اتجاه الصفحة» من إعدادات المخرجات فعليًّا عبر @page —
 // كانت data-orient/data-paper تُكتب بلا مستهلك؛ (ب) colgroup بأوزان لكل عمود + بنط تلقائي حسب عدد الأعمدة
@@ -3462,6 +3462,7 @@ const PRINT_COLW={name:2.3,notes:2.0,who:2.0,barcode:1.5,code:1.5,category:1.05,
 function printColgroup(cols){ const w=(cols||[]).map(c=>PRINT_COLW[c]||1.3); const t=w.reduce((a,b)=>a+b,0)||1;
   return '<colgroup>'+w.map(x=>'<col style="width:'+(Math.round(x/t*1000)/10)+'%">').join('')+'</colgroup>'; }
 function printFontFor(n){ return n>=12?9.5:(n>=10?10.2:(n>=8?10.8:11.5)); }
+function printFont(pc,ncols){ const v=pc&&pc.fontSize; return (v==='auto'||v==null||v===''||!(Number(v)>0))?printFontFor(ncols):Number(v); } // ط-١٩: حجم خطّ الطباعة الفعّال — «تلقائي» (فارغ) يحتسب حسب عدد الأعمدة (إصلاح م٦ ضدّ القصّ)، ورقمٌ صريحٌ من الإدارة يتحكّم بكثافة الصفحات (تقليلًا أو إكثارًا)
 // ===== الهوية والشعار: شعار SVG افتراضي («الصندوق المُتحقَّق» — صندوق مخزون أيزومتري + علامة تحقّق ذهبية) + إمكانية رفع شعار مخصّص (data URL) يُخزَّن في config/permissions.settings.branding — بلا خدمة خارجية ولا تكلفة، أثرٌ فوري. غيابه ⇒ الشعار الافتراضي.
 function defaultLogoSvg(stroke,px){ stroke=stroke||'#fff'; var wh=px?(' width="'+px+'" height="'+px+'"'):''; return '<svg viewBox="0 0 48 48"'+wh+' fill="none" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">'+
   '<path d="M24 6.5 L39.5 14.5 V31 L24 39.5 L8.5 31 V14.5 Z" stroke="'+stroke+'" stroke-width="2.5"/>'+
@@ -3882,7 +3883,7 @@ async function catExportXlsx(P){ try{ await loadXLSX(); }catch(e){ toastErr('ت�
   try{ const ws=XLSX.utils.aoa_to_sheet(catAoa(P).map(r=>r.map(v=>v==null?'':v))); ws['!views']=[{RTL:true}];
     const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'استيراد المنتجات'); XLSX.writeFile(wb,catFname(P)+'.xlsx'); }
   catch(e){ toastErr('تعذّر تصدير Excel.'); } }
-function catPrint(P){ const fin=canSeeFinance(), pc=printCfg(), fs=(Number(pc.fontSize)||11.5);
+function catPrint(P){ const fin=canSeeFinance(), pc=printCfg(), fs=printFont(pc,8); // ط-١٩: يحترم حجم خطّ الطباعة من الإدارة (auto=تلقائيّ)
   const tbl=d=>'<table style="width:100%;border-collapse:collapse;table-layout:fixed;font-size:'+fs+'px"><thead><tr>'+d.h.map(x=>'<th style="border:1px solid #999;padding:4px 6px;background:#E8EEF9;text-align:right">'+esc(x)+'</th>').join('')+'</tr></thead><tbody>'+
     (d.rows.length?d.rows.map(r=>'<tr>'+r.map(v=>'<td style="border:1px solid #bbb;padding:3px 6px;text-align:right">'+esc(typeof v==='number'?fmt(v):(v==null?'':v))+'</td>').join('')+'</tr>').join(''):'<tr><td colspan="'+d.h.length+'" style="border:1px solid #bbb;padding:8px;text-align:center">لا شيء.</td></tr>')+'</tbody></table>';
   let h=printPageCss(pc)+'<div data-orient="'+esc(pc.orientation||'portrait')+'" data-paper="'+esc(pc.paperSize||'A4')+'" style="font-family:\'IBM Plex Sans Arabic\',sans-serif;direction:rtl;color:#000;padding:6px 10px">'+
@@ -5717,7 +5718,8 @@ function buildPrintReport(reasonKey){
   if(!R.summaryOnly){
   // م٦-٣: تنبيه النطاق — إن كان المطبوع مُصفّى (أقلّ من كامل أصناف الجلسة) كي لا تُقرأ إجمالياته على أنها الجرد الكامل
   { const full=(repRows&&repRows.length)||rows.length; if(rows.length<full) html+='<div style="font-size:11.5px;color:#B26A12;margin:-4px 0 10px">⚠ تقرير مُصفّى: يعرض '+fmt(rows.length)+' من '+fmt(full)+' صنفًا — الإجماليات أعلاه للمعروض فقط لا لكامل الجرد.</div>'; }
-  const dense=cols.length>=10, padTh=dense?'4px 4px':'5px 7px', padTd=dense?'3px 4px':'4px 7px'; // إصلاح م٦: حشو مكثّف للأعمدة الكثيرة كي تتّسع الأرقام بلا التفاف داخلها
+  const fs=printFont(pc,cols.length); const dense=cols.length>=10, tight=fs<9.5; // ط-١٩: خطّ الطباعة من الإدارة (auto=احتساب م٦ ضدّ القصّ)؛ خطٌّ صغيرٌ ⇒ حشوٌ أضيق (النصّ وغيره) لتقليل الصفحات
+  const padTh=tight?'2.5px 4px':(dense?'4px 4px':'5px 7px'), padTd=tight?'2px 4px':(dense?'3px 4px':'4px 7px'); // إصلاح م٦: حشوٌ مكثّفٌ للأعمدة الكثيرة كي تتّسع الأرقام بلا التفاف داخلها
   const th=cols.map(c=>'<th style="border:1px solid #999;padding:'+padTh+';background:#E8EEF9;color:#142440;'+(PRINT_COLDEF[c].num?'text-align:center':'text-align:right')+'">'+esc(PRINT_COLDEF[c].th)+'</th>').join('');
   const body=rows.map(r=>'<tr>'+cols.map(c=>{const d=PRINT_COLDEF[c];return '<td style="border:1px solid #bbb;padding:'+padTd+';'+(d.num?'text-align:center;font-variant-numeric:tabular-nums':'text-align:right')+(d.ltr?';direction:ltr;white-space:nowrap':'')+(c==='status'?';white-space:nowrap':'')+'">'+d.get(r)+'</td>';}).join('')+'</tr>').join(''); // إصلاح م٦: الأكواد والحالة لا تنكسر في المنتصف أبدًا
   let tf='';
@@ -5728,7 +5730,7 @@ function buildPrintReport(reasonKey){
       return '<td style="border:1px solid #999;padding:'+padTh+';background:#E8EEF9"></td>';
     }).join('')+'</tr>';
   }
-  html+='<table style="width:100%;border-collapse:collapse;table-layout:fixed;font-size:'+printFontFor(cols.length)+'px">'+printColgroup(cols)+'<thead><tr>'+th+'</tr></thead><tbody>'+(rows.length?body:'<tr><td colspan="'+cols.length+'" style="padding:10px;text-align:center;border:1px solid #bbb">لا أصناف مطابقة للمرشّحات الحالية.</td></tr>')+'</tbody>'+(R.totals&&rows.length?'<tfoot>'+tf+'</tfoot>':'')+'</table>'; // إصلاح م٦: احتواء كل الأعمدة داخل الورقة (colgroup موزون + بنط تلقائي)
+  html+='<table style="width:100%;border-collapse:collapse;table-layout:fixed;font-size:'+fs+'px">'+printColgroup(cols)+'<thead><tr>'+th+'</tr></thead><tbody>'+(rows.length?body:'<tr><td colspan="'+cols.length+'" style="padding:10px;text-align:center;border:1px solid #bbb">لا أصناف مطابقة للمرشّحات الحالية.</td></tr>')+'</tbody>'+(R.totals&&rows.length?'<tfoot>'+tf+'</tfoot>':'')+'</table>'; // إصلاح م٦: احتواء كل الأعمدة داخل الورقة (colgroup موزون) • ط-١٩: البنط من الإدارة (auto=تلقائيّ)
   } // نهاية جدول الأصناف — يُتخطّى في المحاضر الملخّصة
   if(R.sign){
     const line='..........................';
@@ -6005,7 +6007,7 @@ function repxBuildPrint(name){ name=name||repxActive; const d=repxTableData(name
   const logo=printLogoHtml(); // الشعار: شعار مخصّص/افتراضي + اسم الشركة (يحترم «إظهار الشعار»)
   const th=d.head.map(h=>'<th style="border:1px solid #999;padding:5px 7px;background:#E8EEF9;color:#142440;text-align:right">'+esc(h)+'</th>').join('');
   const body=d.rows.map(r=>'<tr>'+r.map(c=>'<td style="border:1px solid #bbb;padding:4px 7px;text-align:right">'+esc(c)+'</td>').join('')+'</tr>').join('')||'<tr><td colspan="'+d.head.length+'" style="padding:10px;text-align:center;border:1px solid #bbb">لا بيانات.</td></tr>';
-  const inner='<table style="width:100%;border-collapse:collapse;table-layout:fixed;font-size:'+(Number(pc.fontSize)||11.5)+'px"><thead><tr>'+th+'</tr></thead><tbody>'+body+'</tbody></table>'; // إصلاح م٦: احتواء العرض
+  const inner='<table style="width:100%;border-collapse:collapse;table-layout:fixed;font-size:'+printFont(pc,d.head.length)+'px"><thead><tr>'+th+'</tr></thead><tbody>'+body+'</tbody></table>'; // إصلاح م٦: احتواء العرض • ط-١٩: البنط من الإدارة (auto=تلقائيّ حسب الأعمدة)
   const customHead=pc.headerText?'<div style="font-size:12px;color:#1F3864;font-weight:600;margin-bottom:2px">'+esc(pc.headerText)+'</div>':'';
   const watermark=pc.watermark?'<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:0"><div style="font-size:72px;color:rgba(31,56,100,0.08);transform:rotate(-30deg);font-weight:800">'+esc(pc.watermark)+'</div></div>':'';
   const footer=(pc.footerText||pc.showPageNumbers!==false)?'<div style="margin-top:10px;padding-top:6px;border-top:1px solid #ccc;display:flex;justify-content:space-between;font-size:11px;color:#666"><span>'+esc(pc.footerText||'')+'</span>'+(pc.showPageNumbers!==false?'<span>صفحة ‏__</span>':'<span></span>')+'</div>':'';
