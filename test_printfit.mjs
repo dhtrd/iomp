@@ -33,7 +33,7 @@ const count=(s,needle)=>s.split(needle).length-1;
   const cols=count(html,'<col style'); const ths=count(html.split('<thead>')[1].split('</thead>')[0],'<th');
   ok('P1 colgroup موجود وعدد <col> يساوي عدد رؤوس الأعمدة', html.includes('<colgroup')&&cols===ths&&cols===13, `cols=${cols} ths=${ths}`);
   ok('P1 الجدول table-layout:fixed وبنط تلقائي 9.5px للأعمدة الكثيرة', html.includes('table-layout:fixed')&&html.includes('font-size:9.5px'));
-  ok('P1 ‎@page مُفعّل (A4 عمودي افتراضيًّا)', html.includes('@page{size:A4}'), html.slice(0,60));
+  ok('P1 ‎@page مُفعّل باتّجاهٍ صريح (A4 portrait) يُقفل تخطيط الحوار', html.includes('@page{size:A4 portrait}'), html.slice(0,60));
   ok('P1 كل بيانات الأعمدة حاضرة في المطبوعة (القيم والملاحظات والتكلفة)', html.includes('القيمة الدفترية')&&html.includes('القيمة الفعلية')&&html.includes('قيمة الفرق')&&html.includes('التكلفة')&&html.includes('الملاحظات')&&html.includes('ملاحظة وقت العد'));
   const ws=[...html.matchAll(/<col style="width:([\d.]+)%"/g)].map(m=>Number(m[1])); const sum=ws.reduce((a,b)=>a+b,0);
   ok('P1 أوزان colgroup تجمع ≈١٠٠٪', Math.abs(sum-100)<1.5, String(sum));
@@ -59,7 +59,7 @@ const count=(s,needle)=>s.split(needle).length-1;
     config:{settings:{print:{paperSize:'Tabloid'}}}});
   await openRep(page);
   const html=await page.evaluate(()=>window.__buildReasonPrint('branch'));
-  ok('P4 حجم غير مدعوم يرتد إلى A4', html.includes('@page{size:A4}'), html.slice(0,60));
+  ok('P4 حجم غير مدعوم يرتد إلى A4 (عمودي صريح)', html.includes('@page{size:A4 portrait}'), html.slice(0,60));
   await page.close(); }
 
 // ===== P5 — قواعد CSS للطباعة (الاحتواء وكسر الكلمات) موجودة في الصفحة =====
@@ -131,6 +131,13 @@ const count=(s,needle)=>s.split(needle).length-1;
   await openRep(page);
   const html=await page.evaluate(()=>window.__buildReasonPrint('branch'));
   ok('P13 «تلقائي» يعيد البنط الآليّ (10.8 لمراجعة الفرع)', html.includes('font-size:10.8px'), 'auto='+html.includes('font-size:10.8px'));
+  await page.close(); }
+
+// ===== P14 (ط-٢١) — إصلاح الانزياح: الاتّجاه صريحٌ دائمًا فيُقفَل تخطيط الحوار على إعداد الإدارة =====
+{ const page=await ctx.newPage(); await load(page,{profile:OWNER,users:[OWNER],sessions:[S1],config:{settings:{print:{orientation:'landscape'}}}});
+  await openRep(page);
+  const land=await page.evaluate(()=>window.__buildReasonPrint('branch'));
+  ok('P14 اتّجاه الإدارة «أفقي» ⇒ @page{size:A4 landscape} صريح (يملأ الورقة بلا انزياح)', land.includes('@page{size:A4 landscape}'), land.slice(0,60));
   await page.close(); }
 
 await browser.close();
