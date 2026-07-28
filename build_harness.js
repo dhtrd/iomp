@@ -286,6 +286,28 @@ window.__openPrintDialog = ()=>{ try{ openPrintDialog(); }catch(e){} };
 window.__openExportDialog = ()=>{ try{ openExportDialog(); }catch(e){} };
 window.__disp = (id)=>{ const e=document.getElementById(id); return e?getComputedStyle(e).display:'ABSENT'; };
 window.__buildReasonPrint = (k)=>{ buildPrintReport(k); return document.getElementById('repPrintArea').innerHTML; };
+// ط-٢٢: خطّافات نظام الصفحة الثابتة + محرّك الكثافة
+window.__pd = {
+  preset: ()=>pdPreset(), k: ()=>pdK(),
+  set: (p,c)=>{ pdSave(p,c); return pdPreset(); },
+  reset: ()=>{ repDensity={preset:'',custom:100}; try{ localStorage.removeItem('iomp-print-density'); }catch(e){} },
+  stored: ()=>{ try{ return JSON.parse(localStorage.getItem('iomp-print-density')||'null'); }catch(e){ return null; } },
+  font: (n)=>pdFont(printCfg(),n),
+  geom: ()=>pgGeom(printCfg()),
+  estimate: ()=>pdEstimate(),
+  wire: ()=>{ pdWire(); return true; },
+  chips: ()=>[...document.querySelectorAll('#pdChips [data-pd]')].map(b=>({v:b.getAttribute('data-pd'),on:b.classList.contains('on'),t:b.textContent})),
+  clickChip: (v)=>{ const b=[...document.querySelectorAll('#pdChips [data-pd]')].find(x=>x.getAttribute('data-pd')===v); if(!b)return false; b.click(); return true; },
+  estText: ()=>{ const e=document.getElementById('pdEst'); return e?e.textContent:''; },
+  pages: ()=>document.querySelectorAll('#repPrintArea .pg').length,
+  pageRows: (i)=>{ const p=document.querySelectorAll('#repPrintArea .pg')[i]; return p?p.querySelectorAll('tbody tr').length:-1; },
+  pageHasTfoot: (i)=>{ const p=document.querySelectorAll('#repPrintArea .pg')[i]; return p?!!p.querySelector('tfoot'):null; },
+  pageHasSig: (i)=>{ const p=document.querySelectorAll('#repPrintArea .pg')[i]; return p?!!p.querySelector('.pg-sig'):null; },
+  footText: (i)=>{ const p=document.querySelectorAll('#repPrintArea .pg')[i]; const f=p&&p.querySelector('.pg-ft'); return f?f.textContent:''; },
+  pageStyle: (i)=>{ const p=document.querySelectorAll('#repPrintArea .pg')[i]; return p?p.getAttribute('style'):''; },
+  colgroupStr: ()=>{ const c=document.querySelector('#repPrintArea .pg colgroup'); return c?c.outerHTML:''; },
+  tableFont: ()=>{ const t=document.querySelector('#repPrintArea .pg table'); if(!t)return ''; const m=(t.getAttribute('style')||'').match(/font-size:([0-9.]+)px/); return m?m[1]:''; } // [0-9] لا \d — داخل قالب HOOKS يُبتلع الشرطة المائلة
+};
 window.__repSigList = ()=>repSigList(); // م٦-٣: محرّر أعضاء اللجنة (للفحص)
 window.__findByScan = (items,code)=>{ var s=(typeof curItems!=='undefined')?curItems:null; try{ curItems=items||[]; var r=findByScan(code); return r?String(r.code):null; } finally { if(s!==null)curItems=s; } }; // م٦-٣: مطابقة الباركود (للفحص)
 window.__lastUnknownScan = ()=>_lastUnknownScan; // م٦-٣: آخر مسحة مجهولة

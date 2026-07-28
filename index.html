@@ -205,6 +205,11 @@ td.num,th.num{text-align:center;font-variant-numeric:tabular-nums}
      table-layout:fixed يوزّع الأعمدة داخل عرض الصفحة دائمًا، وكسر الكلمات يلفّ المحتوى بدل بتره */
   #repPrintArea table{width:100%!important;table-layout:fixed!important}
   #repPrintArea th,#repPrintArea td{overflow-wrap:break-word;word-break:break-word}
+  /* ط-٢٢: نظام الصفحة الثابتة — كلّ لوحة .pg صفحةٌ فيزيائيّةٌ مستقلّة (فاصلٌ قسريّ بعدها)، والكتل الذيليّة لا تُشطر */
+  #repPrintArea .pg{break-after:page;page-break-after:always}
+  #repPrintArea .pg:last-child{break-after:auto;page-break-after:auto}
+  #repPrintArea .pg-sig,#repPrintArea tfoot{break-inside:avoid;page-break-inside:avoid}
+  #repPrintArea .pg{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
 /* ===== تخصيص المظهر (لوحة منسدلة) + الكثافة (م٥) ===== */
 .apwrap{position:relative}
@@ -957,6 +962,9 @@ input[type="checkbox"]:not(.rcap):not(.rtask){width:18px!important;min-width:18p
 .mfilt-actions .btn{flex:1 1 auto;white-space:nowrap;min-width:0}
 .mfilt-actions .btn:disabled{opacity:.5;cursor:not-allowed}
 @media(max-width:560px){.rtools .mfilt-box{flex-basis:100%}.rtools .mfilt-box,.rtools .mfilt-box .msel-btn{width:100%}}
+/* ط-٢٢: رقاقات كثافة الطباعة في نافذة الأسباب */
+.pdchip.on{background:var(--navy700)!important;border-color:var(--navy700)!important;color:var(--on-accent)!important}
+#pdCustomSel.pdcustom-on{border-color:var(--navy700);box-shadow:0 0 0 2px color-mix(in srgb,var(--navy700) 18%,transparent)}
 </style>
 </head>
 <body>
@@ -1111,6 +1119,12 @@ input[type="checkbox"]:not(.rcap):not(.rtask){width:18px!important;min-width:18p
       <button class="btn ghost" data-reason="varianceSummary" id="prVarSum" style="text-align:right;line-height:1.5">📉 محضر ملخّص الفروقات <span class="muted" style="font-weight:400">— ملخص كتابي بالإجماليات + تواقيع (بعد الاعتماد)</span></button>
       <button class="btn ghost" data-reason="handover" id="prHandover" style="text-align:right;line-height:1.5">🔁 محضر استلام مخزون <span class="muted" style="font-weight:400">— ملخص كتابي + المُسلِّم/المُستلِم (بلا جدول)</span></button>
       <button class="btn ghost" data-reason="custody" style="text-align:right;line-height:1.5">📦 محضر عهدة <span class="muted" style="font-weight:400">— جدول الأصناف المعدودة كعهدة (منفصل)</span></button>
+    </div>
+    <div id="pdBar" style="margin-top:14px;border-top:1px solid var(--border);padding-top:12px">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px"><label style="font-size:13px;font-weight:700">🖨 كثافة الطباعة:</label><div id="pdChips" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+        <span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--tsec)">مخصّص <select id="pdCustomSel"><option>80</option><option>85</option><option>90</option><option>95</option><option>100</option><option>105</option><option>110</option></select>٪</span></div>
+      <div class="muted" id="pdEst" style="font-size:12px;line-height:1.7"></div>
+      <div class="muted" style="font-size:11px;margin-top:2px">أصغر ⇒ صفوفٌ أكثر وصفحاتٌ أقلّ — والأعمدة والتخطيط ثابتان. أبقِ مقياس المتصفّح على «افتراضيّ». يُحفَظ اختيارك لجهازك.</div>
     </div>
     <div id="prSigWrap" style="margin-top:14px;border-top:1px solid var(--border);padding-top:12px">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap"><label style="font-size:13px;font-weight:700">📅 تاريخ الجرد (في {date}):</label><span style="position:relative;display:inline-block"><span class="rdc-field" data-pop="prReportPop"><span>📅</span><span class="rdc-txt" id="prReportTxt">اختر التاريخ</span><span style="margin-inline-start:6px;opacity:.55">▾</span></span><span class="rdc-pop" id="prReportPop"></span></span></div>
@@ -2370,7 +2384,8 @@ function renderAdminCenter(c){
     '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px">'+
     '<div class="field"><label>حجم الورق</label><select id="opPaper">'+['A4','A5','Letter'].map(x=>'<option'+(pc.paperSize===x?' selected':'')+'>'+x+'</option>').join('')+'</select></div>'+
     '<div class="field"><label>اتجاه الصفحة</label><select id="opOrient"><option value="portrait"'+(pc.orientation==='portrait'?' selected':'')+'>عمودي</option><option value="landscape"'+(pc.orientation==='landscape'?' selected':'')+'>أفقي</option></select></div>'+
-    '<div class="field"><label>حجم خط الطباعة (نقطة)</label><input id="opFont" type="number" min="7" max="18" step="0.5" placeholder="تلقائي (حسب الأعمدة)" value="'+esc(pc.fontSize==='auto'?'':pc.fontSize)+'"><div class="muted" style="font-size:11.5px;margin-top:3px">فارغ = تلقائيّ. أصغر ⇒ نصٌّ أصغر وحشوٌ أضيق فصفحاتٌ أقلّ · أكبر ⇒ صفحاتٌ أكثر. يسري على كلّ المطبوعات.</div></div>'+
+    '<div class="field"><label>حجم خط الطباعة (نقطة)</label><input id="opFont" type="number" min="7" max="18" step="0.5" placeholder="تلقائي (حسب الأعمدة)" value="'+esc(pc.fontSize==='auto'?'':pc.fontSize)+'"><div class="muted" style="font-size:11.5px;margin-top:3px">فارغ = تلقائيّ (معايرة أساسٍ متقدّمة). الاستعمال اليوميّ عبر «كثافة الطباعة».</div></div>'+
+    '<div class="field"><label>كثافة الطباعة الافتراضيّة</label><select id="opDensity">'+PD_PRESETS.map(p=>'<option value="'+p[0]+'"'+(String(pc.density||'standard')===p[0]?' selected':'')+'>'+p[1]+'</option>').join('')+'</select><div class="muted" style="font-size:11.5px;margin-top:3px">الافتراض المؤسّسيّ لمحرّك الكثافة (ط-٢٢) — ولكلّ مشغّلٍ تغييرها من نافذة الطباعة (تُحفَظ لجهازه).</div></div>'+
     '<div class="field"><label>التقرير الافتراضي</label><select id="opReport">'+REPX_CATALOG.reduce((a,g)=>a.concat(g.items),[]).filter(it=>it.kind!=='ledger').map(it=>'<option value="'+esc(it.id)+'"'+(rc.defaultReport===it.id?' selected':'')+'>'+esc(it.title)+'</option>').join('')+'</select></div>'+
     '</div>'+
     '<div class="field" style="margin-top:8px"><label>ترويسة المطبوعات (اختياري)</label><input id="opHeader" value="'+esc(pc.headerText||'')+'" placeholder="مثال: إدارة المخزون — شركة الضبيبي التجارية"></div>'+
@@ -2478,7 +2493,7 @@ async function acSaveCounting(){
   }catch(err){ st('acCountStatus','err','تعذّر الحفظ: '+errAr(err.code||err.message)); }
 }
 async function acSaveOutput(){ if(!can('perms.manage'))return;
-  const print={ paperSize:($('opPaper')?$('opPaper').value:'A4'), orientation:($('opOrient')?$('opOrient').value:'portrait'), fontSize:(($('opFont')&&String($('opFont').value).trim()!=='')?(Number($('opFont').value)>0?Number($('opFont').value):'auto'):'auto'),
+  const print={ paperSize:($('opPaper')?$('opPaper').value:'A4'), orientation:($('opOrient')?$('opOrient').value:'portrait'), fontSize:(($('opFont')&&String($('opFont').value).trim()!=='')?(Number($('opFont').value)>0?Number($('opFont').value):'auto'):'auto'), density:($('opDensity')?$('opDensity').value:'standard'),
     headerText:($('opHeader')?$('opHeader').value.trim():''), footerText:($('opFooter')?$('opFooter').value.trim():''), watermark:($('opWater')?$('opWater').value.trim():''),
     showLogo:!!($('opLogo')&&$('opLogo').checked), showPageNumbers:!!($('opPageNum')&&$('opPageNum').checked) };
   const colKeys=DOC_COL_KEYS.filter(k=>document.querySelector('#opCols .opcol[value="'+k+'"]:checked'));
@@ -3279,12 +3294,26 @@ function featuresOfflineOn(){ return !!(permConfig && permConfig.features && per
 function featuresDropboxOn(){ return !!(permConfig && permConfig.features && permConfig.features.dropboxBackup); }
 function featuresSessionSummaryOn(){ return !!(permConfig && permConfig.features && permConfig.features.sessionSummary); }
 function appSettings(){ return (permConfig && permConfig.settings) || {}; }
-const PRINT_DEFAULTS={ paperSize:'A4', orientation:'portrait', fontSize:'auto', showLogo:true, showPageNumbers:true, headerText:'', footerText:'', watermark:'' };
+const PRINT_DEFAULTS={ paperSize:'A4', orientation:'portrait', fontSize:'auto', density:'standard', showLogo:true, showPageNumbers:true, headerText:'', footerText:'', watermark:'' };
 function printCfg(){ return Object.assign({},PRINT_DEFAULTS, appSettings().print||{}); }
-function printPageCss(pc){ const p=(['A4','A5','Letter'].indexOf(pc&&pc.paperSize)>=0?pc.paperSize:'A4'); const orient=((pc&&pc.orientation)==='landscape')?'landscape':'portrait'; return '<style>@page{size:'+p+' '+orient+'}</style>'; }
+const PD_PRESETS=[['comfortable','مريح',1.15],['standard','قياسيّ',1],['compact','مدمج',0.88],['xcompact','مدمج جدًّا',0.76]];
+const PD_K={comfortable:1.15,standard:1,compact:0.88,xcompact:0.76};
+let repDensity=(function(){ try{ const d=JSON.parse(localStorage.getItem('iomp-print-density')||'{}'); return {preset:String(d.preset||''),custom:(Number(d.custom)>0?Number(d.custom):100)}; }catch(e){ return {preset:'',custom:100}; } })();
+function pdPreset(){ const p=repDensity.preset||String(printCfg().density||'standard'); return (p==='custom'||PD_K[p])?p:'standard'; }
+function pdK(){ const p=pdPreset(); if(p==='custom'){ const c=Math.min(110,Math.max(80,Number(repDensity.custom)||100)); return c/100; } return PD_K[p]||1; }
+function pdSave(preset,custom){ repDensity={preset:String(preset||''),custom:(custom!=null?Number(custom):repDensity.custom)||100}; try{ localStorage.setItem('iomp-print-density',JSON.stringify(repDensity)); }catch(e){} }
+function pdScale(v){ return Math.round(v*pdK()*100)/100; }
+function pdFont(pc,ncols){ return Math.min(14,Math.max(7,pdScale(printFont(pc,ncols)))); }
+const PAGE_MM={A4:[210,297],A5:[148,210],Letter:[216,279]};
+function pgGeom(pc){ const pk=(['A4','A5','Letter'].indexOf(pc&&pc.paperSize)>=0?pc.paperSize:'A4'); const orient=((pc&&pc.orientation)==='landscape')?'landscape':'portrait';
+  let w=PAGE_MM[pk][0],h=PAGE_MM[pk][1]; if(orient==='landscape'){ const t=w; w=h; h=t; }
+  return { paper:pk, orient:orient, w:w, h:h, mx:8, mt:8, mb:13, cw:w-16 }; }
+function printPageCss(pc){ const g=pgGeom(pc); return '<style>@page{size:'+g.paper+' '+g.orient+';margin:0}</style>'; }
 const PRINT_COLW={name:2.3,notes:2.0,who:2.0,barcode:1.5,code:1.5,category:1.05,status:1.15};
-function printColgroup(cols){ const w=(cols||[]).map(c=>PRINT_COLW[c]||1.3); const t=w.reduce((a,b)=>a+b,0)||1;
-  return '<colgroup>'+w.map(x=>'<col style="width:'+(Math.round(x/t*1000)/10)+'%">').join('')+'</colgroup>'; }
+function printColgroup(cols,cwMm){ const w=(cols||[]).map(c=>PRINT_COLW[c]||1.3); const t=w.reduce((a,b)=>a+b,0)||1;
+  return '<colgroup>'+w.map(x=>'<col style="width:'+(Math.round(x/t*cwMm*100)/100)+'mm">').join('')+'</colgroup>'; }
+function pgProbe(cwMm){ const d=document.createElement('div'); d.style.cssText='position:absolute;visibility:hidden;left:-99999px;top:0;width:'+cwMm+'mm;direction:rtl;font-family:\'IBM Plex Sans Arabic\',sans-serif;color:#000'; document.body.appendChild(d); return d; }
+function pgPxPerMm(){ const d=document.createElement('div'); d.style.cssText='position:absolute;visibility:hidden;width:100mm'; document.body.appendChild(d); const w=d.getBoundingClientRect().width/100; d.remove(); return w||3.7795; }
 function printFontFor(n){ return n>=12?9.5:(n>=10?10.2:(n>=8?10.8:11.5)); }
 function printFont(pc,ncols){ const v=pc&&pc.fontSize; return (v==='auto'||v==null||v===''||!(Number(v)>0))?printFontFor(ncols):Number(v); }
 function defaultLogoSvg(stroke,px){ stroke=stroke||'#fff'; var wh=px?(' width="'+px+'" height="'+px+'"'):''; return '<svg viewBox="0 0 48 48"'+wh+' fill="none" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">'+
@@ -3662,7 +3691,7 @@ async function catExportXlsx(P){ try{ await loadXLSX(); }catch(e){ toastErr('ت�
   try{ const ws=XLSX.utils.aoa_to_sheet(catAoa(P).map(r=>r.map(v=>v==null?'':v))); ws['!views']=[{RTL:true}];
     const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'استيراد المنتجات'); XLSX.writeFile(wb,catFname(P)+'.xlsx'); }
   catch(e){ toastErr('تعذّر تصدير Excel.'); } }
-function catPrint(P){ const fin=canSeeFinance(), pc=printCfg(), fs=printFont(pc,8);
+function catPrint(P){ const fin=canSeeFinance(), pc=printCfg(), fs=pdFont(pc,8);
   const tbl=d=>'<table style="width:100%;border-collapse:collapse;table-layout:fixed;font-size:'+fs+'px"><thead><tr>'+d.h.map(x=>'<th style="border:1px solid #999;padding:4px 6px;background:#E8EEF9;text-align:right">'+esc(x)+'</th>').join('')+'</tr></thead><tbody>'+
     (d.rows.length?d.rows.map(r=>'<tr>'+r.map(v=>'<td style="border:1px solid #bbb;padding:3px 6px;text-align:right">'+esc(typeof v==='number'?fmt(v):(v==null?'':v))+'</td>').join('')+'</tr>').join(''):'<tr><td colspan="'+d.h.length+'" style="border:1px solid #bbb;padding:8px;text-align:center">لا شيء.</td></tr>')+'</tbody></table>';
   let h=printPageCss(pc)+'<div data-orient="'+esc(pc.orientation||'portrait')+'" data-paper="'+esc(pc.paperSize||'A4')+'" style="font-family:\'IBM Plex Sans Arabic\',sans-serif;direction:rtl;color:#000;padding:6px 10px">'+
@@ -5268,44 +5297,45 @@ function buildPrintReport(reasonKey){
   const logo=printLogoHtml();
   const customHead=pc.headerText?'<div style="font-size:12px;color:#1F3864;font-weight:600;margin-bottom:2px">'+esc(pc.headerText)+'</div>':'';
   const watermark=pc.watermark?'<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:0"><div style="font-size:80px;color:rgba(31,56,100,0.08);transform:rotate(-30deg);font-weight:800">'+esc(pc.watermark)+'</div></div>':'';
-  let html=printPageCss(pc)+'<div data-orient="'+esc(pc.orientation||'portrait')+'" data-paper="'+esc(pc.paperSize||'A4')+'" style="font-family:\'IBM Plex Sans Arabic\',sans-serif;direction:rtl;color:#000;padding:6px 10px;position:relative">'+watermark+'<div style="position:relative;z-index:1">';
-  html+='<div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #1F3864;padding-bottom:8px;margin-bottom:10px">'+
+  const g=pgGeom(pc), k=pdK(), S=v=>Math.round(v*k*100)/100;
+  const headHtml='<div class="pg-hd" style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #1F3864;padding-bottom:'+S(8)+'px;margin-bottom:'+S(10)+'px">'+
     '<div>'+logo+customHead+
-    '<div style="font-size:14px;font-weight:600">'+(tpl.title?esc(docSubst(tpl.title,vctx)):(esc(R.label)+' — تقرير جرد المخزون'))+'</div>'+
-    '<div style="font-size:12px;color:#555">'+esc(repSess.name)+' • '+esc(repSess.location||'—')+(repSess.blind?' • جلسة عمياء':'')+'</div></div>'+
-    '<div style="text-align:left;font-size:12px;color:#555">التاريخ: '+esc(dateStr)+'<br>عدد الأصناف: '+fmt(sumRows.length)+'</div></div>';
-  if(tpl.intro) html+='<div style="font-size:12.5px;line-height:1.9;margin:8px 0;white-space:pre-wrap">'+esc(docSubst(tpl.intro,vctx))+'</div>';
-  if(Array.isArray(tpl.clauses)&&tpl.clauses.length) html+='<ol style="font-size:12.5px;line-height:1.9;margin:8px 0;padding-inline-start:22px">'+tpl.clauses.map(c=>'<li>'+esc(docSubst(c,vctx))+'</li>').join('')+'</ol>';
+    '<div style="font-size:'+S(14)+'px;font-weight:600">'+(tpl.title?esc(docSubst(tpl.title,vctx)):(esc(R.label)+' — تقرير جرد المخزون'))+'</div>'+
+    '<div style="font-size:'+S(12)+'px;color:#555">'+esc(repSess.name)+' • '+esc(repSess.location||'—')+(repSess.blind?' • جلسة عمياء':'')+'</div></div>'+
+    '<div style="text-align:left;font-size:'+S(12)+'px;color:#555">التاريخ: '+esc(dateStr)+'<br>عدد الأصناف: '+fmt(sumRows.length)+'</div></div>';
+  let prelude='';
+  if(tpl.intro) prelude+='<div style="font-size:'+S(12.5)+'px;line-height:1.9;margin:'+S(8)+'px 0;white-space:pre-wrap">'+esc(docSubst(tpl.intro,vctx))+'</div>';
+  if(Array.isArray(tpl.clauses)&&tpl.clauses.length) prelude+='<ol style="font-size:'+S(12.5)+'px;line-height:1.9;margin:'+S(8)+'px 0;padding-inline-start:22px">'+tpl.clauses.map(c=>'<li>'+esc(docSubst(c,vctx))+'</li>').join('')+'</ol>';
   if(R.summary){ const s2=summarize(sumRows); const finP=canSeeFinance(); const hasCost=finP&&s2.withCost>0; const m=n=>hasCost?fmt(round2(n)):'—';
     const qs=q=>(q?' ('+(q>0?'+':'−')+fmt(Math.abs(q))+' وحدة)':'');
     if(R.summaryOnly){
       const items=[['المعدود / إجمالي الأصناف', fmt(s2.counted)+' / '+fmt(s2.total),'']];
       if(finP) items.push(['مبلغ الزيادة', m(s2.surplusVal)+qs(s2.surplusQty),'pos'],['مبلغ العجز', m(Math.abs(s2.deficitVal))+qs(-s2.deficitQty),'neg'],['القيمة الدفترية', m(s2.bookVal),''],['القيمة الفعلية', m(s2.countedVal),''],['صافي قيمة الفروقات (الفارق)', m(s2.netVar)+qs(s2.netQty), s2.netVar<-1e-9?'neg':(s2.netVar>1e-9?'pos':'')]);
-      html+='<div style="background:#F3F6FC;border:1px solid #DCE6F5;border-radius:10px;padding:6px 14px;margin:12px 0;font-size:12.5px">'+
-        items.map((it,i)=>'<div style="display:flex;justify-content:space-between;gap:10px;padding:5px 0'+(i<items.length-1?';border-bottom:1px dashed #DCE6F5':'')+'"><span>'+it[0]+'</span><b style="'+(it[2]==='pos'?'color:#0A7D55':(it[2]==='neg'?'color:#C0344F':'color:#142440'))+'">'+it[1]+'</b></div>').join('')+'</div>';
+      prelude+='<div style="background:#F3F6FC;border:1px solid #DCE6F5;border-radius:10px;padding:'+S(6)+'px '+S(14)+'px;margin:'+S(12)+'px 0;font-size:'+S(12.5)+'px">'+
+        items.map((it,i)=>'<div style="display:flex;justify-content:space-between;gap:10px;padding:'+S(5)+'px 0'+(i<items.length-1?';border-bottom:1px dashed #DCE6F5':'')+'"><span>'+it[0]+'</span><b style="'+(it[2]==='pos'?'color:#0A7D55':(it[2]==='neg'?'color:#C0344F':'color:#142440'))+'">'+it[1]+'</b></div>').join('')+'</div>';
     } else {
-      const chip=(k,v)=>'<span style="border:1px solid #ccc;border-radius:6px;padding:4px 10px">'+k+': <b>'+v+'</b></span>';
-      html+='<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;font-size:12px">'+
+      const chip=(kk,v)=>'<span style="border:1px solid #ccc;border-radius:6px;padding:'+S(4)+'px '+S(10)+'px">'+kk+': <b>'+v+'</b></span>';
+      prelude+='<div style="display:flex;flex-wrap:wrap;gap:'+S(8)+'px;margin-bottom:'+S(10)+'px;font-size:'+S(12)+'px">'+
         chip('المعدود',fmt(s2.counted)+' / '+fmt(s2.total))+chip('عجز',fmt(s2.downTotal))+chip('زيادة',fmt(s2.upTotal))+chip('منها خارج الدفتر',fmt(s2.extra))+
         (finP?chip('مبلغ الزيادة',m(s2.surplusVal)+qs(s2.surplusQty))+chip('مبلغ العجز',m(Math.abs(s2.deficitVal))+qs(-s2.deficitQty))+chip('القيمة الدفترية',m(s2.bookVal))+chip('القيمة الفعلية',m(s2.countedVal))+chip('صافي الفرق',m(s2.netVar)+qs(s2.netQty)):'')+'</div>';
     }
   }
-  if(!R.summaryOnly){
-  { const full=(repRows&&repRows.length)||rows.length; if(rows.length<full) html+='<div style="font-size:11.5px;color:#B26A12;margin:-4px 0 10px">⚠ تقرير مُصفّى: يعرض '+fmt(rows.length)+' من '+fmt(full)+' صنفًا — الإجماليات أعلاه للمعروض فقط لا لكامل الجرد.</div>'; }
-  const fs=printFont(pc,cols.length); const dense=cols.length>=10, tight=fs<9.5;
-  const padTh=tight?'2.5px 4px':(dense?'4px 4px':'5px 7px'), padTd=tight?'2px 4px':(dense?'3px 4px':'4px 7px');
-  const th=cols.map(c=>'<th style="border:1px solid #999;padding:'+padTh+';background:#E8EEF9;color:#142440;'+(PRINT_COLDEF[c].num?'text-align:center':'text-align:right')+'">'+esc(PRINT_COLDEF[c].th)+'</th>').join('');
-  const body=rows.map(r=>'<tr>'+cols.map(c=>{const d=PRINT_COLDEF[c];return '<td style="border:1px solid #bbb;padding:'+padTd+';'+(d.num?'text-align:center;font-variant-numeric:tabular-nums':'text-align:right')+(d.ltr?';direction:ltr;white-space:nowrap':'')+(c==='status'?';white-space:nowrap':'')+'">'+d.get(r)+'</td>';}).join('')+'</tr>').join('');
+  if(!R.summaryOnly){ const full=(repRows&&repRows.length)||rows.length; if(rows.length<full) prelude+='<div style="font-size:'+S(11.5)+'px;color:#B26A12;margin:'+(-S(4))+'px 0 '+S(10)+'px">⚠ تقرير مُصفّى: يعرض '+fmt(rows.length)+' من '+fmt(full)+' صنفًا — الإجماليات أعلاه للمعروض فقط لا لكامل الجرد.</div>'; }
+  const fs=pdFont(pc,cols.length); const dense=cols.length>=10;
+  const pTh=Math.max(1.5,S(dense?4:5))+'px '+Math.max(2,S(dense?4:7))+'px', pTd=Math.max(1.2,S(dense?3:4))+'px '+Math.max(2,S(dense?4:7))+'px';
+  const colg=printColgroup(cols,g.cw);
+  const tOpen='<table style="width:100%;border-collapse:collapse;table-layout:fixed;font-size:'+fs+'px">'+colg;
+  const th='<thead><tr>'+cols.map(c=>'<th style="border:1px solid #999;padding:'+pTh+';background:#E8EEF9;color:#142440;'+(PRINT_COLDEF[c].num?'text-align:center':'text-align:right')+'">'+esc(PRINT_COLDEF[c].th)+'</th>').join('')+'</tr></thead>';
+  const rowsArr=rows.map(r=>'<tr>'+cols.map(c=>{const d=PRINT_COLDEF[c];return '<td style="border:1px solid #bbb;padding:'+pTd+';'+(d.num?'text-align:center;font-variant-numeric:tabular-nums':'text-align:right')+(d.ltr?';direction:ltr;white-space:nowrap':'')+(c==='status'?';white-space:nowrap':'')+'">'+d.get(r)+'</td>';}).join('')+'</tr>');
   let tf='';
-  if(R.totals&&rows.length){
-    tf='<tr>'+cols.map((c,i)=>{ const d=PRINT_COLDEF[c];
-      if(i===0)return '<td style="border:1px solid #999;padding:'+padTh+';background:#E8EEF9;font-weight:700">الإجمالي</td>';
-      if(d.sum){ let acc=0,any=false; rows.forEach(r=>{const v=d.sum(r); if(v!=null){acc+=v;any=true;}}); return '<td style="border:1px solid #999;padding:'+padTh+';background:#E8EEF9;font-weight:700;text-align:center;font-variant-numeric:tabular-nums">'+(any?fmt(round2(acc)):'')+'</td>'; }
-      return '<td style="border:1px solid #999;padding:'+padTh+';background:#E8EEF9"></td>';
-    }).join('')+'</tr>';
+  if(!R.summaryOnly&&R.totals&&rows.length){
+    tf='<tfoot><tr>'+cols.map((c,i)=>{ const d=PRINT_COLDEF[c];
+      if(i===0)return '<td style="border:1px solid #999;padding:'+pTh+';background:#E8EEF9;font-weight:700">الإجمالي</td>';
+      if(d.sum){ let acc=0,any=false; rows.forEach(r=>{const v=d.sum(r); if(v!=null){acc+=v;any=true;}}); return '<td style="border:1px solid #999;padding:'+pTh+';background:#E8EEF9;font-weight:700;text-align:center;font-variant-numeric:tabular-nums">'+(any?fmt(round2(acc)):'')+'</td>'; }
+      return '<td style="border:1px solid #999;padding:'+pTh+';background:#E8EEF9"></td>';
+    }).join('')+'</tr></tfoot>';
   }
-  html+='<table style="width:100%;border-collapse:collapse;table-layout:fixed;font-size:'+fs+'px">'+printColgroup(cols)+'<thead><tr>'+th+'</tr></thead><tbody>'+(rows.length?body:'<tr><td colspan="'+cols.length+'" style="padding:10px;text-align:center;border:1px solid #bbb">لا أصناف مطابقة للمرشّحات الحالية.</td></tr>')+'</tbody>'+(R.totals&&rows.length?'<tfoot>'+tf+'</tfoot>':'')+'</table>';
-  }
+  let signHtml='';
   if(R.sign){
     const line='..........................';
     const cell=(label,name,title)=>'<div style="flex:1;min-width:150px">'+label+': '+(name?esc(name):line)+(title?' <span style="color:#555">('+esc(title)+')</span>':'')+'<br><br>التوقيع: '+line+'</div>';
@@ -5313,19 +5343,51 @@ function buildPrintReport(reasonKey){
     let appr='';
     if(approved){
       const dt=(repSess.approvedAt&&repSess.approvedAt.toDate)?repSess.approvedAt.toDate().toLocaleDateString('en-GB'):'';
-      appr='<div style="margin-top:14px;font-size:12px;color:#0a6">✔ جلسة معتمدة ومقفلة — سجّل الاعتماد: '+esc(repSess.approvedByName||'')+(repSess.approvedByTitle?' ('+esc(repSess.approvedByTitle)+')':'')+(dt?' — '+esc(dt):'')+'</div>';
+      appr='<div style="margin-top:'+S(14)+'px;font-size:'+S(12)+'px;color:#0a6">✔ جلسة معتمدة ومقفلة — سجّل الاعتماد: '+esc(repSess.approvedByName||'')+(repSess.approvedByTitle?' ('+esc(repSess.approvedByTitle)+')':'')+(dt?' — '+esc(dt):'')+'</div>';
     }
     const chairName=(approved&&repSess.approvedChairman)?repSess.approvedChairman:'';
     let hoBlocks='';
     if(R.handover){ const cpn=(repSess.custodyPrev&&repSess.custodyPrev.name)||'', cnn=(repSess.custodyNext&&repSess.custodyNext.name)||'';
-      hoBlocks='<div style="margin-top:22px;display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap;font-size:12px">'+cell('المسؤول السابق (المُسلِّم)',cpn,'')+cell('المسؤول الجديد (المُستلِم)',cnn,'')+'</div>'; }
-    let respBlock=''; if(R.showResp) respBlock='<div style="margin-top:22px;display:flex;font-size:12px">'+cell(respRoleLabel(),respName(),'')+'</div>';
+      hoBlocks='<div style="margin-top:'+S(22)+'px;display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap;font-size:'+S(12)+'px">'+cell('المسؤول السابق (المُسلِّم)',cpn,'')+cell('المسؤول الجديد (المُستلِم)',cnn,'')+'</div>'; }
+    let respBlock=''; if(R.showResp) respBlock='<div style="margin-top:'+S(22)+'px;display:flex;font-size:'+S(12)+'px">'+cell(respRoleLabel(),respName(),'')+'</div>';
     const sigs=docSignatories();
     const sig=sigs.map((sg,i)=>cell(sg.label+(sg.optional?' (اختياري)':''), sg.name||((i===0&&chairName)?chairName:''), '')).join('');
-    html+=appr+hoBlocks+respBlock+'<div style="margin-top:26px;display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap;font-size:12px">'+sig+'</div>';
+    signHtml='<div class="pg-sig">'+appr+hoBlocks+respBlock+'<div style="margin-top:'+S(26)+'px;display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap;font-size:'+S(12)+'px">'+sig+'</div></div>';
   }
-  const footer=(pc.footerText||pc.showPageNumbers!==false)?'<div style="margin-top:12px;padding-top:6px;border-top:1px solid #ccc;display:flex;justify-content:space-between;font-size:11px;color:#666"><span>'+esc(pc.footerText||'')+'</span>'+(pc.showPageNumbers!==false?'<span>صفحة ‏__</span>':'<span></span>')+'</div>':'';
-  html+=footer+'</div></div>';
+  const footHtml=(pno,tot)=>((pc.footerText||pc.showPageNumbers!==false)?'<div class="pg-ft" style="position:absolute;bottom:4mm;inset-inline:'+g.mx+'mm;border-top:1px solid #ccc;padding-top:'+S(4)+'px;display:flex;justify-content:space-between;font-size:'+S(11)+'px;color:#666"><span>'+esc(pc.footerText||'')+'</span>'+(pc.showPageNumbers!==false?'<span>صفحة '+fmt(pno)+' من '+fmt(tot)+'</span>':'<span></span>')+'</div>':'');
+  const px=pgPxPerMm(); const budget=(g.h-g.mt-g.mb-1)*px;
+  const probe=pgProbe(g.cw); let hH=0,preH=0,thH=0,tfH=0,sgH=0,rh=[];
+  try{
+    probe.innerHTML=headHtml; hH=probe.firstChild?probe.firstChild.getBoundingClientRect().height:0;
+    if(prelude){ probe.innerHTML='<div>'+prelude+'</div>'; preH=probe.firstChild.getBoundingClientRect().height; }
+    if(!R.summaryOnly&&rowsArr.length){ probe.innerHTML=tOpen+th+'<tbody>'+rowsArr.join('')+'</tbody></table>';
+      const thEl=probe.querySelector('thead'); thH=thEl?thEl.getBoundingClientRect().height:0;
+      probe.querySelectorAll('tbody tr').forEach(tr=>rh.push(tr.getBoundingClientRect().height)); }
+    if(tf){ probe.innerHTML=tOpen+tf+'</table>'; tfH=probe.firstChild.getBoundingClientRect().height; }
+    if(signHtml){ probe.innerHTML=signHtml; sgH=probe.firstChild.getBoundingClientRect().height; }
+  } finally { try{ probe.remove(); }catch(e){} }
+  const pages=[];
+  if(!R.summaryOnly&&rowsArr.length){
+    let i=0,first=true;
+    while(i<rowsArr.length){ let cap=budget-hH-thH-(first?preH:0); let used=0,j=i;
+      while(j<rowsArr.length&&used+rh[j]<=cap){ used+=rh[j]; j++; }
+      if(j===i)j=i+1;
+      pages.push({a:i,b:j,tail:false,used:used,first:first}); i=j; first=false; }
+    const last=pages[pages.length-1]; const tailH=tfH+sgH+S(6);
+    if(tailH>0){ const capLast=budget-hH-thH-(last.first?preH:0);
+      if(last.used+tailH<=capLast) last.tail=true; else pages.push({a:-1,b:-1,tail:true,used:0,first:false}); }
+  } else if(hH+preH+sgH+S(6)<=budget){ pages.push({a:-1,b:-1,tail:true,used:0,first:true}); }
+  else { pages.push({a:-1,b:-1,tail:false,used:0,first:true}); pages.push({a:-1,b:-1,tail:true,used:0,first:false}); }
+  const N=pages.length;
+  const pgOpen='<div class="pg" data-orient="'+g.orient+'" data-paper="'+g.paper+'" style="position:relative;width:'+g.w+'mm;height:'+(g.h-1)+'mm;padding:'+g.mt+'mm '+g.mx+'mm '+g.mb+'mm;box-sizing:border-box;overflow:hidden;background:#fff;font-family:\'IBM Plex Sans Arabic\',sans-serif;direction:rtl;color:#000">';
+  let html=printPageCss(pc);
+  pages.forEach((p,idx)=>{ let inner=headHtml+(p.first?prelude:'');
+    if(p.a>=0) inner+=tOpen+th+'<tbody>'+rowsArr.slice(p.a,p.b).join('')+'</tbody>'+(p.tail?tf:'')+'</table>';
+    else if(!R.summaryOnly&&!rowsArr.length&&idx===0) inner+=tOpen+th+'<tbody><tr><td colspan="'+cols.length+'" style="padding:10px;text-align:center;border:1px solid #bbb">لا أصناف مطابقة للمرشّحات الحالية.</td></tr></tbody></table>';
+    else if(p.a<0&&p.tail&&tf) inner+=tOpen+th+tf+'</table>';
+    if(p.tail) inner+=signHtml;
+    html+=pgOpen+watermark+'<div style="position:relative;z-index:1">'+inner+'</div>'+footHtml(idx+1,N)+'</div>';
+  });
   $('repPrintArea').innerHTML=html;
 }
 function handoverReady(){ return !!(repSess && repSess.custodyPrev && repSess.custodyPrev.name && repSess.custodyNext && repSess.custodyNext.name); }
@@ -5346,10 +5408,42 @@ function renderSigBox(boxId){ const box=$(boxId); if(!box)return; const list=rep
 function renderAllSig(){ renderSigBox('prSigRows'); renderSigBox('repSigRows'); }
 function sigAdd(){ repSigList().push({title:'عضو اللجنة',name:''}); persistSig(); renderAllSig(); }
 function renderPrSig(){ renderSigBox('prSigRows'); }
+function pdEstimate(){
+  try{
+    const pc=printCfg(), g=pgGeom(pc), px=pgPxPerMm(), k=pdK();
+    const rows=filteredReportRows(); const n=rows.length||0;
+    if(!n) return {n:0};
+    const est=(key)=>{ let cols=(key==='detailed')?docColumns():PRINT_REASONS[key].cols.slice(); cols=finFilterCols(cols);
+      const fs=pdFont(pc,cols.length); const dense=cols.length>=10;
+      const pTd=Math.max(1.2,Math.round((dense?3:4)*k*100)/100)+'px '+Math.max(2,Math.round((dense?4:7)*k*100)/100)+'px';
+      const sample=rows.slice(0,12); const probe=pgProbe(g.cw); let rH=0,thH=0;
+      try{ probe.innerHTML='<table style="width:100%;border-collapse:collapse;table-layout:fixed;font-size:'+fs+'px">'+printColgroup(cols,g.cw)+
+          '<thead><tr>'+cols.map(c=>'<th style="border:1px solid #999;padding:3px 4px">'+esc(PRINT_COLDEF[c].th)+'</th>').join('')+'</tr></thead><tbody>'+
+          sample.map(r=>'<tr>'+cols.map(c=>{const d=PRINT_COLDEF[c];return '<td style="border:1px solid #bbb;padding:'+pTd+'">'+d.get(r)+'</td>';}).join('')+'</tr>').join('')+'</tbody></table>';
+        const trs=probe.querySelectorAll('tbody tr'); let s=0; trs.forEach(t=>s+=t.getBoundingClientRect().height); rH=s/(trs.length||1);
+        const the=probe.querySelector('thead'); thH=the?the.getBoundingClientRect().height:0;
+      } finally { try{ probe.remove(); }catch(e){} }
+      const budget=(g.h-g.mt-g.mb-1)*px - Math.round(92*k) - thH;
+      const per=Math.max(1,Math.floor(budget/(rH||1)));
+      return {fs:fs,per:per,pages:Math.ceil(n/per)}; };
+    const b=est('branch'), d=est('detailed');
+    return {n:n,font:b.fs,perPage:b.per,pages:b.pages,pages2:d.pages,font2:d.fs};
+  }catch(e){ return {n:0}; }
+}
+function pdWire(){ const box=$('pdChips'); if(!box)return; const cur=pdPreset();
+  box.innerHTML=PD_PRESETS.map(p=>'<button type="button" class="btn ghost sm pdchip'+(cur===p[0]?' on':'')+'" data-pd="'+p[0]+'">'+p[1]+'</button>').join('');
+  box.querySelectorAll('[data-pd]').forEach(b=>b.onclick=()=>{ pdSave(b.getAttribute('data-pd')); pdWire(); });
+  const cs=$('pdCustomSel'); if(cs){ cs.value=String(Math.min(110,Math.max(80,Number(repDensity.custom)||100)));
+    cs.onchange=()=>{ pdSave('custom',Number(cs.value)); pdWire(); };
+    cs.classList.toggle('pdcustom-on',cur==='custom'); }
+  const el=$('pdEst'); if(el){ const e=pdEstimate();
+    el.textContent=e.n?('الصفحات المقدَّرة — مراجعة الفرع: ~'+fmt(e.pages)+' صفحة ('+fmt(e.perPage)+' صفًّا/صفحة) · المفصّل: ~'+fmt(e.pages2)+' صفحة · بنط الجدول: '+e.font+'px'):'لا أصناف مطابقة للمرشّحات الحالية.'; }
+}
 function openPrintDialog(){
   if(!can('report.export'))return;
   if(!printReasonsAllowed().length)return;
   const mo=$('printReasonModal'); if(!mo)return;
+  pdWire();
   mo.querySelectorAll('[data-reason]').forEach(b=>b.onclick=()=>doPrint(b.getAttribute('data-reason')));
   renderPrSig(); if($('prSigAdd'))$('prSigAdd').onclick=sigAdd;
   rdcSyncText();
@@ -5565,7 +5659,7 @@ function repxBuildPrint(name){ name=name||repxActive; const d=repxTableData(name
   const logo=printLogoHtml();
   const th=d.head.map(h=>'<th style="border:1px solid #999;padding:5px 7px;background:#E8EEF9;color:#142440;text-align:right">'+esc(h)+'</th>').join('');
   const body=d.rows.map(r=>'<tr>'+r.map(c=>'<td style="border:1px solid #bbb;padding:4px 7px;text-align:right">'+esc(c)+'</td>').join('')+'</tr>').join('')||'<tr><td colspan="'+d.head.length+'" style="padding:10px;text-align:center;border:1px solid #bbb">لا بيانات.</td></tr>';
-  const inner='<table style="width:100%;border-collapse:collapse;table-layout:fixed;font-size:'+printFont(pc,d.head.length)+'px"><thead><tr>'+th+'</tr></thead><tbody>'+body+'</tbody></table>';
+  const inner='<table style="width:100%;border-collapse:collapse;table-layout:fixed;font-size:'+pdFont(pc,d.head.length)+'px"><thead><tr>'+th+'</tr></thead><tbody>'+body+'</tbody></table>';
   const customHead=pc.headerText?'<div style="font-size:12px;color:#1F3864;font-weight:600;margin-bottom:2px">'+esc(pc.headerText)+'</div>':'';
   const watermark=pc.watermark?'<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:0"><div style="font-size:72px;color:rgba(31,56,100,0.08);transform:rotate(-30deg);font-weight:800">'+esc(pc.watermark)+'</div></div>':'';
   const footer=(pc.footerText||pc.showPageNumbers!==false)?'<div style="margin-top:10px;padding-top:6px;border-top:1px solid #ccc;display:flex;justify-content:space-between;font-size:11px;color:#666"><span>'+esc(pc.footerText||'')+'</span>'+(pc.showPageNumbers!==false?'<span>صفحة ‏__</span>':'<span></span>')+'</div>':'';
