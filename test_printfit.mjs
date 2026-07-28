@@ -152,9 +152,11 @@ const count=(s,needle)=>s.split(needle).length-1;
   await openRep(page,'sb');
   const r=await page.evaluate(()=>{ window.__buildReasonPrint('branch'); const P=window.__pd; const n=P.pages();
     let sum=0; for(let i=0;i<n;i++)sum+=P.pageRows(i);
-    return { n, sum, f1:P.footText(0), fN:P.footText(n-1) }; });
+    const full=document.querySelectorAll('#repPrintArea .pg-hd').length, slim=document.querySelectorAll('#repPrintArea .pg-hd2').length;
+    return { n, sum, f1:P.footText(0), fN:P.footText(n-1), full, slim }; });
   ok('ص١ لوحاتٌ متعدّدة ومجموع الصفوف كامل (١٢٠ بلا شطر)', r.n>=2&&r.sum===120, JSON.stringify({n:r.n,sum:r.sum}));
   ok('ص١ ترقيمٌ حقيقيّ: «صفحة 1 من N» و«صفحة N من N»', r.f1.includes('صفحة 1 من '+r.n)&&r.fN.includes('صفحة '+r.n+' من '+r.n), r.f1+' | '+r.fN);
+  ok('ص١ ط-٢٢ب: الترويسة الكاملة أولى الصفحات فقط وشريطٌ نحيفٌ للبقيّة (ورقٌ أقلّ)', r.full===1&&r.slim===r.n-1, JSON.stringify({full:r.full,slim:r.slim,n:r.n}));
   await page.close(); }
 
 // ص٢ — الإجماليّات والتواقيع على اللوحة الأخيرة فقط، ورأس الجدول يتكرّر على كلّ لوحة

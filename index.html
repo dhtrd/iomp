@@ -191,6 +191,8 @@ td.num,th.num{text-align:center;font-variant-numeric:tabular-nums}
 .dpos{color:var(--success);font-weight:700}.dneg{color:var(--danger);font-weight:700}
 .print-only{display:none}
 #repPrintArea{display:none}
+/* ط-٢٢ب: قاعدة td{font-size:13.5px} العامّة (للشاشة) كانت تفرض بنط خلايا المطبوعات وتشلّ بنط الجدول (ط-١٩) والكثافة (ط-٢٢) — داخل الطباعة والمسبار: توريثٌ صريح */
+#repPrintArea td,#repPrintArea th,.pgprobe td,.pgprobe th{font-size:inherit}
 @media(max-width:560px){.grid2{grid-template-columns:1fr}}
 @media print{
   html,body{background:#fff!important}
@@ -3307,12 +3309,12 @@ function pdFont(pc,ncols){ return Math.min(14,Math.max(7,pdScale(printFont(pc,nc
 const PAGE_MM={A4:[210,297],A5:[148,210],Letter:[216,279]};
 function pgGeom(pc){ const pk=(['A4','A5','Letter'].indexOf(pc&&pc.paperSize)>=0?pc.paperSize:'A4'); const orient=((pc&&pc.orientation)==='landscape')?'landscape':'portrait';
   let w=PAGE_MM[pk][0],h=PAGE_MM[pk][1]; if(orient==='landscape'){ const t=w; w=h; h=t; }
-  return { paper:pk, orient:orient, w:w, h:h, mx:8, mt:8, mb:13, cw:w-16 }; }
+  return { paper:pk, orient:orient, w:w, h:h, mx:8, mt:7, mb:10, cw:w-16 }; }
 function printPageCss(pc){ const g=pgGeom(pc); return '<style>@page{size:'+g.paper+' '+g.orient+';margin:0}</style>'; }
 const PRINT_COLW={name:2.3,notes:2.0,who:2.0,barcode:1.5,code:1.5,category:1.05,status:1.15};
 function printColgroup(cols,cwMm){ const w=(cols||[]).map(c=>PRINT_COLW[c]||1.3); const t=w.reduce((a,b)=>a+b,0)||1;
   return '<colgroup>'+w.map(x=>'<col style="width:'+(Math.round(x/t*cwMm*100)/100)+'mm">').join('')+'</colgroup>'; }
-function pgProbe(cwMm){ const d=document.createElement('div'); d.style.cssText='position:absolute;visibility:hidden;left:-99999px;top:0;width:'+cwMm+'mm;direction:rtl;font-family:\'IBM Plex Sans Arabic\',sans-serif;color:#000'; document.body.appendChild(d); return d; }
+function pgProbe(cwMm){ const d=document.createElement('div'); d.className='pgprobe'; d.style.cssText='position:absolute;visibility:hidden;left:-99999px;top:0;width:'+cwMm+'mm;direction:rtl;font-family:\'IBM Plex Sans Arabic\',sans-serif;color:#000;line-height:1.45'; document.body.appendChild(d); return d; }
 function pgPxPerMm(){ const d=document.createElement('div'); d.style.cssText='position:absolute;visibility:hidden;width:100mm'; document.body.appendChild(d); const w=d.getBoundingClientRect().width/100; d.remove(); return w||3.7795; }
 function printFontFor(n){ return n>=12?9.5:(n>=10?10.2:(n>=8?10.8:11.5)); }
 function printFont(pc,ncols){ const v=pc&&pc.fontSize; return (v==='auto'||v==null||v===''||!(Number(v)>0))?printFontFor(ncols):Number(v); }
@@ -5303,6 +5305,7 @@ function buildPrintReport(reasonKey){
     '<div style="font-size:'+S(14)+'px;font-weight:600">'+(tpl.title?esc(docSubst(tpl.title,vctx)):(esc(R.label)+' — تقرير جرد المخزون'))+'</div>'+
     '<div style="font-size:'+S(12)+'px;color:#555">'+esc(repSess.name)+' • '+esc(repSess.location||'—')+(repSess.blind?' • جلسة عمياء':'')+'</div></div>'+
     '<div style="text-align:left;font-size:'+S(12)+'px;color:#555">التاريخ: '+esc(dateStr)+'<br>عدد الأصناف: '+fmt(sumRows.length)+'</div></div>';
+  const headSlim='<div class="pg-hd2" style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;border-bottom:1.5px solid #1F3864;padding-bottom:'+S(4)+'px;margin-bottom:'+S(7)+'px;font-size:'+S(10.5)+'px;color:#333"><b style="color:#1F3864">'+(tpl.title?esc(docSubst(tpl.title,vctx)):(esc(R.label)+' — تقرير جرد المخزون'))+'</b><span style="color:#666">'+esc(repSess.name)+' • '+esc(repSess.location||'—')+' • '+esc(dateStr)+'</span></div>';
   let prelude='';
   if(tpl.intro) prelude+='<div style="font-size:'+S(12.5)+'px;line-height:1.9;margin:'+S(8)+'px 0;white-space:pre-wrap">'+esc(docSubst(tpl.intro,vctx))+'</div>';
   if(Array.isArray(tpl.clauses)&&tpl.clauses.length) prelude+='<ol style="font-size:'+S(12.5)+'px;line-height:1.9;margin:'+S(8)+'px 0;padding-inline-start:22px">'+tpl.clauses.map(c=>'<li>'+esc(docSubst(c,vctx))+'</li>').join('')+'</ol>';
@@ -5354,11 +5357,12 @@ function buildPrintReport(reasonKey){
     const sig=sigs.map((sg,i)=>cell(sg.label+(sg.optional?' (اختياري)':''), sg.name||((i===0&&chairName)?chairName:''), '')).join('');
     signHtml='<div class="pg-sig">'+appr+hoBlocks+respBlock+'<div style="margin-top:'+S(26)+'px;display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap;font-size:'+S(12)+'px">'+sig+'</div></div>';
   }
-  const footHtml=(pno,tot)=>((pc.footerText||pc.showPageNumbers!==false)?'<div class="pg-ft" style="position:absolute;bottom:4mm;inset-inline:'+g.mx+'mm;border-top:1px solid #ccc;padding-top:'+S(4)+'px;display:flex;justify-content:space-between;font-size:'+S(11)+'px;color:#666"><span>'+esc(pc.footerText||'')+'</span>'+(pc.showPageNumbers!==false?'<span>صفحة '+fmt(pno)+' من '+fmt(tot)+'</span>':'<span></span>')+'</div>':'');
+  const footHtml=(pno,tot)=>((pc.footerText||pc.showPageNumbers!==false)?'<div class="pg-ft" style="position:absolute;bottom:3mm;inset-inline:'+g.mx+'mm;border-top:1px solid #ccc;padding-top:'+S(3)+'px;display:flex;justify-content:space-between;font-size:'+S(10.5)+'px;color:#666"><span>'+esc(pc.footerText||'')+'</span>'+(pc.showPageNumbers!==false?'<span>صفحة '+fmt(pno)+' من '+fmt(tot)+'</span>':'<span></span>')+'</div>':'');
   const px=pgPxPerMm(); const budget=(g.h-g.mt-g.mb-1)*px;
-  const probe=pgProbe(g.cw); let hH=0,preH=0,thH=0,tfH=0,sgH=0,rh=[];
+  const probe=pgProbe(g.cw); let hH=0,hsH=0,preH=0,thH=0,tfH=0,sgH=0,rh=[];
   try{
     probe.innerHTML=headHtml; hH=probe.firstChild?probe.firstChild.getBoundingClientRect().height:0;
+    probe.innerHTML=headSlim; hsH=probe.firstChild?probe.firstChild.getBoundingClientRect().height:0;
     if(prelude){ probe.innerHTML='<div>'+prelude+'</div>'; preH=probe.firstChild.getBoundingClientRect().height; }
     if(!R.summaryOnly&&rowsArr.length){ probe.innerHTML=tOpen+th+'<tbody>'+rowsArr.join('')+'</tbody></table>';
       const thEl=probe.querySelector('thead'); thH=thEl?thEl.getBoundingClientRect().height:0;
@@ -5369,19 +5373,19 @@ function buildPrintReport(reasonKey){
   const pages=[];
   if(!R.summaryOnly&&rowsArr.length){
     let i=0,first=true;
-    while(i<rowsArr.length){ let cap=budget-hH-thH-(first?preH:0); let used=0,j=i;
+    while(i<rowsArr.length){ let cap=budget-(first?hH+preH:hsH)-thH; let used=0,j=i;
       while(j<rowsArr.length&&used+rh[j]<=cap){ used+=rh[j]; j++; }
       if(j===i)j=i+1;
       pages.push({a:i,b:j,tail:false,used:used,first:first}); i=j; first=false; }
     const last=pages[pages.length-1]; const tailH=tfH+sgH+S(6);
-    if(tailH>0){ const capLast=budget-hH-thH-(last.first?preH:0);
+    if(tailH>0){ const capLast=budget-(last.first?hH+preH:hsH)-thH;
       if(last.used+tailH<=capLast) last.tail=true; else pages.push({a:-1,b:-1,tail:true,used:0,first:false}); }
   } else if(hH+preH+sgH+S(6)<=budget){ pages.push({a:-1,b:-1,tail:true,used:0,first:true}); }
   else { pages.push({a:-1,b:-1,tail:false,used:0,first:true}); pages.push({a:-1,b:-1,tail:true,used:0,first:false}); }
   const N=pages.length;
-  const pgOpen='<div class="pg" data-orient="'+g.orient+'" data-paper="'+g.paper+'" style="position:relative;width:'+g.w+'mm;height:'+(g.h-1)+'mm;padding:'+g.mt+'mm '+g.mx+'mm '+g.mb+'mm;box-sizing:border-box;overflow:hidden;background:#fff;font-family:\'IBM Plex Sans Arabic\',sans-serif;direction:rtl;color:#000">';
+  const pgOpen='<div class="pg" data-orient="'+g.orient+'" data-paper="'+g.paper+'" style="position:relative;width:'+g.w+'mm;height:'+(g.h-1)+'mm;padding:'+g.mt+'mm '+g.mx+'mm '+g.mb+'mm;box-sizing:border-box;overflow:hidden;background:#fff;font-family:\'IBM Plex Sans Arabic\',sans-serif;direction:rtl;color:#000;line-height:1.45">';
   let html=printPageCss(pc);
-  pages.forEach((p,idx)=>{ let inner=headHtml+(p.first?prelude:'');
+  pages.forEach((p,idx)=>{ let inner=(p.first?headHtml+prelude:headSlim);
     if(p.a>=0) inner+=tOpen+th+'<tbody>'+rowsArr.slice(p.a,p.b).join('')+'</tbody>'+(p.tail?tf:'')+'</table>';
     else if(!R.summaryOnly&&!rowsArr.length&&idx===0) inner+=tOpen+th+'<tbody><tr><td colspan="'+cols.length+'" style="padding:10px;text-align:center;border:1px solid #bbb">لا أصناف مطابقة للمرشّحات الحالية.</td></tr></tbody></table>';
     else if(p.a<0&&p.tail&&tf) inner+=tOpen+th+tf+'</table>';
