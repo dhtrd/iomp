@@ -1187,7 +1187,7 @@ import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, on
   from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, collection, serverTimestamp, query, orderBy, where, limit,
          getDoc as _fsGetDoc, getDocs as _fsGetDocs, setDoc as _fsSetDoc, updateDoc as _fsUpdateDoc, addDoc as _fsAddDoc, deleteDoc as _fsDeleteDoc,
-         onSnapshot as _fsOnSnapshot, writeBatch as _fsWriteBatch, runTransaction as _fsRunTransaction }
+         onSnapshot as _fsOnSnapshot, writeBatch as _fsWriteBatch, runTransaction as _fsRunTransaction, getDocFromCache, getDocsFromCache }
   from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
 const QUOTAD={'quota.count':true,'quota.readCap':50000,'quota.writeCap':20000,'quota.warnAt':70,'quota.warnAt2':90,
@@ -1375,6 +1375,7 @@ let scanMode=false, _actx=null, _camOn=false, _camStream=null, _lastScan='', _la
 const SCAN_CADENCE_MS=40;
 const SCAN_IDLE_MS=60;
 const SCAN_MIN_LEN=4;
+const MAN_KEY_MS=100;
 const MANUAL_QTY_CAP=100;
 const CAM_CLEAR_CYCLES=3;
 const SCAN_RUN_RESET_MS=700;
@@ -1490,7 +1491,7 @@ $('forgotBtn').onclick=()=>{ st('loginStatus','info','إعادة تعيين كل
 onAuthStateChanged(auth, async(user)=>{
   if(!user){myProfile=null;idleStop();stopPermListener();show('loginView');const lb=$('loginBtn');lb.disabled=false;lb.classList.remove('au-loading','au-done');hideSt('loginStatus');return;}
   try{
-    const ref=doc(db,'users',user.uid); let snap=await getDoc(ref);
+    const ref=doc(db,'users',user.uid); let snap=await getDocSafe(ref);
     if(!snap.exists()){
       if(user.email===OWNER_EMAIL){ await setDoc(ref,{email:user.email,name:'المدير',role:'مدير',active:true,mustChangePassword:false,createdAt:serverTimestamp(),createdBy:'bootstrap'}); snap=await getDoc(ref); }
       else{ st('loginStatus','err','حسابك بلا دور بعد — تواصل مع مدير النظام.'); await signOut(auth); return; }
@@ -1535,7 +1536,7 @@ async function enterApp(){show('appView');$('whoEmail').textContent=myProfile.em
   applyBrandMarks();
   { const lt=sysDefaults().landingTab; if(lt && adminTabsAvailable().indexOf(lt)>=0) adminTab=lt; }
   startPermListener(); renderNav(); route(); reconcileAppearance(); idleInit(); notifInit(); offlineInit(); if(featuresDropboxOn())dbxAutoInit();}
-async function loadPermConfigOnce(){ try{ const d=await getDoc(doc(db,'config','permissions')); permConfig=d.exists()?(d.data()||{roles:{},users:{}}):{roles:{},users:{}}; }catch(e){ permConfig={roles:{},users:{}}; } }
+async function loadPermConfigOnce(){ try{ const d=await getDocSafe(doc(db,'config','permissions')); permConfig=d.exists()?(d.data()||{roles:{},users:{}}):{roles:{},users:{}}; }catch(e){ permConfig={roles:{},users:{}}; } }
 function startPermListener(){ if(permUnsub)return; _permInit=false;
   try{ permUnsub=onSnapshot(doc(db,'config','permissions'),(d)=>{ permConfig=d.exists()?(d.data()||{roles:{},users:{}}):{roles:{},users:{}};
         if(!_permInit){_permInit=true;return;}
@@ -2983,7 +2984,7 @@ async function openSession(sid){
   if(countsUnsub){countsUnsub();countsUnsub=null;} if(actUnsub){actUnsub();actUnsub=null;} if(repUnsub){repUnsub();repUnsub=null;} if(sessUnsub){sessUnsub();sessUnsub=null;}if(extraUnsub){extraUnsub();extraUnsub=null;}if(notesUnsub){notesUnsub();notesUnsub=null;}
   const c=$('appContent'); c.innerHTML='<div class="card"><p class="muted">جارٍ تحميل الجلسة…</p></div>';
   try{
-    const sdoc=await getDoc(doc(db,'sessions',sid)); if(!sdoc.exists()){c.innerHTML='<div class="card">الجلسة غير موجودة.</div>';return;}
+    const sdoc=await (featuresOfflineOn()?getDocSafe:getDoc)(doc(db,'sessions',sid)); if(!sdoc.exists()){c.innerHTML='<div class="card">الجلسة غير موجودة.</div>';return;}
     curSess=sdoc.data(); curSid=sid;
     const stt0=sessStatusOf(curSess); const notStarted=(stt0==='open'&&curSess.started!==true);
     const mayReadData=canSeeSessionData(curSess);
@@ -2998,28 +2999,30 @@ async function openSession(sid){
       sessUnsub=onSnapshot(doc(db,'sessions',sid),(sd)=>{ if(!sd.exists())return; const ns=sd.data(); if(ns.started===true||sessStatusOf(ns)!=='open'){ openSession(sid); } },(err)=>{});
       return;
     }
-    const snapLoad=async()=>{ const snap=await getDocs(collection(db,'sessions',sid,'snapshot')); const chunks=[]; snap.forEach(d=>chunks.push(d)); chunks.sort((a,b)=>a.id<b.id?-1:1); let items=[]; chunks.forEach(d=>{items=items.concat(d.data().items||[]);}); return items; };
+    const snapLoad=async(safe)=>{ const snap=await (safe&&featuresOfflineOn()?getDocsSafe:getDocs)(collection(db,'sessions',sid,'snapshot')); const chunks=[]; snap.forEach(d=>chunks.push(d)); chunks.sort((a,b)=>a.id<b.id?-1:1); let items=[]; chunks.forEach(d=>{items=items.concat(d.data().items||[]);}); if(safe&&_lastCache&&curSess&&curSess.itemCount&&items.length!==curSess.itemCount)throw {code:'unavailable',message:'cache-incomplete'}; return items; };
     const attach=()=>{ ca13Warm();
-      extraUnsub=onSnapshot(collection(db,'sessions',sid,'extraItems'),(qs)=>{ const ex=[]; qs.forEach(d=>{const x=d.data(); if(x&&x.code!=null)ex.push(Object.assign({},x,{manual:true}));}); curExtra=ex; curItems=curBaseItems.concat(curExtra); if($('clist'))renderCountList(); },(err)=>{});
+      extraUnsub=onSnapshot(collection(db,'sessions',sid,'extraItems'),(qs)=>{ const ex=[]; qs.forEach(d=>{const x=d.data(); if(x&&x.code!=null)ex.push(Object.assign({},x,{manual:true}));}); curExtra=ex; curItems=curBaseItems.concat(curExtra); oqReflect(1); if($('clist'))renderCountList(); },(err)=>{});
       notesUnsub=onSnapshot(collection(db,'sessions',sid,'itemNotes'),(qs)=>{ curNotes={}; qs.forEach(d=>{const x=d.data(); if(x&&x.code!=null)curNotes[String(x.code)]=x;}); if($('clist'))renderCountList(); },(err)=>{});
-      countsUnsub=onSnapshot(collection(db,'sessions',sid,'counts'),(qs)=>{curCounts={};qs.forEach(d=>{const x=d.data();if(x&&x.code!=null)curCounts[x.code]=x;});pendReapply();renderCountListLive();},(err)=>{});
+      countsUnsub=onSnapshot(collection(db,'sessions',sid,'counts'),(qs)=>{_cntGot=1;_cntEvt++;_srvCounts={};qs.forEach(d=>{const x=d.data();if(x&&x.code!=null)_srvCounts[x.code]=x;});cntRebuild();renderCountListLive();},(err)=>{ _cntDead=sid; offlineUpdateChip();
+        if(!_cntGot&&featuresOfflineOn())getDocsFromCache(collection(db,'sessions',sid,'counts')).then(qs=>{ if(curSid!==sid||_cntGot)return; if(qs.empty)throw 0; _srvCounts={}; qs.forEach(d=>{const x=d.data();if(x&&x.code!=null)_srvCounts[x.code]=x;}); cntRebuild(); renderCountListLive(); }).catch(()=>{ if(curSid===sid&&!_cntGot)toastErr('تعذّر تحميل العدّات السابقة لهذه الجلسة ولا نسخة لها على هذا الجهاز — الأرقام الظاهرة لا تشمل ما عُدّ قبل الآن. لا تُعِد عدّ صنفٍ لمجرّد ظهوره صفرًا.'); }); });
       if(quotaOpt('activity.lazyListen')===false)actAttach(sid);
       sessUnsub=onSnapshot(doc(db,'sessions',sid),(sd)=>{ if(!sd.exists())return; const ns=sd.data(); const changed=(sessStatusOf(ns)!==sessStatusOf(curSess)); curSess=ns; if(changed){ scanMode=false; stopCamera(); renderCountingShell(); } },(err)=>{});
     };
+    _reattach=()=>{ if(curSid!==sid)return; [countsUnsub,extraUnsub,notesUnsub,sessUnsub].forEach(u=>{ try{ if(u)u(); }catch(e){} }); countsUnsub=extraUnsub=notesUnsub=sessUnsub=null; _cntGot=0; attach(); };
     const cached=snapCacheGet(sid);
     if(cached){
       curBaseItems=cached; curExtra=[]; curItems=cached.slice(); curCounts={}; curNotes={}; _pendingAdds={};
-      renderCountingShell(); attach();
+      await cntOpen(); if(curSid!==sid)return; renderCountingShell(); attach();
       snapLoad().then(items=>{ if(curSid!==sid)return; if(items.length)snapCacheSet(sid,items);
         if(items.length&&items.length!==curBaseItems.length){ curBaseItems=items; curItems=curBaseItems.concat(curExtra); if($('clist'))renderCountList(); }
       }).catch(()=>{ toastWarn('تعذّر تحديث قائمة الأصناف من الخادم — تعمل الآن على النسخة المحفوظة بجهازك وكل عدّاتك تُزامَن كالمعتاد.'); });
       return;
     }
     c.innerHTML='<div class="card"><p class="muted">⏳ جارٍ تحميل قائمة الأصناف من الخادم…</p><p class="muted" style="font-size:12.5px;margin-top:6px">مع اتصال ضعيف قد يستغرق هذا قليلًا — <b>لا تُحدِّث الصفحة</b> (التحديث يُعيد التحميل من الصفر). بعد اكتمال أول تحميل تُحفَظ القائمة على جهازك فيصبح الدخول لهذه الجلسة فوريًّا حتى مع ضعف الاتصال.</p></div>';
-    const items=await snapLoad();
+    const items=await snapLoad(true);
     if(items.length)snapCacheSet(sid,items);
     curBaseItems=items; curExtra=[]; curItems=items.slice(); curCounts={}; curNotes={}; _pendingAdds={};
-    renderCountingShell(); attach();
+    await cntOpen(); if(curSid!==sid)return; renderCountingShell(); attach();
   }catch(err){c.innerHTML='<div class="card"><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost sm" id="errBack">→ رجوع</button><button class="btn sm" id="errRetry">↻ إعادة المحاولة</button></div><p class="status show err" style="margin-top:12px">تعذّر تحميل الجلسة: '+errAr(err.code||err.message)+' — غالبًا ضعف اتصال؛ اضغط «إعادة المحاولة» بدل تحديث الصفحة.</p></div>'; if($('errBack'))$('errBack').onclick=()=>route(); if($('errRetry'))$('errRetry').onclick=()=>openSession(sid);}
 }
 function actAttach(sid){ if(actUnsub||!sid)return null;
@@ -3086,11 +3089,14 @@ function renderCountingShell(){
               if(_actDirty&&_actLastQs){ _actDirty=false; renderActivity(_actLastQs); } }};
   $('csearch').oninput=()=>csearchInput();
   scanArmField($('csearch'),(code)=>{ scanCommit(code,'field'); scanFocusGuard(); });
+  { const s=$('csearch'); s.addEventListener('input',(e)=>{ if(!s.value){ s._hk=0; return; } const t=(e&&e.inputType)||'';
+      if(t==='insertText'||t==='insertCompositionText'){ const n=Date.now(); if(n-(s._hkT||0)>MAN_KEY_MS)s._hk=(s._hk||0)+1; s._hkT=n; }
+      else if(t==='insertReplacementText')s._hk=(s._hk||0)+99; }); }
   $('csearch').addEventListener('keydown',(e)=>{ if(e.key!=='Enter')return; const s=$('csearch');
     if(scanFieldFlush(s)){ e.preventDefault(); return; }
     const v=(s.value||''); const t=v.trim(); if(!t)return;
     const codeLike=SCAN_CODE_RE.test(t);
-    if(scanMode||findByScan(t)||codeLike){ e.preventDefault(); scanFieldCancel(s); handleScanCode(t,e); s.value=''; renderCountListLive(); s.focus(); } });
+    if(scanMode||findByScan(t)||codeLike){ e.preventDefault(); scanFieldCancel(s); const man=((s._hk||0)*2>t.length); s._hk=0; scanCommit(t,man?'hand':'api',e); s.value=''; renderCountListLive(); s.focus(); } });
   if($('camScanBtn'))$('camScanBtn').onclick=startCamera;
   if($('scanModeBtn'))$('scanModeBtn').onclick=toggleScanMode;
   if($('addItemBtn'))$('addItemBtn').onclick=openAddItemDialog;
@@ -3246,7 +3252,7 @@ function countRowHtml(it,blind,frozen){ {const cc=curCounts[it.code];const count
     else if(counted&&it.book==null&&it.manual){diffChip=' • <b class="dpos">الفرق: زيادة +'+fmt(total)+' (خارج الدفتر)</b>';}
     let box='';
     if(counted&&cc.entries&&cc.entries.length){
-      box='<div style="flex-basis:100%;margin-top:8px;padding-top:8px;border-top:1px dashed var(--hair)"><div class="muted" style="font-size:11.5px;margin-bottom:2px">الإضافات ('+fmt(entriesOps(cc.entries))+')'+(frozen?':':' — اضغط × لحذف كمية:')+'</div>'+cc.entries.map((e,i)=>'<span style="display:inline-flex;align-items:center;gap:5px;background:var(--navy100);border-radius:20px;padding:3px 10px;margin:3px;font-size:13px"><b>'+fmt(e.q)+'</b>'+((entryN(e)>1&&histOpt('history.badge'))?' <span class="muted" title="تتابع عدٍّ واحدٌ متّصل — '+fmt(entryN(e))+' مسحات">×'+fmt(entryN(e))+'</span>':'')+(e.byName?' <span class="muted">'+esc(e.byName)+'</span>':'')+(e.pending?' <span title="قيد التأكيد — تُزامَن الآن">⏳</span>':'')+((frozen||e.pending)?'':' <button data-delc="'+esc(it.code)+'" data-deli="'+i+'" data-deln="'+entryN(e)+'" data-dele="'+esc(e.id||'')+'" title="حذف هذه الكمية" style="border:none;background:none;color:var(--danger);cursor:pointer;font-weight:700;font-size:15px">×</button>')+'</span>').join('')+'</div>';
+      box='<div style="flex-basis:100%;margin-top:8px;padding-top:8px;border-top:1px dashed var(--hair)"><div class="muted" style="font-size:11.5px;margin-bottom:2px">الإضافات ('+fmt(entriesOps(cc.entries))+')'+srcLine(cc.entries)+(frozen?':':' — اضغط × لحذف كمية:')+'</div>'+cc.entries.map((e,i)=>'<span style="display:inline-flex;align-items:center;gap:5px;background:'+(entrySrc(e)==='m'?'#FEF3C7':'var(--navy100)')+';border-radius:20px;padding:3px 10px;margin:3px;font-size:13px"'+(entrySrc(e)==='m'?' title="إدخال يدوي"':'')+'>'+(entrySrc(e)==='m'?'<span style="font-size:11px;color:#92400E;font-weight:600">✍ يدوي</span>':'')+'<b>'+fmt(e.q)+'</b>'+((entryN(e)>1&&histOpt('history.badge'))?' <span class="muted" title="تتابع عدٍّ واحدٌ متّصل — '+fmt(entryN(e))+' مسحات">×'+fmt(entryN(e))+'</span>':'')+(e.byName?' <span class="muted">'+esc(e.byName)+'</span>':'')+(e.pending?' <span title="قيد التأكيد — تُزامَن الآن">⏳</span>':'')+((frozen||e.pending)?'':' <button data-delc="'+esc(it.code)+'" data-deli="'+i+'" data-deln="'+entryN(e)+'" data-dele="'+esc(e.id||'')+'" title="حذف هذه الكمية" style="border:none;background:none;color:var(--danger);cursor:pointer;font-weight:700;font-size:15px">×</button>')+'</span>').join('')+'</div>';
     }
     const codeS=String(it.code); const nn=curNotes[codeS]; const notes=(nn&&nn.notes)||[]; const noteOpen=!frozen&&_noteOpen.has(codeS);
     let nbox='';
@@ -4001,11 +4007,11 @@ async function extraWriteAdd(sid,code,item){ if(!item)return; const o=Object.ass
 async function ca13Insert(cat,code){ const item=ca13Item(cat,code);
   const offlinePath=async()=>{ const e=await offlineEnqueue({op:'additem',code:code,sid:curSid,item:Object.assign({},item,{addedAt:Date.now()})});
     offlineApplyOptimistic(e); return {ok:true,offline:true}; };
-  if(featuresOfflineOn()&&!netOnline())return await offlinePath();
+  if(offDirect(code))return await offlinePath();
   try{ await extraWriteAdd(curSid,code,item);
     if(!curItems.some(x=>String(x.code)===code)){ curExtra=curExtra.concat([item]); curItems=curBaseItems.concat(curExtra); if($('clist'))renderCountList(); }
     logActivity('additem',code,'أضاف صنفًا من الكتالوج الرئيسيّ: '+item.name,null); return {ok:true}; }
-  catch(err){ if(featuresOfflineOn()&&offlineIsConnErr(err))return await offlinePath();
+  catch(err){ if(offDown(err))return await offlinePath();
     return {ok:false,err:(err&&(err.code||err.message))||'write'}; } }
 async function ca13Try(job){
   if(!ca13On()||job._ca13)return null;
@@ -4047,17 +4053,41 @@ function offlineGetSyncStatus(){ try{ return JSON.parse(localStorage.getItem(SYN
 function offlineSetSyncStatus(s){ try{ localStorage.setItem(SYNC_STATUS_KEY+((myProfile&&myProfile.uid)||''), JSON.stringify(s||null)); }catch(e){} }
 function offlineIsConnErr(err){ if(!err)return false; const c=(err.code||'')+'', m=(err.message||'')+''; return /unavailable|network|offline|failed-precondition|deadline-exceeded|internal|resource-exhausted|resource_exhausted|exhausted|quota/i.test(c)||/network|offline|connection|failed to|اتصال|resource-exhausted|exhausted|quota|حصّة/i.test(m); }
 async function offlineQueueGet(){ return (await offlineStore.get(OFFLINE_QUEUE_KEY))||[]; }
+let _flushFailN=0, _cacheNote=0, _oq=null, _srvCounts={}, _cntDead=null, _qDown=0, _qNoteAt=0, _oqLock=Promise.resolve(), _cntGot=0, _cntEvt=0, _kickT=0, _reattach=null, _lastCache=false;
+function oqLocked(fn){ const run=()=>(navigator.locks&&navigator.locks.request)?navigator.locks.request('iomp-oq',()=>fn()):fn(); const p=_oqLock.then(run,run); _oqLock=p.then(()=>{},()=>{}); return p; }
+const _oqBC=(()=>{ try{ return new BroadcastChannel('iomp-oq'); }catch(e){ return null; } })(); function oqPing(){ try{ if(_oqBC)_oqBC.postMessage(1); }catch(e){} }
+if(_oqBC)_oqBC.onmessage=()=>{ if(!featuresOfflineOn())return; oqLocked(offlineQueueGet).then(q=>{ _oq=q; _offlineQueueLen=q.filter(oqOwn).length; offlineUpdateChip(); if(curSid&&$('clist')){ cntRebuild(); renderCountListLive(); } }); };
+function oqDrop(op){ return oqLocked(async()=>{ const cur=await offlineQueueGet(); const i=cur.findIndex(x=>x.seq===op.seq&&x.at===op.at&&x.op===op.op&&x.code===op.code); if(i>=0){ cur.splice(i,1); await offlineStore.set(OFFLINE_QUEUE_KEY,cur); } _oq=cur; _offlineQueueLen=cur.filter(oqOwn).length; oqPing(); return cur; }); }
+function qDownFor(e){ _qDown=Date.now()+(/exhaust|quota/i.test(String((e&&(e.code||e.message))||''))?OFFLINE_RETRY_MS:30000); }
+function oqKick(){ if(_kickT||!netOnline()||_qDown>Date.now())return; _kickT=setTimeout(()=>{ _kickT=0; offlineAutoTick(); },600); }
+function cntReattach(){ if(!_cntDead)return; if(_cntDead!==curSid||!$('clist')||!_reattach){ _cntDead=null; return; }
+  const s=$('csearch'); if(scanBusy||scanQueue.length||(s&&s._scBuf!=null)){ setTimeout(cntReattach,1000); return; }
+  _cntDead=null; _reattach(); offlineUpdateChip(); }
+function offDirect(code){ return featuresOfflineOn()&&(!netOnline()||_qDown>Date.now()||oqHas(code)); }
+function oqOwn(op){ const u=auth.currentUser; return !op.uid||!u||op.uid===u.uid; }
+function oqHas(code){ return !!(_oq&&_oq.some(op=>op.sid===curSid&&String(op.code)===String(code)&&oqOwn(op))); }
+function offDown(err){ if(!(featuresOfflineOn()&&offlineIsConnErr(err)))return false; qDownFor(err); return true; }
+async function getDocSafe(ref){ try{ return await getDoc(ref); }catch(e){ if(!offlineIsConnErr(e))throw e; let s; try{ s=await getDocFromCache(ref); }catch(_){ throw e; } if(!s||!s.exists())throw e; cacheNote(e); return s; } }
+async function getDocsSafe(ref){ _lastCache=false; try{ return await getDocs(ref); }catch(e){ if(!offlineIsConnErr(e))throw e; let s; try{ s=await getDocsFromCache(ref); }catch(_){ throw e; } if(!s||s.empty)throw e; _lastCache=true; cacheNote(e); return s; } }
+function cacheNote(e){ if(_cacheNote++)return; toastWarn((/exhaust|quota/i.test(String((e&&(e.code||e.message))||''))?'نفدت حصّة القراءة اليوميّة — ':'تعذّرت القراءة من الخادم — ')+'تعمل الآن من النسخة المحفوظة على جهازك.'); }
+function cntRebuild(){ curCounts={}; for(const k in _srvCounts){ const x=_srvCounts[k]; curCounts[k]=Object.assign({},x,{entries:(x.entries||[]).slice()}); } pendReapply(); oqReflect(0); }
+function oqReflect(items){ if(!_oq||!featuresOfflineOn())return; _oq.forEach(op=>{ if(op.sid!==curSid||!oqOwn(op)||op.op==='note'||((op.op==='additem')!==!!items))return;
+    if(op.op==='add'){ const x=_srvCounts[op.code]; if(x&&(x.entries||[]).some(e=>e&&(e.id===op.eid||e.lastEid===op.eid)))return; }
+    if(op.op==='remove'&&op.eid!=null){ const c=curCounts[op.code]; if(!c||!(c.entries||[]).some(e=>e&&e.id===op.eid))return; }
+    offlineApplyOptimistic(op,1); }); }
+async function cntOpen(){ _srvCounts={}; _cntDead=null; _cntGot=0; _oq=featuresOfflineOn()?await oqLocked(offlineQueueGet):null; oqReflect(1); cntRebuild(); }
 async function offlineNextSeq(){ let n=Number(await offlineStore.get(OFFLINE_SEQ_KEY))||0; n++; await offlineStore.set(OFFLINE_SEQ_KEY,n); return n; }
-async function offlineRefreshLen(){ _offlineQueueLen=(await offlineQueueGet()).length; offlineUpdateChip(); try{ syncStripRefresh(); }catch(e){} return _offlineQueueLen; }
-async function offlineEnqueue(op){ const q=await offlineQueueGet(); const seq=await offlineNextSeq();
+async function offlineRefreshLen(){ _offlineQueueLen=(await oqLocked(offlineQueueGet)).filter(oqOwn).length; offlineUpdateChip(); try{ syncStripRefresh(); }catch(e){} return _offlineQueueLen; }
+async function offlineEnqueue(op){ return oqLocked(async()=>{ const q=await offlineQueueGet(); const seq=await offlineNextSeq();
   const entry={seq:seq,op:op.op,code:op.code,sid:op.sid||curSid,deviceId:offlineDeviceId(),at:Date.now()};
-  if(op.op==='add'){ entry.val=numv(op.val); entry.eid=op.eid||entryId(); if(op.run)entry.run={eid:op.run.eid,ri:op.run.ri,by:op.run.by,seq:op.run.seq}; } if(op.op==='dec'){ entry.eid=op.eid; } if(op.op==='remove'){ entry.index=op.index; if(op.eid!=null)entry.eid=op.eid; } if(op.op==='note'){ entry.text=String(op.text||''); entry.eid=op.eid||entryId(); } if(op.op==='additem'){ entry.item=op.item||null; }
-  q.push(entry); await offlineStore.set(OFFLINE_QUEUE_KEY,q); _offlineQueueLen=q.length; offlineUpdateChip(); return entry; }
-function offlineApplyOptimistic(op){ const code=op.code;
+  if(op.op==='add'){ entry.val=numv(op.val); entry.eid=op.eid||entryId(); if(op.src)entry.src=op.src; if(op.run)entry.run={eid:op.run.eid,ri:op.run.ri,by:op.run.by,seq:op.run.seq}; } if(op.op==='dec'){ entry.eid=op.eid; } if(op.op==='remove'){ entry.index=op.index; if(op.eid!=null)entry.eid=op.eid; } if(op.op==='note'){ entry.text=String(op.text||''); entry.eid=op.eid||entryId(); } if(op.op==='additem'){ entry.item=op.item||null; }
+  if(op.log)entry.log=op.log; if(auth.currentUser)entry.uid=auth.currentUser.uid;
+  q.push(entry); await offlineStore.set(OFFLINE_QUEUE_KEY,q); _oq=q; _offlineQueueLen=q.filter(oqOwn).length; offlineUpdateChip(); oqPing(); return entry; }); }
+function offlineApplyOptimistic(op,nr){ const code=op.code;
   if(op.op==='add'){ const d=numv(op.val); const cc=curCounts[code]||{code:code,qty:0,entries:[]}; const arr=(cc.entries||[]).slice();
     const mi=op.run?runIndex(arr,op.run):-1;
     if(mi>=0){ const e=arr[mi]; arr[mi]=Object.assign({},e,{q:(e.q||0)+d,n:entryN(e)+1,endAt:op.at,pending:true}); }
-    else { arr.push({id:op.eid||entryId(),q:d,by:auth.currentUser.uid,byName:myProfile.name||'',at:op.at,pending:true}); }
+    else { arr.push({id:op.eid||entryId(),q:d,by:auth.currentUser.uid,byName:myProfile.name||'',at:op.at,pending:true,src:op.src}); }
     cc.entries=arr; cc.qty=(cc.qty||0)+d; cc.lastByName=myProfile.name||''; cc._pending=true; curCounts[code]=cc; }
   else if(op.op==='dec'){ const cc=curCounts[code]; if(cc&&cc.entries){ const arr=cc.entries.slice(); const i=arr.findIndex(e=>e&&e.id===op.eid);
     if(i>=0){ const e=arr[i]; const n=entryN(e); const per=(e.q||0)/n;
@@ -4066,10 +4096,13 @@ function offlineApplyOptimistic(op){ const code=op.code;
   else if(op.op==='remove'){ const cc=curCounts[code]; if(cc&&cc.entries){ let i=op.index; if(op.eid!=null){ const j=cc.entries.findIndex(e=>e&&e.id===op.eid); if(j>=0)i=j; } if(i>=0&&i<cc.entries.length){ cc.qty=(cc.qty||0)-(cc.entries[i].q||0); cc.entries.splice(i,1); if(!cc.entries.length)delete curCounts[code]; } } }
   else if(op.op==='reset'){ delete curCounts[code]; }
   else if(op.op==='additem'){ if(op.item&&!curItems.some(x=>String(x.code)===String(code))){ curExtra=curExtra.concat([Object.assign({},op.item,{manual:true})]); curItems=curBaseItems.concat(curExtra); } }
-  if($('clist'))renderCountList(); }
+  if(!nr&&$('clist'))renderCountList(); }
 async function offlineEnqueueAndReflect(op){ const entry=await offlineEnqueue(op); offlineApplyOptimistic(entry);
-  toastWarn('دون اتصال — حُفظ محليًّا وسيُزامَن تلقائيًّا ('+fmt(_offlineQueueLen)+' بانتظار المزامنة)'); return entry; }
-async function countWriteAdd(sid,code,d,at,eid,run){ const ref=doc(db,'sessions',sid,'counts',safeId(code)); let _ri=-1;
+  oqKick();
+  if(!netOnline())toastWarn('دون اتصال — حُفظ محليًّا وسيُزامَن تلقائيًّا ('+fmt(_offlineQueueLen)+' بانتظار المزامنة)');
+  else if(Date.now()-_qNoteAt>30000){ _qNoteAt=Date.now(); toastWarn('تعذّر الوصول للخادم مؤقّتًا — يُحفظ العدّ على جهازك ويُزامَن تلقائيًّا ('+fmt(_offlineQueueLen)+' بانتظار المزامنة)'); }
+  return entry; }
+async function countWriteAdd(sid,code,d,at,eid,run,sk){ const ref=doc(db,'sessions',sid,'counts',safeId(code)); let _ri=-1;
   await runTransaction(db,async(tx)=>{const s=await tx.get(ref);const cur=s.exists()?s.data():{code:code,qty:0,entries:[]};
     const src=(cur.entries||[]); _ri=-1;
     if(run){ const i=runIndex(src,run);
@@ -4078,7 +4111,7 @@ async function countWriteAdd(sid,code,d,at,eid,run){ const ref=doc(db,'sessions'
         if(e.by===run.by){ const en=src.slice(); en[i]=Object.assign({},e,{q:(e.q||0)+d,n:entryN(e)+1,endAt:(at||Date.now()),lastEid:eid});
           tx.set(ref,{code:code,qty:(cur.qty||0)+d,entries:en,lastByName:myProfile.name||'',lastAt:serverTimestamp()}); _ri=i; return; } } }
     if(eid!=null){ const j=src.findIndex(e=>e&&e.id===eid); if(j>=0){ _ri=j; return; } }
-    const entries=src.concat([{id:eid||entryId(),q:d,by:auth.currentUser.uid,byName:myProfile.name||'',at:(at||Date.now())}]);_ri=entries.length-1;tx.set(ref,{code:code,qty:(cur.qty||0)+d,entries:entries,lastByName:myProfile.name||'',lastAt:serverTimestamp()});});
+    const ne={id:eid||entryId(),q:d,by:auth.currentUser.uid,byName:myProfile.name||'',at:(at||Date.now())}; if(sk)ne.src=sk; const entries=src.concat([ne]);_ri=entries.length-1;tx.set(ref,{code:code,qty:(cur.qty||0)+d,entries:entries,lastByName:myProfile.name||'',lastAt:serverTimestamp()});});
   return _ri; }
 async function countWriteDec(sid,code,eid){ const ref=doc(db,'sessions',sid,'counts',safeId(code)); let per=null;
   await runTransaction(db,async(tx)=>{const s=await tx.get(ref);if(!s.exists())return;const cur=s.data();const src=(cur.entries||[]);
@@ -4091,35 +4124,46 @@ async function countWriteRemove(sid,code,index,eid){ const ref=doc(db,'sessions'
   await runTransaction(db,async(tx)=>{const s=await tx.get(ref);if(!s.exists())return;const cur=s.data();const entries=(cur.entries||[]).slice();let i=index; if(eid!=null){ i=entries.findIndex(e=>e&&e.id===eid); } if(i<0||i>=entries.length)return;removedQ=entries[i].q;entries.splice(i,1);if(!entries.length){tx.delete(ref);}else{tx.set(ref,{code:code,qty:entries.reduce((a,e)=>a+(e.q||0),0),entries:entries,lastByName:myProfile.name||'',lastAt:serverTimestamp()});}}); return removedQ; }
 async function countWriteReset(sid,code){ await deleteDoc(doc(db,'sessions',sid,'counts',safeId(code))); }
 async function offlineApplyRemote(op){ if(_offlineForceFail) throw {code:'unavailable',message:'forced-fail (test)'}; if(_offlineForceReject) throw {code:'permission-denied',message:'forced-reject (test)'};
-  if(op.op==='add') await countWriteAdd(op.sid,op.code,op.val,op.at,op.eid,op.run||null);
-  else if(op.op==='dec') await countWriteDec(op.sid,op.code,op.eid);
-  else if(op.op==='remove') await countWriteRemove(op.sid,op.code,op.index,op.eid);
+  if(op.op==='add') return await countWriteAdd(op.sid,op.code,op.val,op.at,op.eid,op.run||null,op.src||'');
+  else if(op.op==='dec') return await countWriteDec(op.sid,op.code,op.eid);
+  else if(op.op==='remove') return await countWriteRemove(op.sid,op.code,op.index,op.eid);
   else if(op.op==='reset') await countWriteReset(op.sid,op.code);
   else if(op.op==='note') await noteWriteAdd(op.sid,op.code,op.text,op.at,op.eid);
   else if(op.op==='additem') await extraWriteAdd(op.sid,op.code,op.item); }
 async function offlineLogSync(sid,n){ if(!sid)return; try{ await addDoc(collection(db,'sessions',sid,'activity'),{type:'sync',code:'',name:'مزامنة '+n+' عملية دون اتصال',qty:n,by:auth.currentUser.uid,byName:myProfile.name||'',deviceId:offlineDeviceId(),at:serverTimestamp()}); }catch(e){} }
-async function offlineFlush(manual){ if(!featuresOfflineOn())return {ok:true,flushed:0};
+function offlineFlush(manual){ if(!featuresOfflineOn())return Promise.resolve({ok:true,flushed:0});
+  if(navigator.locks&&navigator.locks.request)return navigator.locks.request('iomp-oq-flush',{ifAvailable:true},lk=>lk?offlineFlush0(manual):{ok:false,busy:true});
+  return offlineFlush0(manual); }
+async function offlineFlush0(manual){ const quiet=(manual==='auto'); if(quiet)manual=false;
   if(_offlineSyncing)return {ok:false,busy:true};
   _offlineSyncing=true; offlineUpdateChip();
-  let flushed=0; const flushedBySid={}; let failed=false; const rejected=[];
+  let flushed=0; const flushedBySid={}; let failed=false, lastErr=null; const rejected=[];
   try{
-    let q=await offlineQueueGet(); if(!q.length){ if(manual)toastOk('لا عمليات بانتظار المزامنة.'); return {ok:true,flushed:0}; }
+    let q=(await oqLocked(offlineQueueGet)).filter(oqOwn); if(!q.length){ _qDown=0; if(_cntDead)cntReattach(); if(manual)toastOk('لا عمليات بانتظار المزامنة.'); return {ok:true,flushed:0}; }
     if(!netOnline()){ if(manual)toastWarn('لا اتصال — ستُزامَن العمليات تلقائيًّا عند عودة الاتصال.'); return {ok:false,offline:true}; }
-    q=q.slice().sort((a,b)=>a.seq-b.seq);
-    for(const op of q){ try{ await offlineApplyRemote(op);
-        const cur=await offlineQueueGet(); const idx=cur.findIndex(x=>x.seq===op.seq); if(idx>=0){ cur.splice(idx,1); await offlineStore.set(OFFLINE_QUEUE_KEY,cur); }
+    for(let pass=0;pass<50&&q.length&&!failed;pass++){ q=q.slice().sort((a,b)=>a.seq-b.seq);
+    const skip=new Set(); let bad=0;
+    for(const op of q){ if(!auth.currentUser||!myProfile){ failed=true; break; } const ck=op.sid+'|'+String(op.code); if(skip.has(ck))continue;
+      const ev=_cntEvt; try{ const rv=await offlineApplyRemote(op);
+        await oqDrop(op); bad=0;
+        if(op.log)addDoc(collection(db,'sessions',op.sid,'activity'),{type:op.log.t,code:String(op.code),name:op.log.n||'',qty:(op.op==='add'?op.val:(op.op==='reset'?(op.log.q==null?null:op.log.q):(rv==null?null:rv))),by:auth.currentUser.uid,byName:myProfile.name||'',at:serverTimestamp()}).catch(()=>{});
+        if(op.sid===curSid&&_cntEvt!==ev&&$('clist')){ cntRebuild(); renderCountListLive(); }
         flushed++; flushedBySid[op.sid]=(flushedBySid[op.sid]||0)+1;
       }catch(e){
-        if(offlineIsConnErr(e)){ failed=true; break; }
+        if(offlineIsConnErr(e)||!auth.currentUser||(e&&e.code==='unauthenticated')){ failed=true; lastErr=e; skip.add(ck); if(++bad>=2||/exhaust|quota/i.test(String(e&&(e.code||e.message)||''))){ qDownFor(e); break; } continue; }
         else {
-          const cur=await offlineQueueGet(); const idx=cur.findIndex(x=>x.seq===op.seq); if(idx>=0){ cur.splice(idx,1); await offlineStore.set(OFFLINE_QUEUE_KEY,cur); }
+          await oqDrop(op);
           rejected.push(Object.assign({},op,{err:(e&&(e.code||e.message))||'rejected',rejectedAt:Date.now()}));
         }
       } }
+    if(!failed)q=(await oqLocked(offlineQueueGet)).filter(oqOwn); }
   } finally { _offlineSyncing=false; await offlineRefreshLen(); }
   for(const sid in flushedBySid) await offlineLogSync(sid,flushedBySid[sid]);
   if(rejected.length){ try{ const prev=(await offlineStore.get(OFFLINE_REJECTED_KEY))||[]; await offlineStore.set(OFFLINE_REJECTED_KEY, prev.concat(rejected)); }catch(_){} toastErr('رُفضت '+fmt(rejected.length)+' عملية عدّ (قد تكون الجلسة أُقفلت أثناء الانقطاع) — سُجّلت في «العمليات المرفوضة» ولم تعُد تحجب الطابور.'); }
-  if(failed){ offlineSetSyncStatus({state:'failed',at:Date.now(),remaining:_offlineQueueLen,flushed:flushed}); toastErr('تعذّرت مزامنة بعض عمليات العدّ — تبقّى '+fmt(_offlineQueueLen)+' بانتظار المحاولة.'); }
+  const own=(_oq||[]).filter(oqOwn).length;
+  if(!failed&&!own){ _qDown=0; _flushFailN=0; if(_cntDead)cntReattach(); }
+  if(failed&&quiet&&!/exhaust|quota/i.test(String((lastErr&&(lastErr.code||lastErr.message))||''))&&(++_flushFailN)%6===0)toastErr('تتعذّر مزامنة '+fmt(own)+' عمليّة عدٍّ منذ مدّة ('+errAr((lastErr&&(lastErr.code||lastErr.message))||'?')+') — تحقّق من الاتصال واضغط «مزامنة الآن»، ولا تمسح بيانات المتصفّح.');
+  if(failed){ offlineSetSyncStatus({state:'failed',at:Date.now(),remaining:_offlineQueueLen,flushed:flushed}); if(!quiet)toastErr('تعذّرت مزامنة بعض عمليات العدّ — تبقّى '+fmt(_offlineQueueLen)+' بانتظار المحاولة.'); }
   else if(!rejected.length){ offlineSetSyncStatus({state:'done',at:Date.now(),flushed:flushed}); if(flushed>0)toastOk('اكتملت المزامنة — '+fmt(flushed)+' عملية ✓'); }
   else { offlineSetSyncStatus({state:'done',at:Date.now(),flushed:flushed,rejected:rejected.length}); }
   refreshNotifBadge(); const dr=$('notifDrawer'); if(dr&&dr.classList.contains('open'))renderNotifList();
@@ -4127,22 +4171,27 @@ async function offlineFlush(manual){ if(!featuresOfflineOn())return {ok:true,flu
 function offlineUpdateChip(){ const chip=$('offlineChip'); if(!chip)return; const on=netOnline(), n=_offlineQueueLen; let cls,txt;
   if(_offlineSyncing){ cls='sync'; txt='⏳ مزامنة '+fmt(n)+' عملية'; }
   else if(!on){ cls='off'; txt='🔴 دون اتصال — يُحفظ محليًّا'+(n?(' • بانتظار المزامنة ('+fmt(n)+')'):''); }
-  else if(n>0){ cls='pending'; txt='⏳ بانتظار المزامنة ('+fmt(n)+')'; }
+  else if(n>0){ cls='pending'; txt='⏳ بانتظار المزامنة ('+fmt(n)+') — تُعاد المحاولة تلقائيًّا'; }
   else { cls='on'; txt='🟢 متصل'; }
+  if(_cntDead&&_cntDead===curSid)txt+=' — ⚠ قد لا تظهر عدّات الأجهزة الأخرى حتى يعود الاتصال بالخادم';
   chip.className='offchip '+cls; chip.textContent=txt;
   const btn=$('offlineSyncNow'); if(btn)btn.style.display=(on&&n>0&&!_offlineSyncing)?'':'none'; }
 function offlineInit(){ offlineDeviceId(); offlineRefreshLen();
   if(!window.__offlineWired){ window.__offlineWired=1;
-    try{ window.addEventListener('online',()=>{ offlineUpdateChip(); if(featuresOfflineOn())offlineFlush(false); }); window.addEventListener('offline',()=>{ offlineUpdateChip(); }); }catch(e){} } }
+    try{ window.addEventListener('online',()=>{ offlineUpdateChip(); if(featuresOfflineOn())offlineFlush(false); }); window.addEventListener('offline',()=>{ offlineUpdateChip(); });
+      setInterval(offlineAutoTick,OFFLINE_RETRY_MS); document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible')offlineAutoTick(); }); }catch(e){} }
+  setTimeout(offlineAutoTick,1000); }
+const OFFLINE_RETRY_MS=300000;
+async function offlineAutoTick(){ if(!featuresOfflineOn()||!myProfile||_offlineSyncing||!netOnline())return null; if(!(await offlineRefreshLen())){ if(_cntDead&&_cntDead===curSid&&_qDown<=Date.now())cntReattach(); return null; } return offlineFlush('auto'); }
 let _pendingAdds={};
 function pendReapply(){ for(const code in _pendingAdds){ const list=_pendingAdds[code]||[]; if(!list.length)continue;
   const cc=curCounts[code]||{code:code,qty:0,entries:[]}; const have=new Set((cc.entries||[]).map(e=>e&&e.id));
   list.forEach(p=>{
-    if(p.mrg){ const arr=(cc.entries||[]).slice(); const i=runIndex(arr,{eid:p.run,ri:p.ri});
-      if(i<0){ arr.push({id:p.id,q:p.q,by:p.by,byName:p.byName,at:p.at,pending:true}); cc.entries=arr; cc.qty=(cc.qty||0)+p.q; return; }
-      const e=arr[i]; if(entryN(e)>=p.seq)return;
+    if(p.mrg){ if(have.has(p.id))return; const arr=(cc.entries||[]).slice(); const i=runIndex(arr,{eid:p.run,ri:p.ri});
+      if(i<0){ arr.push({id:p.id,q:p.q,by:p.by,byName:p.byName,at:p.at,pending:true,src:p.src}); cc.entries=arr; cc.qty=(cc.qty||0)+p.q; return; }
+      const e=arr[i]; if(entryN(e)>=p.seq||e.lastEid===p.id)return;
       arr[i]=Object.assign({},e,{q:(e.q||0)+p.q,n:p.seq,pending:true}); cc.entries=arr; cc.qty=(cc.qty||0)+p.q; return; }
-    if(!have.has(p.id)){ cc.entries=(cc.entries||[]).concat([{id:p.id,q:p.q,by:p.by,byName:p.byName,at:p.at,pending:true}]); cc.qty=(cc.qty||0)+p.q; } });
+    if(!have.has(p.id)){ cc.entries=(cc.entries||[]).concat([{id:p.id,q:p.q,by:p.by,byName:p.byName,at:p.at,pending:true,src:p.src}]); cc.qty=(cc.qty||0)+p.q; } });
   curCounts[code]=cc; } }
 function pendDrop(code,eid,confirmOk,quiet){ const l=_pendingAdds[code]||[]; const i=l.findIndex(x=>x.id===eid); const p=(i>=0)?l[i]:null; if(i>=0)l.splice(i,1); if(!l.length)delete _pendingAdds[code];
   const cc=curCounts[code];
@@ -4157,6 +4206,10 @@ function pendDrop(code,eid,confirmOk,quiet){ const l=_pendingAdds[code]||[]; con
 const HISTD={'history.mergeRuns':true,'history.mergeMax':0,'history.badge':true,'history.deleteRunAsk':true,'history.activityMerge':true,'history.actFlushMs':2500};
 function histOpt(k){ const o=(permConfig&&permConfig.history)||{}; return o[k]===undefined?HISTD[k]:o[k]; }
 function entryN(e){ const n=e&&e.n; return (n==null||!(n>1))?1:Math.floor(n); }
+function srcQ(list,qty){ if(!list)return {scanQty:null,manQty:null,unkQty:null}; const o=srcSplit(list); return {scanQty:o.s,manQty:o.m,unkQty:(qty!=null?Math.round((qty-o.s-o.m)*1e6)/1e6:o.u)}; }
+function srcLine(list){ const o=srcSplit(list); return (o.s||o.m)?(' — بالقارئ '+fmt(o.s)+' · يدوي '+fmt(o.m)+(o.u?(' · غير مصنّف '+fmt(o.u)):'')):''; }
+function entrySrc(e){ return (e&&e.src==='manual')?'m':((e&&(e.src==='scan'||e.mrg||entryN(e)>1))?'s':'u'); }
+function srcSplit(list){ const o={s:0,m:0,u:0}; (list||[]).forEach(e=>{ o[entrySrc(e)]+=Number(e&&e.q)||0; }); return o; }
 function entriesOps(list){ let t=0; (list||[]).forEach(e=>{ t+=entryN(e); }); return t; }
 const RUN_PROBE=8;
 let _runPtr=null;
@@ -4204,35 +4257,37 @@ try{ window.addEventListener('pagehide',()=>{ try{ actFlush(); }catch(e){} }); }
 async function addEntry(code,val,opt){ opt=opt||{};
   const d=numv(val); if(d==null||d===0)return {ok:false,err:'value'};
   if(!assertOpen())return {ok:false,err:'gate'};
-  const mrun=(opt.run===true&&d===1)?runCanMerge(code):null;
-  if(featuresOfflineOn()&&!netOnline()){ const qe=await offlineEnqueueAndReflect({op:'add',code:code,val:d,sid:curSid,run:mrun});
-    if(opt.run===true&&d===1){ runAdvance(code,mrun,qe.eid,runProbe(code,mrun,qe.eid)); mBump(!mrun); }
+  const sk=(opt.run===true&&!opt.man)?'scan':'manual';
+  const mrun=(sk==='scan'&&d===1)?runCanMerge(code):null;
+  const lg=(opt.run===true)?null:{t:'add',n:itemName(code)};
+  if(offDirect(code)){ const qe=await offlineEnqueueAndReflect({op:'add',code:code,val:d,sid:curSid,run:mrun,src:sk,log:lg});
+    if(opt.run===true&&d===1){ if(sk==='scan')runAdvance(code,mrun,qe.eid,runProbe(code,mrun,qe.eid)); else runBreak(); mBump(!mrun); }
     if(opt.run===true)actAdd(code,itemName(code),d);
     return {ok:true,offline:true}; }
   const eid=opt.eid||entryId(), at=Date.now();
-  const prec=mrun?{id:eid,q:d,by:auth.currentUser.uid,byName:myProfile.name||'',at:at,mrg:1,run:mrun.eid,ri:mrun.ri,seq:(mrun.seq||1)+1}
-                :{id:eid,q:d,by:auth.currentUser.uid,byName:myProfile.name||'',at:at};
+  const prec=mrun?{id:eid,q:d,by:auth.currentUser.uid,byName:myProfile.name||'',at:at,mrg:1,run:mrun.eid,ri:mrun.ri,seq:(mrun.seq||1)+1,src:sk}
+                :{id:eid,q:d,by:auth.currentUser.uid,byName:myProfile.name||'',at:at,src:sk};
   (_pendingAdds[code]=_pendingAdds[code]||[]).push(prec);
   pendReapply(); if($('clist')){ if(opt.quiet)renderCountTouch(code); else renderCountList(); }
   try{
-    const ri=await countWriteAdd(curSid,code,d,at,eid,mrun);
+    const ri=await countWriteAdd(curSid,code,d,at,eid,mrun,sk);
     pendDrop(code,eid,true,opt.quiet);
-    if(opt.run===true&&d===1){ runAdvance(code,mrun,eid,ri); mBump(!mrun); }
+    if(opt.run===true&&d===1){ if(sk==='scan')runAdvance(code,mrun,eid,ri); else runBreak(); mBump(!mrun); }
     if(opt.run===true)actAdd(code,itemName(code),d); else logActivity('add',code,itemName(code),d);
     return {ok:true};
-  }catch(err){ if(featuresOfflineOn()&&offlineIsConnErr(err)){ pendDrop(code,eid,false,opt.quiet); const qe=await offlineEnqueueAndReflect({op:'add',code:code,val:d,sid:curSid,run:mrun});
-      if(opt.run===true&&d===1)runAdvance(code,mrun,qe.eid,runProbe(code,mrun,qe.eid));
+  }catch(err){ if(offDown(err)){ pendDrop(code,eid,false,opt.quiet); const qe=await offlineEnqueueAndReflect({op:'add',code:code,val:d,sid:curSid,run:mrun,src:sk,eid:eid,log:lg});
+      if(sk==='scan'&&d===1)runAdvance(code,mrun,qe.eid,runProbe(code,mrun,qe.eid)); else if(opt.run===true)runBreak();
       if(opt.run===true)actAdd(code,itemName(code),d);
       return {ok:true,offline:true}; } pendDrop(code,eid,false,opt.quiet); if(!opt.quiet)toastErr('تعذّر الحفظ: '+errAr(err.code||err.message)); return {ok:false,err:(err&&(err.code||err.message))||'write'};}
 }
 async function decEntry(code,eid){ if(!assertOpen())return;
   const reason=await adjustReason('إنقاص مسحة من تتابع'); if(reason===false)return;
   runBreak(code);
-  const offlinePath=async()=>{ await offlineEnqueueAndReflect({op:'dec',code:code,eid:eid,sid:curSid}); };
-  if(featuresOfflineOn()&&!netOnline()){ await offlinePath(); return; }
+  const offlinePath=async()=>{ await offlineEnqueueAndReflect({op:'dec',code:code,eid:eid,sid:curSid,log:{t:'remove',n:itemName(code)+(reason?' — سبب التسوية: '+reason:'')}}); };
+  if(offDirect(code)){ await offlinePath(); return; }
   try{ const q=await countWriteDec(curSid,code,eid);
     if(q!=null)logActivity('remove',code,itemName(code)+(reason?' — سبب التسوية: '+reason:''),q);
-  }catch(err){ if(featuresOfflineOn()&&offlineIsConnErr(err)){ await offlinePath(); return; } toastErr('تعذّر الحذف: '+errAr(err.code||err.message)); } }
+  }catch(err){ if(offDown(err)){ await offlinePath(); return; } toastErr('تعذّر الحذف: '+errAr(err.code||err.message)); } }
 async function noteWriteAdd(sid,code,text,at,nid){ const ref=doc(db,'sessions',sid,'itemNotes',safeId(code));
   await runTransaction(db,async(tx)=>{ const s=await tx.get(ref); const cur=s.exists()?s.data():{code:code,notes:[]};
     const notes=(cur.notes||[]).concat([{id:nid||entryId(),text:String(text||''),by:auth.currentUser.uid,byName:myProfile.name||'',at:(at||Date.now())}]);
@@ -4246,11 +4301,11 @@ async function noteSave(code){ code=String(code); if(!assertOpen())return;
   const offlinePath=async()=>{ const q=await offlineEnqueue({op:'note',code:code,text:text,sid:curSid});
     const nn=curNotes[code]||{code:code,notes:[]}; nn.notes=(nn.notes||[]).concat([{id:q.eid,text:text,by:auth.currentUser.uid,byName:myProfile.name||'',at:q.at,pending:true}]); curNotes[code]=nn;
     _noteDraft[code]=''; if($('clist'))renderCountList(); toastWarn('دون اتصال — حُفظت الملاحظة محليًّا وستُزامَن تلقائيًّا.'); };
-  if(featuresOfflineOn()&&!netOnline()){ await offlinePath(); return; }
+  if(offDirect(code)){ await offlinePath(); return; }
   try{ await noteWriteAdd(curSid,code,text); _noteDraft[code]='';
     logActivity('note',code,itemName(code)+' — '+text.slice(0,80),null);
     if($('clist'))renderCountList(); toastOk('حُفظت الملاحظة ✓ — ستظهر في تقرير الفروقات والمطبوعات.');
-  }catch(err){ if(featuresOfflineOn()&&offlineIsConnErr(err)){ await offlinePath(); return; } toastErr('تعذّر حفظ الملاحظة: '+errAr(err.code||err.message)); } }
+  }catch(err){ if(offDown(err)){ await offlinePath(); return; } toastErr('تعذّر حفظ الملاحظة: '+errAr(err.code||err.message)); } }
 async function noteDelete(code,nid){ if(!assertOpen())return;
   if(!(await confirmDialog({title:'حذف الملاحظة',message:'حذف هذه الملاحظة نهائيًّا؟',confirmLabel:'حذف',danger:true})))return;
   try{ await noteWriteRemove(curSid,String(code),nid); }catch(err){ toastErr('تعذّر حذف الملاحظة: '+errAr(err.code||err.message)); } }
@@ -4263,24 +4318,24 @@ async function removeEntry(code,index){
   if(!assertOpen())return;
   const reason=await adjustReason('حذف كمية'); if(reason===false)return;
   runBreak(code);
-  if(featuresOfflineOn()&&!netOnline()){ const _cc=curCounts[code]; const _eid=(_cc&&_cc.entries&&_cc.entries[index])?_cc.entries[index].id:null; await offlineEnqueueAndReflect({op:'remove',code:code,index:index,eid:_eid,sid:curSid}); return; }
+  if(offDirect(code)){ const _cc=curCounts[code]; const _eid=(_cc&&_cc.entries&&_cc.entries[index])?_cc.entries[index].id:null; await offlineEnqueueAndReflect({op:'remove',code:code,index:index,eid:_eid,sid:curSid,log:{t:'remove',n:itemName(code)+(reason?' — سبب التسوية: '+reason:'')}}); return; }
   try{
     const ref=doc(db,'sessions',curSid,'counts',safeId(code));
     let removedQ=null;
     await runTransaction(db,async(tx)=>{const s=await tx.get(ref);if(!s.exists())return;const cur=s.data();const entries=(cur.entries||[]).slice();if(index<0||index>=entries.length)return;removedQ=entries[index].q;entries.splice(index,1);if(!entries.length){tx.delete(ref);}else{tx.set(ref,{code:code,qty:entries.reduce((a,e)=>a+(e.q||0),0),entries:entries,lastByName:myProfile.name||'',lastAt:serverTimestamp()});}});
     if(removedQ!=null)logActivity('remove',code,itemName(code)+(reason?' — سبب التسوية: '+reason:''),removedQ);
-  }catch(err){ if(featuresOfflineOn()&&offlineIsConnErr(err)){ const _cc=curCounts[code]; const _eid=(_cc&&_cc.entries&&_cc.entries[index])?_cc.entries[index].id:null; await offlineEnqueueAndReflect({op:'remove',code:code,index:index,eid:_eid,sid:curSid}); return; } toastErr('تعذّر الحذف: '+errAr(err.code||err.message));}
+  }catch(err){ if(offDown(err)){ const _cc=curCounts[code]; const _eid=(_cc&&_cc.entries&&_cc.entries[index])?_cc.entries[index].id:null; await offlineEnqueueAndReflect({op:'remove',code:code,index:index,eid:_eid,sid:curSid,log:{t:'remove',n:itemName(code)+(reason?' — سبب التسوية: '+reason:'')}}); return; } toastErr('تعذّر الحذف: '+errAr(err.code||err.message));}
 }
 async function resetItem(code){
   if(!assertOpen())return;
   const reason=await adjustReason('تصفير الصنف'); if(reason===false)return;
   runBreak(code);
-  if(featuresOfflineOn()&&!netOnline()){ await offlineEnqueueAndReflect({op:'reset',code:code,sid:curSid}); return; }
+  if(offDirect(code)){ await offlineEnqueueAndReflect({op:'reset',code:code,sid:curSid,log:{t:'reset',n:itemName(code)+(reason?' — سبب التسوية: '+reason:''),q:(curCounts[code]?curCounts[code].qty:null)}}); return; }
   try{
     const cc=curCounts[code];const wasQ=cc?cc.qty:null;
     await deleteDoc(doc(db,'sessions',curSid,'counts',safeId(code)));
     logActivity('reset',code,itemName(code)+(reason?' — سبب التسوية: '+reason:''),wasQ);
-  }catch(err){ if(featuresOfflineOn()&&offlineIsConnErr(err)){ await offlineEnqueueAndReflect({op:'reset',code:code,sid:curSid}); return; } toastErr('تعذّر التصفير: '+errAr(err.code||err.message));}
+  }catch(err){ if(offDown(err)){ await offlineEnqueueAndReflect({op:'reset',code:code,sid:curSid,log:{t:'reset',n:itemName(code)+(reason?' — سبب التسوية: '+reason:''),q:(curCounts[code]?curCounts[code].qty:null)}}); return; } toastErr('تعذّر التصفير: '+errAr(err.code||err.message));}
 }
 
 const DBX_LS_KEY='iomp-dbx', DBX_REC_KEY='iomp-dbx-rec', DBX_STATUS_KEY='iomp-dbx-status-', DBX_PKCE_KEY='iomp-dbx-pkce', DBX_FOLDER='/IOMP-Backups';
@@ -4865,9 +4920,9 @@ async function scanStep(job){
     beep(false); vibrate(160); scanFocusGuard(); return false; }
   const before=((curCounts[it.code]&&curCounts[it.code].qty)||0);
   scanPanel({state:'pending',name:it.name,code:job.code,book:it.book,before:before,add:1,after:before+1});
-  const r=await addEntry(it.code,1,{quiet:true,eid:job.eid,run:true});
+  const r=await addEntry(it.code,1,{quiet:true,eid:job.eid,run:true,man:job.src==='hand'});
   if(r&&r.ok){ const after=((curCounts[it.code]&&curCounts[it.code].qty)!=null?curCounts[it.code].qty:(before+1));
-    scanPanel({state:'ok',name:it.name,code:job.code,book:it.book,before:before,add:1,after:after,note:r.offline?'دون اتصال — حُفظت محليًّا وستُزامَن تلقائيًّا.':''});
+    scanPanel({state:'ok',name:it.name,code:job.code,book:it.book,before:before,add:1,after:after,note:r.offline?(netOnline()?'حُفظت على جهازك (الخادم غير متاح مؤقّتًا) وستُزامَن تلقائيًّا.':'دون اتصال — حُفظت محليًّا وستُزامَن تلقائيًّا.'):''});
     beep(true); vibrate(45); scanFocusGuard(); return false; }
   job.tries++;
   if(job.tries<3){ await new Promise(res=>setTimeout(res,120*job.tries)); return true; }
@@ -4911,7 +4966,7 @@ function scanFieldFlush(el){ if(!el)return false;
   const code=String(buf).trim();
   if(code.length<SCAN_MIN_LEN||!SCAN_CODE_RE.test(code))return false;
   if(fast<SCAN_PROOF_GAPS)return false;
-  el.value=(el._scPre||''); el._scPre='';
+  el.value=(el._scPre||''); el._scPre=''; el._hk=0;
   clearTimeout(el._scRt); el._scRt=0;
   if(el._scRq!==el.value)renderCountListLive();
   if(el._scOn)el._scOn(code);
@@ -4965,10 +5020,10 @@ function stopCamera(){ _camOn=false; camReset(); try{ if(_zxingReader&&_zxingRea
 
 function repAgg(entries){
   const m={}; (entries||[]).forEach(e=>{const n=(e&&e.byName!=null?String(e.byName).trim():'')||'—'; const g=m[n]||(m[n]={q:0,parts:[]}); const q=(e&&e.q?e.q:0); g.q+=q;
-    g.parts.push(q);});
+    g.parts.push(entrySrc(e)==='m'?('✍'+fmt(q)):q);});
   return Object.keys(m).map(n=>({name:n,q:m[n].q,parts:m[n].parts})).sort((a,b)=>b.q-a.q);
 }
-function whoDetail(w,html){ const parts=(w.parts&&w.parts.length>1)?(' ('+w.parts.map(fmt).join(' + ')+')'):'';
+function whoDetail(w,html){ const parts=(w.parts&&(w.parts.length>1||typeof w.parts[0]==='string'))?(' ('+w.parts.map(p=>typeof p==='string'?p:fmt(p)).join(' + ')+')'):'';
   return html?(esc(w.name)+': '+fmt(w.q)+(parts?' <span class="muted">'+parts+'</span>':'')):(w.name+': '+fmt(w.q)+parts); }
 function computeVariance(items,counts){
   return (items||[]).map(it=>{
@@ -4994,7 +5049,7 @@ function computeVariance(items,counts){
     const isDown=(status==='deficit'||(status==='uncounted'&&book!=null&&book>0));
     return {code:it.code,barcode:it.barcode||'',name:it.name||'',category:(it.category!=null?String(it.category).trim():''),unit:it.unit||'',
       book,counted,isCounted,cost,diff,hasDiff,status,isUp,isDown,varValue,bookValue,countedValue,manual:!!it.manual,src:(it.src||''),
-      who:isCounted?repAgg(cc.entries):[], entries:isCounted&&cc.entries?entriesOps(cc.entries):0};
+      who:isCounted?repAgg(cc.entries):[], entries:isCounted&&cc.entries?entriesOps(cc.entries):0, ...srcQ(isCounted?(cc.entries||[]):null,counted)};
   });
 }
 function summarize(rows){
@@ -5231,12 +5286,13 @@ function renderReportRows(){
   if($('repNote'))$('repNote').textContent='عرض '+fmt(shown.length)+' من '+fmt(rows.length)+' صنف مطابق'+(rows.length>500?' — ضيّق بالبحث/الفئة أو صدّر Excel للكل':'')+'.';
 }
 function exportDetailedAoa(){
-  const rows=repRows; const fin=canSeeFinance();
-  const detail=[['الكود','الصنف','الفئة','الوحدة','الرصيد الدفتري','المعدود','الفرق','الحالة'].concat(fin?['التكلفة','القيمة الدفترية','القيمة الفعلية','قيمة الفرق']:[]).concat(['من أضاف','الملاحظات'])];
-  rows.forEach(r=>detail.push([r.code,r.name,r.category,r.unit,(r.book!=null?r.book:''),(r.isCounted?r.counted:''),(r.hasDiff?r.diff:''),STLABEL[r.status]].concat(fin?[(r.cost!=null?r.cost:''),(r.bookValue!=null?round2(r.bookValue):''),(r.countedValue!=null?round2(r.countedValue):''),(r.varValue!=null?round2(r.varValue):'')]:[]).concat([r.who.map(w=>whoDetail(w,false)).join(' / '),((r.notes||[]).map(n=>n.text+(n.byName?' ('+n.byName+')':'')).join(' ؛ '))])));
+  const rows=repRows; const fin=canSeeFinance(); const sc=srcCols(rows);
+  const detail=[['الكود','الصنف','الفئة','الوحدة','الرصيد الدفتري','المعدود','الفرق','الحالة'].concat(fin?['التكلفة','القيمة الدفترية','القيمة الفعلية','قيمة الفرق']:[]).concat(['من أضاف','الملاحظات']).concat(sc.map(c=>COL_HEAD[c]))];
+  rows.forEach(r=>detail.push([r.code,r.name,r.category,r.unit,(r.book!=null?r.book:''),(r.isCounted?r.counted:''),(r.hasDiff?r.diff:''),STLABEL[r.status]].concat(fin?[(r.cost!=null?r.cost:''),(r.bookValue!=null?round2(r.bookValue):''),(r.countedValue!=null?round2(r.countedValue):''),(r.varValue!=null?round2(r.varValue):'')]:[]).concat([r.who.map(w=>whoDetail(w,false)).join(' / '),((r.notes||[]).map(n=>n.text+(n.byName?' ('+n.byName+')':'')).join(' ؛ '))]).concat(sc.map(c=>COL_EXCEL[c](r)))));
   let eB=0,eC=0,eD=0,eV=0,eBV=0,eCV=0; rows.forEach(r=>{ if(r.book!=null)eB+=r.book; if(r.isCounted)eC+=r.counted; if(r.hasDiff)eD+=r.diff; if(r.varValue!=null)eV+=r.varValue; if(r.bookValue!=null)eBV+=r.bookValue; if(r.countedValue!=null)eCV+=r.countedValue; });
   detail.push([]);
-  detail.push(['الإجمالي','','','',round2(eB),round2(eC),round2(eD),''].concat(fin?['',round2(eBV),round2(eCV),round2(eV)]:[]).concat(['','']));
+  const srcT=(c)=>round2(rows.reduce((a,r)=>a+(Number(COL_EXCEL[c](r))||0),0));
+  detail.push(['الإجمالي','','','',round2(eB),round2(eC),round2(eD),''].concat(fin?['',round2(eBV),round2(eCV),round2(eV)]:[]).concat(['','']).concat(sc.map(srcT)));
   const cats=summarizeByCategory(rows);
   const summary=[fin?['الفئة','عدد الأصناف','المعدود منها','قيمة الرصيد الدفتري','قيمة المعدود','صافي قيمة الفروقات']:['الفئة','عدد الأصناف','المعدود منها']];
   cats.forEach(g=>summary.push(fin?[g.cat,g.items,g.counted,round2(g.bookVal),round2(g.countedVal),round2(g.netVar)]:[g.cat,g.items,g.counted]));
@@ -5244,13 +5300,14 @@ function exportDetailedAoa(){
   summary.push([]);
   summary.push(fin?['الإجمالي',s.total,s.counted,round2(s.bookVal),round2(s.countedVal),round2(s.netVar)]:['الإجمالي',s.total,s.counted]);
   summary.push(fin?['لم تُعد بعد (قيمة دفترية)',s.uncounted,'','',round2(s.uncountedBookVal),'']:['لم تُعد بعد',s.uncounted,'']);
+  summary.push([]); sc.forEach(c=>summary.push(['إجمالي المعدود — '+COL_HEAD[c],srcT(c)]));
   return {detail:detail,summary:summary,fin:fin};
 }
 async function exportDetailedExcel(){
   try{ await loadXLSX(); }catch(e){ toastErr('تعذّر إنشاء Excel (لا اتصال بالمكتبة).');return; }
   const aoa=exportDetailedAoa(); const detail=aoa.detail, summary=aoa.summary, fin=aoa.fin;
   const wb=XLSX.utils.book_new();
-  const ws1=XLSX.utils.aoa_to_sheet(detail); ws1['!cols']=fin?[{wch:16},{wch:34},{wch:16},{wch:8},{wch:13},{wch:11},{wch:11},{wch:12},{wch:10},{wch:15},{wch:15},{wch:14},{wch:30},{wch:34}]:[{wch:16},{wch:34},{wch:16},{wch:8},{wch:13},{wch:11},{wch:11},{wch:12},{wch:30},{wch:34}]; ws1['!views']=[{RTL:true}];
+  const ws1=XLSX.utils.aoa_to_sheet(detail); ws1['!cols']=fin?[{wch:16},{wch:34},{wch:16},{wch:8},{wch:13},{wch:11},{wch:11},{wch:12},{wch:10},{wch:15},{wch:15},{wch:14},{wch:30},{wch:34}]:[{wch:16},{wch:34},{wch:16},{wch:8},{wch:13},{wch:11},{wch:11},{wch:12},{wch:30},{wch:34}]; while(ws1['!cols'].length<detail[0].length)ws1['!cols'].push({wch:11}); ws1['!views']=[{RTL:true}];
   const ws2=XLSX.utils.aoa_to_sheet(summary); ws2['!cols']=fin?[{wch:22},{wch:12},{wch:12},{wch:18},{wch:16},{wch:18}]:[{wch:22},{wch:12},{wch:12}]; ws2['!views']=[{RTL:true}];
   XLSX.utils.book_append_sheet(wb,ws1,'تفاصيل الفروقات');
   XLSX.utils.book_append_sheet(wb,ws2,'ملخص حسب الفئة');
@@ -5268,7 +5325,7 @@ const PRINT_REASONS={
   custody:  {label:'محضر عهدة', cols:['code','name','category','counted'], summary:true, totals:true, sign:true, countedOnly:true}
 };
 function docColumns(){ const c=(appSettings().export||{}).columns; if(Array.isArray(c)&&c.length) return c.filter(k=>PRINT_COLDEF[k]); return PRINT_REASONS.detailed.cols.slice(); }
-const DOC_COL_KEYS=['code','barcode','name','category','book','counted','diff','status','cost','bookVal','countedVal','varVal','notes'];
+const DOC_COL_KEYS=['code','barcode','name','category','book','counted','diff','status','cost','bookVal','countedVal','varVal','notes','scanQty','manQty'];
 const PRINT_COLDEF={
   barcode:   {th:'الباركود',        num:true, ltr:true, get:r=>esc(r.barcode||r.code||'—')},
   code:      {th:'الكود',           num:true, ltr:true, get:r=>esc(r.code||'—')},
@@ -5276,6 +5333,9 @@ const PRINT_COLDEF={
   category:  {th:'الفئة',           get:r=>esc(r.category||'—')},
   book:      {th:'الكمية الدفترية', num:true, get:r=>r.book!=null?fmt(r.book):'—', sum:r=>r.book},
   counted:   {th:'الكمية الفعلية',  num:true, get:r=>r.isCounted?fmt(r.counted):'—', sum:r=>r.isCounted?r.counted:null},
+  scanQty:   {th:'بالقارئ',         num:true, get:r=>r.isCounted?fmt(r.scanQty):'—', sum:r=>r.isCounted?r.scanQty:null},
+  manQty:    {th:'يدوي',            num:true, get:r=>r.isCounted?fmt(r.manQty):'—', sum:r=>r.isCounted?r.manQty:null},
+  unkQty:    {th:'غير مصنّف',       num:true, get:r=>r.isCounted?fmt(r.unkQty):'—', sum:r=>r.isCounted?r.unkQty:null},
   diff:      {th:'الفارق',          num:true, get:r=>r.hasDiff?((r.diff>0?'+':'')+fmt(r.diff)):'—', sum:r=>r.hasDiff?r.diff:null},
   status:    {th:'الحالة',          get:r=>esc((STLABEL[r.status]||'')+((r.book!=null&&r.book<0)?' — دفتري سالب':'')+((r.status==='uncounted'&&r.book!=null&&r.book>0)?' — يُحسب عجزًا':''))},
   cost:      {th:'التكلفة',         num:true, get:r=>r.cost!=null?fmt(r.cost):'—'},
@@ -5458,17 +5518,19 @@ function openPrintDialog(){
 }
 function doPrint(reasonKey){ if(!reasonAllowed(reasonKey))return; buildPrintReport(reasonKey); const mo=$('printReasonModal'); if(mo)mo.style.display='none'; setTimeout(()=>window.print(),80); }
 
-const COL_HEAD={barcode:'الباركود',code:'الكود',name:'اسم الصنف',category:'الفئة',book:'الرصيد الدفتري',counted:'المعدود',diff:'الفرق',status:'الحالة',cost:'التكلفة',bookVal:'القيمة الدفترية',countedVal:'القيمة الفعلية',varVal:'قيمة الفرق'};
+const COL_HEAD={barcode:'الباركود',code:'الكود',name:'اسم الصنف',category:'الفئة',book:'الرصيد الدفتري',counted:'المعدود',scanQty:'بالقارئ',manQty:'يدوي',unkQty:'غير مصنّف',diff:'الفرق',status:'الحالة',cost:'التكلفة',bookVal:'القيمة الدفترية',countedVal:'القيمة الفعلية',varVal:'قيمة الفرق'};
 const COL_EXCEL={
   barcode:r=>r.barcode||r.code||'', code:r=>r.code||'', name:r=>r.name||'', category:r=>r.category||'',
   book:r=>r.book!=null?r.book:'', counted:r=>r.isCounted?r.counted:'', diff:r=>r.hasDiff?r.diff:'',
+  scanQty:r=>r.isCounted?r.scanQty:'', manQty:r=>r.isCounted?r.manQty:'', unkQty:r=>r.isCounted?r.unkQty:'',
   status:r=>STLABEL[r.status]||'', cost:r=>r.cost!=null?r.cost:'',
   bookVal:r=>r.bookValue!=null?round2(r.bookValue):'', countedVal:r=>r.countedValue!=null?round2(r.countedValue):'', varVal:r=>r.varValue!=null?round2(r.varValue):''
 };
-const SUM_COLS={book:1,counted:1,diff:1,bookVal:1,countedVal:1,varVal:1};
+const SUM_COLS={book:1,counted:1,diff:1,bookVal:1,countedVal:1,varVal:1,scanQty:1,manQty:1,unkQty:1};
+function srcCols(rows){ return ['scanQty','manQty'].concat((rows||[]).some(r=>r.unkQty)?['unkQty']:[]); }
 const EXPORT_REASONS={
   upload:   {label:'رفع الجرد', kind:'upload'},
-  branch:   {label:'مراجعة الفرع', cols:['barcode','name','category','book','counted','diff']},
+  branch:   {label:'مراجعة الفرع', cols:['barcode','name','category','book','counted','diff','src']},
   detailed: {label:'تقرير مفصل', kind:'detailed'},
   committee:{label:'محضر لجنة الجرد', cols:['code','name','category','book','counted','diff','status','varVal']},
   mgmt:     {label:'تقرير للإدارة', cols:['category','name','book','counted','diff','bookVal','countedVal','varVal','status']},
@@ -5477,7 +5539,7 @@ const EXPORT_REASONS={
   custody:  {label:'محضر عهدة', cols:['code','name','category','counted'], filter:'counted'}
 };
 function exportRowsFor(R){ let rows=filteredReportRows(); if(R&&R.filter==='variance')rows=rows.filter(r=>r.isCounted&&Number(r.diff||0)!==0); else if(R&&R.filter==='counted')rows=rows.filter(r=>r.isCounted); return rows; }
-function excelSheetFromCols(rows,cols){
+function excelSheetFromCols(rows,cols){ cols=[].concat(...cols.map(c=>c==='src'?srcCols(rows):[c]));
   const aoa=[cols.map(c=>COL_HEAD[c])];
   rows.forEach(r=>aoa.push(cols.map(c=>COL_EXCEL[c](r))));
   const totals=cols.map((c,i)=>{ if(i===0)return 'الإجمالي'; if(SUM_COLS[c]){ let acc=0,any=false; rows.forEach(r=>{const v=COL_EXCEL[c](r); if(v!==''&&v!=null&&!isNaN(v)){acc+=Number(v);any=true;}}); return any?round2(acc):''; } return ''; });

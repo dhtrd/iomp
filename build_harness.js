@@ -72,10 +72,16 @@ function orderBy(f,d){ return {__ob:f,d}; }
 function where(f,op,v){ return {__where:f,op,v}; } // إصلاح-٣ (بند ٢ب): دعم where في المحاكي (يُطبَّق فعليًّا في getDocs)
 function limit(n){ return {__limit:n}; }
 function __refPath(r){ return r.__query? r.col.path : r.path; }
+let __qOut=!!__SC.quotaOut, __noCache=false; // محاكاة نفاد حصّة القراءة اليوميّة (resource-exhausted) + كاش الجهاز الدائم
+const __QERR=()=>({code:'resource-exhausted',message:'Quota exceeded.'}); const __QE=()=>Promise.reject(__QERR());
+window.__quotaOut=(b)=>{ __qOut=!!b; if(__qOut){ __listeners.splice(0).forEach(l=>{ try{ if(l.err)l.err(__QERR()); }catch(e){} }); } }; // المستمعون الحيّون يموتون بالخطأ كما في Firestore
+window.__cacheMiss=(b)=>{ __noCache=!!b; };
+function getDocFromCache(ref){ if(__noCache) return Promise.reject({code:'unavailable',message:'Failed to get document from cache.'}); return Promise.resolve(__docSnap(ref.path)); }
+function getDocsFromCache(ref){ if(__noCache) return Promise.reject({code:'unavailable',message:'Failed to get documents from cache.'}); return Promise.resolve(__colSnap(__refPath(ref))); }
 const __failPaths={}; // ط-١٠: محاكاة عطل شبكة على مسارٍ بعينه — لتمييز «تعذّرت القراءة» عن «غير موجود»
 window.__failRead=(p,b)=>{ if(b)__failPaths[p]=true; else delete __failPaths[p]; };
-function getDoc(ref){ if(__failPaths[ref.path]) return Promise.reject({code:'unavailable',message:'network'}); return Promise.resolve(__docSnap(ref.path)); }
-function getDocs(ref){ if(__failPaths[__refPath(ref)]) return Promise.reject({code:'unavailable',message:'network'});
+function getDoc(ref){ if(__qOut) return __QE(); if(__failPaths[ref.path]) return Promise.reject({code:'unavailable',message:'network'}); return Promise.resolve(__docSnap(ref.path)); }
+function getDocs(ref){ if(__qOut) return __QE(); if(__failPaths[__refPath(ref)]) return Promise.reject({code:'unavailable',message:'network'});
   let docs=__colSnap(__refPath(ref)).docs;
   if(ref&&ref.__query&&Array.isArray(ref.cs)){ ref.cs.forEach(c=>{ if(c&&c.__where){ docs=docs.filter(d=>{ const v=(d.data()||{})[c.__where]; if(c.op==='==')return v===c.v; if(c.op==='in')return Array.isArray(c.v)&&c.v.indexOf(v)>=0; if(c.op==='!=')return v!==c.v; return true; }); } }); }
   return Promise.resolve({forEach:cb=>docs.forEach(cb), docs, size:docs.length, empty:docs.length===0}); }
@@ -86,10 +92,13 @@ function updateDoc(ref, data){ const path=ref.path; if(__store[path]==null) retu
   __afterWrite(path); return Promise.resolve(); }
 function addDoc(colRef, data){ const id='d'+(__uidSeq++); const path=colRef.path+'/'+id; __store[path]=__clone(data); __afterWrite(path); return Promise.resolve({id, path}); }
 function deleteDoc(ref){ const path=ref.path; __store[path]=null; delete __store[path]; __afterWrite(path); return Promise.resolve(); }
-function onSnapshot(ref, cb, errCb){ const isDoc=!!ref.__doc; const path=__refPath(ref); const kind=isDoc?'doc':'col'; const l={kind,path,cb}; __listeners.push(l);
+function onSnapshot(ref, cb, errCb){ const isDoc=!!ref.__doc; const path=__refPath(ref); const kind=isDoc?'doc':'col'; const l={kind,path,cb,err:errCb};
+  if(__qOut){ setTimeout(()=>{ try{ if(!__noCache)cb(isDoc?__docSnap(path):__colSnap(path)); }catch(e){} if(errCb)errCb(__QERR()); },0); return ()=>{}; } // نفاد الحصّة: لقطة الكاش ثم خطأ، والمستمع ميت
+  __listeners.push(l);
   setTimeout(()=>{ try{ cb(isDoc?__docSnap(path):__colSnap(path)); }catch(e){ if(errCb)errCb(e); } },0);
   return ()=>{ const i=__listeners.indexOf(l); if(i>=0)__listeners.splice(i,1); }; }
-function runTransaction(db, fn){ const tx={ get:ref=>Promise.resolve(__docSnap(ref.path)), set:(ref,data)=>{__store[ref.path]=__clone(data);__afterWrite(ref.path);}, update:(ref,data)=>updateDoc(ref,data), delete:ref=>deleteDoc(ref) }; return Promise.resolve(fn(tx)); }
+let __txN=0; window.__txCalls=()=>__txN; // عدّاد محاولات المعاملة (للتحقّق من الوضع المتدهور)
+function runTransaction(db, fn){ __txN++; if(__qOut) return __QE(); const tx={ get:ref=>(__failPaths[ref.path]?Promise.reject({code:'unavailable',message:'network'}):Promise.resolve(__docSnap(ref.path))), set:(ref,data)=>{__store[ref.path]=__clone(data);__afterWrite(ref.path);}, update:(ref,data)=>updateDoc(ref,data), delete:ref=>deleteDoc(ref) }; return Promise.resolve(fn(tx)); }
 function writeBatch(db){ const ops=[]; return { set:(r,d,o)=>ops.push(()=>setDoc(r,d,o)), update:(r,d)=>ops.push(()=>updateDoc(r,d)), delete:r=>ops.push(()=>deleteDoc(r)), commit:async()=>{ for(const op of ops) await op(); } }; }
 __seed();
 /* ===== end stub ===== */
@@ -700,6 +709,16 @@ window.__sets = {
   gaugesHtml: ()=>setsGauges(),
   wire: ()=>setsWire()
 };
+// نفاد الحصّة + تمييز اليدوي/القارئ — خطاطيف القراءة فقط (الدوال الجديدة تُستدعى كسولًا: غيابها في نسخةٍ قديمة = فشلُ الفحص لا تعطّل التحميل)
+window.__me = ()=>(myProfile?myProfile.uid:null);
+window.__loginErr = ()=>{ const e=document.getElementById('loginStatus'); return e?e.textContent:''; };
+window.__cntEntries = (c)=>((curCounts[c]&&curCounts[c].entries)||[]).map(e=>({q:e.q,src:e.src||'',n:e.n||1,pending:!!e.pending}));
+window.__qtyOf = (c)=>(curCounts[c]&&curCounts[c].qty)||0;
+window.__autoTick = ()=>offlineAutoTick();
+window.__qDownClear = ()=>{ _qDown=0; };
+window.__offChip = ()=>{ const c=document.getElementById('offlineChip'); return c?c.textContent:''; };
+window.__retryMs = ()=>OFFLINE_RETRY_MS;
+window.__varRows = ()=>computeVariance(curItems,curCounts).map(r=>({code:r.code,counted:r.counted,scanQty:r.scanQty,manQty:r.manQty,unkQty:r.unkQty}));
 window.__ready = true;
 `;
 

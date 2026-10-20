@@ -19,6 +19,7 @@ const CH=[[{code:'99916382',name:'صنف المثال',category:'مواد',book:
 const CN=[{code:'99916382',qty:12,entries:[{id:'e1',q:4,by:'u_ct',byName:'مجاهد الضيفي',at:1},{id:'e2',q:8,by:'u_ct',byName:'مجاهد الضيفي',at:2}]},
           {code:'A1',qty:3,entries:[{id:'e3',q:3,by:'u_ct',byName:'عدّاد آخر',at:3}]}];
 const S1={id:'s1',name:'جرد الفرع',status:'approved',started:true,location:'فرع أ',itemCount:3,createdBy:'u_owner',__chunks:CH,__counts:CN};
+const SRCH=['بالقارئ','يدوي','غير مصنّف']; // تمييز اليدوي/القارئ: أعمدةٌ مُلحقة في النهاية فقط (البيانات هنا قبل التمييز ⇒ يظهر «غير مصنّف»)
 const results=[]; const ok=(n,c,d='')=>results.push({n,pass:!!c,d});
 const browser=await chromium.launch({ executablePath:EXE, args:['--no-sandbox'] });
 const ctx=await browser.newContext({ viewport:{width:1100,height:1200} });
@@ -156,14 +157,14 @@ const tilesTxt=(page)=>page.evaluate(()=>document.getElementById('repTiles').tex
     config:{users:{u_vw:{'reason.detailed':true}}},sessions:[S1]});
   await openRep(page);
   const a=await page.evaluate(()=>window.__detailedAoa());
-  ok('F9 ورقة التفاصيل ١٠ أعمدة بلا تكلفة/قيم', a.detail[0].length===10&&!a.detail[0].includes('التكلفة')&&!a.detail[0].includes('قيمة الفرق'), JSON.stringify(a.detail[0]));
+  ok('F9 ورقة التفاصيل: الأعمدة العشرة الأصليّة كما هي بلا تكلفة/قيم (+ أعمدة اليدوي/القارئ مُلحقة)', a.detail[0].length===13&&a.detail[0][9]==='الملاحظات'&&JSON.stringify(a.detail[0].slice(10))===JSON.stringify(SRCH)&&!a.detail[0].includes('التكلفة')&&!a.detail[0].includes('قيمة الفرق'), JSON.stringify(a.detail[0]));
   ok('F9 ورقة الملخّص ٣ أعمدة عددية فقط', a.summary[0].length===3&&a.summary[0][0]==='الفئة'&&!JSON.stringify(a.summary[0]).includes('قيمة'), JSON.stringify(a.summary[0]));
-  ok('F9 صفّ الإجماليات كميات صحيحة (دفتري 17) دون خلايا قيم', a.detail[a.detail.length-1][4]===17&&a.detail[a.detail.length-1].length===10, JSON.stringify(a.detail[a.detail.length-1]));
+  ok('F9 صفّ الإجماليات كميات صحيحة (دفتري 17) دون خلايا قيم', a.detail[a.detail.length-1][4]===17&&a.detail[a.detail.length-1].length===13, JSON.stringify(a.detail[a.detail.length-1]));
   await page.close(); }
 { const page=await ctx.newPage(); await load(page,{profile:OWNER,users:[OWNER,VW],sessions:[S1]});
   await openRep(page);
   const a=await page.evaluate(()=>window.__detailedAoa());
-  ok('F9 المالك: ١٤ عمودًا كما كانت (لا انحدار)', a.detail[0].length===14&&a.detail[0].includes('التكلفة')&&a.summary[0].length===6, JSON.stringify(a.detail[0]).slice(0,120));
+  ok('F9 المالك: الأعمدة الـ١٤ الأصليّة كما كانت (لا انحدار) + أعمدة اليدوي/القارئ مُلحقة', a.detail[0].length===17&&a.detail[0][13]==='الملاحظات'&&JSON.stringify(a.detail[0].slice(14))===JSON.stringify(SRCH)&&a.detail[0].includes('التكلفة')&&a.summary[0].length===6, JSON.stringify(a.detail[0]).slice(0,120));
   await page.close(); }
 
 // ===== F10 — شاشة التقارير للمطّلع: كميات بلا قيم، وبطاقة الصنف تُظهر المجرود =====
