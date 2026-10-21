@@ -221,6 +221,13 @@ async function seedReview(page,meta){ await page.evaluate(({M,meta})=>{ M.forEac
   ok('B20 رفضٌ نهائي ⇒ «لم تُحفظ … لا تُعاد المحاولة» وتتوقف الوحدة (لا مؤقّتات باقية)', t.some(x=>x.includes('لا تُعاد المحاولة'))&&(await page.evaluate(()=>window.IOMPBR._state()===null)), JSON.stringify(t));
   await ctx.close(); }
 
+// B21: نسخة Dropbox الكاملة من داخل التطبيق تشمل مراجعات الفرع (طلب المالك)
+{ const {ctx,page}=await boot({ profile:OWNER, users:[OWNER,BR], config:CFG(true), sessions:[mkSess()] });
+  await seedReview(page,{submitted:true,by:'u_br',byName:'خالد',closedAt:CLOSED,steps:9,ok:8,diff:1,notes:1});
+  const j=await page.evaluate(async()=>{ const r=await window.__dbx.buildFull(); return (r&&r.json)||JSON.stringify(r); });
+  ok('B21 النسخة الكاملة تتضمّن branchReview (تأشيرات العدّادين + الإرسال)', j.includes('"branchReview"')&&j.includes('p_c1')&&j.includes('__brmeta')&&j.includes('الكرتون الثامن فارغ'), j.slice(0,200));
+  await ctx.close(); }
+
 await browser.close();
 let pass=0; for(const r of results){ console.log((r.pass?'✓':'✗')+' '+r.n+(r.d&&!r.pass?('  << '+r.d):'')); if(r.pass)pass++; }
 console.log(`\nRECON ${pass}/${results.length}`);

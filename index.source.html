@@ -4845,7 +4845,7 @@ function dbxTsRepl(k,v){
   return v;
 }
 async function dbxColDocs(colRef){ const out=[]; try{ const qs=await getDocs(colRef); qs.forEach(d=>out.push({id:d.id,doc:d.data()})); }catch(e){} return out; }
-// النطاق الكامل: config/permissions + users + sessions (بمجموعاتها counts/snapshot/extraItems/activity) + movements + counters + branches(+activity) + products(+history)
+// النطاق الكامل: config/permissions + users + sessions (بمجموعاتها counts/snapshot/extraItems/activity/branchReview) + movements + counters + branches(+activity) + products(+history)
 async function dbxBuildFullBackup(prog){
   const P=t=>{ try{ if(typeof prog==='function')prog(t); }catch(e){} };
   P('قراءة الإعدادات والصلاحيات…');
@@ -4858,7 +4858,8 @@ async function dbxBuildFullBackup(prog){
       counts:await dbxColDocs(collection(db,'sessions',sid,'counts')),
       snapshot:await dbxColDocs(collection(db,'sessions',sid,'snapshot')),
       extraItems:await dbxColDocs(collection(db,'sessions',sid,'extraItems')),
-      activity:await dbxColDocs(collection(db,'sessions',sid,'activity'))}); }
+      activity:await dbxColDocs(collection(db,'sessions',sid,'activity')),
+      branchReview:await dbxColDocs(collection(db,'sessions',sid,'branchReview'))}); }   // مراجعة الفرع (طلب المالك ٢١-١٠) — dbxColDocs يتخطّاها ولا يُفشل النسخة إن لم تُنشر قواعدها بعد
   P('قراءة الحركات…'); const movements=await dbxColDocs(collection(db,'movements'));
   const countersArr=await dbxColDocs(collection(db,'counters')); const counters={}; countersArr.forEach(c=>{ counters[c.id]=c.doc; });
   P('قراءة الفروع…'); const brDocs=await dbxColDocs(collection(db,'branches')); const branches=[];
