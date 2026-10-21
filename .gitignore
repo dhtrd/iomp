@@ -3,3 +3,5 @@ harness.html
 _site/
 *.log
 preview-perms.png
+sim_harness.html
+sim-results/
