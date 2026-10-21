@@ -67,13 +67,17 @@ for(const [w,cols] of [[1024,2],[768,1],[390,1]]){ const {ctx,page}=await boot(w
   ok('I9 طباعة «مراجعة الفرع» بلا أيقونات وتُبقي «✍» كما كانت', !pr.startsWith('ERR')&&!pr.includes('sic')&&pr.includes('✍3'), pr.slice(0,160));
   await ctx.close(); }
 
-// I10 — بقيّة الشاشات لم تتّسع
-{ const {ctx,page}=await boot(1440,900); await page.evaluate(()=>window.__setTab('sessions')); await sleep(400);
-  const w=await page.evaluate(()=>document.getElementById('appContent').getBoundingClientRect().width);
-  ok('I10 الشاشات الأخرى بعرضها السابق (≤ 900px)', w<=900, 'w='+w);
-  await page.evaluate(()=>window.__openSession('sr')); await sleep(500); await page.evaluate(()=>window.__setTab('home')); await sleep(400);
-  const w2=await page.evaluate(()=>document.getElementById('appContent').getBoundingClientRect().width);
-  ok('I10 بعد مغادرة شاشة العدّ يعود العرض كما كان', w2<=900, 'w='+w2);
+// I10 — طلب المالك (٢١-١٠ ظهرًا): كل التبويبات بعرض الشاشة على ≥ ١٠٢٤px، وعلى الجوال كما كانت بلا تمرير أفقي
+{ const {ctx,page}=await boot(1440,900); const bad=[];
+  for(const t of ['home','sessions','warehouses','users','settings','admin','reports','trash']){ await page.evaluate(x=>window.__setTab(x),t); await sleep(350);
+    const g=await page.evaluate(()=>{ const a=document.getElementById('appContent'); return {w:a.getBoundingClientRect().width, pane:a.parentElement.getBoundingClientRect().width, hs:document.documentElement.scrollWidth>document.documentElement.clientWidth}; });
+    if(!(g.w>=g.pane-2&&g.w>900&&!g.hs)) bad.push(t+':'+JSON.stringify(g)); }
+  ok('I10 على 1440: كل التبويبات (٨) تملأ المساحة بجانب القائمة الجانبيّة بلا تمرير أفقي', bad.length===0, bad.join(' | '));
+  await ctx.close(); }
+{ const {ctx,page}=await boot(390,844); const bad=[];
+  for(const t of ['home','sessions','users','settings','admin','reports']){ await page.evaluate(x=>window.__setTab(x),t); await sleep(300);
+    if(await page.evaluate(()=>document.documentElement.scrollWidth>document.documentElement.clientWidth)) bad.push(t); }
+  ok('I10 على الجوال (390px): لا تمرير أفقي في أيّ تبويب', bad.length===0, bad.join(','));
   await ctx.close(); }
 
 await browser.close();
