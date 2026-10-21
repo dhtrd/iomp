@@ -197,7 +197,7 @@ async function seedReview(page,meta){ await page.evaluate(({M,meta})=>{ M.forEac
   await page.click('#brMode'); await sleep(200);
   ok('B18 «☰ القائمة» على الجوال: كل الخطوات وبلا تمرير أفقي', (await page.evaluate(()=>document.querySelectorAll('.br-row').length))===6&&await noHScroll(page));
   await page.click('[data-open="3"]'); await sleep(200);
-  ok('B18 الضغط على سطر في القائمة يفتح بطاقته', await page.evaluate(()=>window.IOMPBR._state().mode==='card'&&window.IOMPBR._state().i===2));
+  ok('B18 الضغط على سطر في القائمة يفتح بطاقته', await page.evaluate(()=>window.IOMPBR._state().view==='card'&&window.IOMPBR._state().i===2));
   await page.click('[data-jump]'); await sleep(200);
   ok('B18 «اذهب إلى #…» ينقل إلى الموضع الآخر للصنف', await page.evaluate(()=>window.IOMPBR._state().i===5));
   await ctx.close(); }

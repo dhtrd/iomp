@@ -1645,7 +1645,7 @@ function adminTabsAvailable(){ const t=[]; if(canManageSessions())t.push('sessio
 function route(){ routeProgFlash(); _route(); pageEnterAnimate(); }
 function routeProgFlash(){ const p=$('routeProg'); if(!p)return; p.classList.remove('on'); void p.offsetWidth; p.classList.add('on'); clearTimeout(p._t); p._t=setTimeout(()=>p.classList.remove('on'),760); }
 function pageEnterAnimate(){ const c=$('appContent'); if(!c)return; c.classList.remove('pgin'); void c.offsetWidth; c.classList.add('pgin'); }
-function _route(){ listOwn(null); _listRe=null; document.body.classList.remove('wide'); if(countsUnsub){countsUnsub();countsUnsub=null;}if(actUnsub){actUnsub();actUnsub=null;}if(repUnsub){repUnsub();repUnsub=null;}if(sessUnsub){sessUnsub();sessUnsub=null;}if(extraUnsub){extraUnsub();extraUnsub=null;}const c=$('appContent');
+function _route(){ listOwn(null); _listRe=null; _brAuto=null; document.body.classList.remove('wide'); if(countsUnsub){countsUnsub();countsUnsub=null;}if(actUnsub){actUnsub();actUnsub=null;}if(repUnsub){repUnsub();repUnsub=null;}if(sessUnsub){sessUnsub();sessUnsub=null;}if(extraUnsub){extraUnsub();extraUnsub=null;}const c=$('appContent');
   if(adminTab==='reports'&&canViewAnyReports()){ return renderReportsScreen(c); }
   if(adminTab==='branches'&&featuresBranchesOn()&&(can('branch.manage')||can('users.manage'))){ return renderBranchesScreen(c); }
   if(adminTab==='products'&&featuresProductCatalogOn()&&can('warehouse.manage')){ return renderProductsScreen(c); }
@@ -2808,7 +2808,7 @@ async function restoreSession(sid){ if(!can('trash.restore'))return false; try{ 
 async function purgeSession(sid){
   if(!can('trash.purge')){toastWarn(noPerm('trash.purge'));return false;}
   if(!(await confirmDialog({title:'حذف نهائي بلا رجعة',message:'هذا حذف نهائي للجلسة وكل سجلاتها لا يمكن التراجع عنه. اكتب «اعتماد» للتأكيد.',confirmLabel:'حذف نهائي',danger:true,sensitive:true}))) return false;
-  try{ for(const sub of ['snapshot','counts','activity','extraItems','branchReview']){ const qs=await getDocs(collection(db,'sessions',sid,sub)); for(const d of qs.docs){ await deleteDoc(doc(db,'sessions',sid,sub,d.id)); } } await deleteDoc(doc(db,'sessions',sid)); return true; }
+  try{ for(const sub of ['snapshot','counts','activity','extraItems','branchReview']){ let qs; try{ qs=await getDocs(collection(db,'sessions',sid,sub)); }catch(e){ if(sub==='branchReview')continue; throw e; } for(const d of qs.docs){ await deleteDoc(doc(db,'sessions',sid,sub,d.id)); } } await deleteDoc(doc(db,'sessions',sid)); return true; }
   catch(err){ toastErr('تعذّر: '+errAr(err.code||err.message)); return false; }
 }
 let _sessSig=[];
@@ -3022,7 +3022,7 @@ async function openSession(sid){
     const attach=()=>{ ca13Warm();
       extraUnsub=onSnapshot(collection(db,'sessions',sid,'extraItems'),(qs)=>{ const ex=[]; qs.forEach(d=>{const x=d.data(); if(x&&x.code!=null)ex.push(Object.assign({},x,{manual:true}));}); curExtra=ex; curItems=curBaseItems.concat(curExtra); oqReflect(1); if($('clist'))renderCountList(); },(err)=>{});
       notesUnsub=onSnapshot(collection(db,'sessions',sid,'itemNotes'),(qs)=>{ curNotes={}; qs.forEach(d=>{const x=d.data(); if(x&&x.code!=null)curNotes[String(x.code)]=x;}); if($('clist'))renderCountList(); },(err)=>{});
-      countsUnsub=onSnapshot(collection(db,'sessions',sid,'counts'),(qs)=>{_cntGot=1;_cntEvt++;_srvCounts={};qs.forEach(d=>{const x=d.data();if(x&&x.code!=null)_srvCounts[x.code]=x;});cntRebuild();renderCountListLive();},(err)=>{ _cntDead=sid; offlineUpdateChip();
+      countsUnsub=onSnapshot(collection(db,'sessions',sid,'counts'),(qs)=>{_cntGot=1;_cntSrv=!(qs.metadata&&qs.metadata.fromCache);_cntEvt++;_srvCounts={};qs.forEach(d=>{const x=d.data();if(x&&x.code!=null)_srvCounts[x.code]=x;});cntRebuild();renderCountListLive();},(err)=>{ _cntDead=sid; offlineUpdateChip();
         if(!_cntGot&&featuresOfflineOn())getDocsFromCache(collection(db,'sessions',sid,'counts')).then(qs=>{ if(curSid!==sid||_cntGot)return; if(qs.empty)throw 0; _srvCounts={}; qs.forEach(d=>{const x=d.data();if(x&&x.code!=null)_srvCounts[x.code]=x;}); cntRebuild(); renderCountListLive(); }).catch(()=>{ if(curSid===sid&&!_cntGot)toastErr('تعذّر تحميل العدّات السابقة لهذه الجلسة ولا نسخة لها على هذا الجهاز — الأرقام الظاهرة لا تشمل ما عُدّ قبل الآن. لا تُعِد عدّ صنفٍ لمجرّد ظهوره صفرًا.'); }); });
       if(quotaOpt('activity.lazyListen')===false)actAttach(sid);
       sessUnsub=onSnapshot(doc(db,'sessions',sid),(sd)=>{ if(!sd.exists())return; const ns=sd.data(); const changed=(sessStatusOf(ns)!==sessStatusOf(curSess)); curSess=ns; if(changed){ scanMode=false; stopCamera(); renderCountingShell(); } },(err)=>{});
@@ -3340,13 +3340,13 @@ function featuresProductCatalogOn(){ return !!(permConfig && permConfig.features
 function featuresOfflineOn(){ return !!(permConfig && permConfig.features && permConfig.features.offlineCount); }
 function featuresDropboxOn(){ return !!(permConfig && permConfig.features && permConfig.features.dropboxBackup); }
 function featuresBranchReviewOn(){ return !!(permConfig && permConfig.features && permConfig.features.branchReview); }
-const BR_META='__brmeta';
+const BR_META='__brmeta', BR_V='2';
 let _brP=null, _brAuto=null;
-function brCan(s){ return featuresBranchReviewOn()&&can('session.branchReview')&&!!s&&(isOwner()||myLocations().indexOf(s.location||'')>=0); }
-function brLoad(){ return _brP||(_brP=new Promise((ok,no)=>{ const el=document.createElement('script'); el.src='branch-review.js'; el.onload=ok; el.onerror=()=>{ _brP=null; el.remove(); no(new Error('تعذّر تحميل شاشة مراجعة الفرع — تحقّق من الاتصال ثم أعد المحاولة.')); }; document.head.appendChild(el); })); }
+function brCan(s){ return featuresBranchReviewOn()&&can('session.branchReview')&&!!s&&(isOwner()||myLocations().indexOf(s.location||'')>=0)&&canSeeSessionData(s); }
+function brLoad(){ return _brP||(_brP=new Promise((ok,no)=>{ const el=document.createElement('script'); el.src='branch-review.js?v='+BR_V; el.onload=ok; el.onerror=()=>{ _brP=null; el.remove(); no(new Error('تعذّر تحميل شاشة مراجعة الفرع — تحقّق من الاتصال ثم أعد المحاولة.')); }; document.head.appendChild(el); })); }
 function brOpen(mode){ const sid=curSid;
   brLoad().then(()=>{ if(curSid!==sid)return;
-    window.IOMPBR.open({mode,db,doc,collection,query,where,getDocs,getDoc,setDoc,serverTimestamp,sid,curSid:()=>curSid,sess:()=>curSess,items:()=>curItems,counts:()=>curCounts,got:()=>_cntGot,
+    window.IOMPBR.open({mode,db,doc,collection,query,where,getDocs,getDoc,setDoc,serverTimestamp,sid,curSid:()=>curSid,sess:()=>curSess,items:()=>curItems,counts:()=>curCounts,got:()=>_cntGot,srv:()=>_cntSrv,arNorm,
       me:myProfile,uid:auth.currentUser.uid,esc,fmt,numv,tsMs,fmtDT:fmtDateTimeAr,toastOk,toastErr,errAr,confirmDialog,srcIc,entrySrc,entryN,safeId,back:renderCountingShell}); })
   .catch(e=>toastErr(e.message)); }
 function featuresSessionSummaryOn(){ return !!(permConfig && permConfig.features && permConfig.features.sessionSummary); }
@@ -4102,7 +4102,7 @@ function offlineGetSyncStatus(){ try{ return JSON.parse(localStorage.getItem(SYN
 function offlineSetSyncStatus(s){ try{ localStorage.setItem(SYNC_STATUS_KEY+((myProfile&&myProfile.uid)||''), JSON.stringify(s||null)); }catch(e){} }
 function offlineIsConnErr(err){ if(!err)return false; const c=(err.code||'')+'', m=(err.message||'')+''; return /unavailable|network|offline|failed-precondition|deadline-exceeded|internal|resource-exhausted|resource_exhausted|exhausted|quota/i.test(c)||/network|offline|connection|failed to|اتصال|resource-exhausted|exhausted|quota|حصّة/i.test(m); }
 async function offlineQueueGet(){ return (await offlineStore.get(OFFLINE_QUEUE_KEY))||[]; }
-let _flushFailN=0, _cacheNote=0, _oq=null, _srvCounts={}, _cntDead=null, _qDown=0, _qNoteAt=0, _oqLock=Promise.resolve(), _cntGot=0, _cntEvt=0, _kickT=0, _reattach=null, _lastCache=false;
+let _flushFailN=0, _cacheNote=0, _oq=null, _srvCounts={}, _cntDead=null, _qDown=0, _qNoteAt=0, _oqLock=Promise.resolve(), _cntGot=0, _cntSrv=0, _cntEvt=0, _kickT=0, _reattach=null, _lastCache=false;
 function oqLocked(fn){ const run=()=>(navigator.locks&&navigator.locks.request)?navigator.locks.request('iomp-oq',()=>fn()):fn(); const p=_oqLock.then(run,run); _oqLock=p.then(()=>{},()=>{}); return p; }
 const _oqBC=(()=>{ try{ return new BroadcastChannel('iomp-oq'); }catch(e){ return null; } })(); function oqPing(){ try{ if(_oqBC)_oqBC.postMessage(1); }catch(e){} }
 if(_oqBC)_oqBC.onmessage=()=>{ if(!featuresOfflineOn())return; oqLocked(offlineQueueGet).then(q=>{ _oq=q; _offlineQueueLen=q.filter(oqOwn).length; offlineUpdateChip(); if(curSid&&$('clist')){ cntRebuild(); renderCountListLive(); } }); };
@@ -4129,7 +4129,7 @@ function oqReflect(items){ if(!_oq||!featuresOfflineOn())return; _oq.forEach(op=
     if(op.op==='add'){ const x=_srvCounts[op.code]; if(x&&(x.entries||[]).some(e=>e&&(e.id===op.eid||e.lastEid===op.eid)))return; }
     if(op.op==='remove'&&op.eid!=null){ const c=curCounts[op.code]; if(!c||!(c.entries||[]).some(e=>e&&e.id===op.eid))return; }
     offlineApplyOptimistic(op,1); }); }
-async function cntOpen(){ _srvCounts={}; _cntDead=null; _cntGot=0; _oq=featuresOfflineOn()?await oqLocked(offlineQueueGet):null; oqReflect(1); cntRebuild(); }
+async function cntOpen(){ _srvCounts={}; _cntDead=null; _cntGot=0; _cntSrv=0; _oq=featuresOfflineOn()?await oqLocked(offlineQueueGet):null; oqReflect(1); cntRebuild(); }
 async function offlineNextSeq(){ let n=Number(await offlineStore.get(OFFLINE_SEQ_KEY))||0; n++; await offlineStore.set(OFFLINE_SEQ_KEY,n); return n; }
 async function offlineRefreshLen(){ _offlineQueueLen=(await oqLocked(offlineQueueGet)).filter(oqOwn).length; offlineUpdateChip(); try{ syncStripRefresh(); }catch(e){} return _offlineQueueLen; }
 async function offlineEnqueue(op){ return oqLocked(async()=>{ const q=await offlineQueueGet(); const seq=await offlineNextSeq();
