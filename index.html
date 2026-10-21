@@ -5032,7 +5032,7 @@ function repAgg(entries){
     g.parts.push(entrySrc(e)==='m'?('✍'+fmt(q)):q); g.qs.push(q); g.ss.push(entrySrc(e));});
   return Object.keys(m).map(n=>({name:n,q:m[n].q,parts:m[n].parts,qs:m[n].qs,ss:m[n].ss})).sort((a,b)=>b.q-a.q);
 }
-function whoDetail(w,html,ic){ if(ic&&html&&w.ss)return esc(w.name)+': '+(w.ss.length>1?fmt(w.q)+' <span class="muted sw">(<span>'+w.qs.map((q,i)=>'<span class="sn">'+srcIc(w.ss[i])+fmt(q)+'</span>').join('</span>+<span>')+'</span>)</span>':'<span class="sn">'+fmt(w.q)+srcIc(w.ss[0])+'</span>');
+function whoDetail(w,html,ic){ if(ic&&html&&w.ss)return esc(w.name)+': '+(w.ss.length>1?fmt(w.q)+' <span class="muted sw">(<span>'+w.qs.map((q,i)=>'<span class="sn">'+srcIc(w.ss[i])+fmt(q)+'</span>').join('</span> + <span>')+'</span>)</span>':'<span class="sn">'+fmt(w.q)+srcIc(w.ss[0])+'</span>');
    const parts=(w.parts&&(w.parts.length>1||typeof w.parts[0]==='string'))?(' ('+w.parts.map(p=>typeof p==='string'?p:fmt(p)).join(' + ')+')'):'';
   return html?(esc(w.name)+': '+fmt(w.q)+(parts?' <span class="muted">'+parts+'</span>':'')):(w.name+': '+fmt(w.q)+parts); }
 function computeVariance(items,counts){
