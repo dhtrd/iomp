@@ -48,8 +48,10 @@ async function paddType(page,code,qty){ const sel='.padd[data-code="'+code+'"]';
   ok('M1 المصدر محفوظ في الخادم مع كل سطر', sa&&sa.map(x=>x.src).join()==='scan,manual'&&sb&&sb.map(x=>x.src).join()==='manual,scan', JSON.stringify({sa,sb}));
   // M2 — الشاشة
   const row=await page.evaluate(()=>{ const r=document.querySelector('[data-row="A1001"]'); return r?r.textContent:''; });
-  ok('M2 شاشة العدّ: سطر الإضافات يذكر «بالقارئ ٣ · يدوي ١»', /بالقارئ\s*3\s*·\s*يدوي\s*1/.test(row), row.slice(0,160));
-  ok('M2 شاشة العدّ: شارة «✍ يدوي» على الإضافة اليدويّة', row.includes('✍ يدوي'), '');
+  // ج٢ (طلب المالك ٢١-١٠-٢٠٢٦): الأيقونة بجانب الرقم بدل نصّ «بالقارئ X · يدوي Y» وشارة «✍ يدوي»
+  const ics=await page.evaluate(()=>{ const r=document.querySelector('[data-row="A1001"]'); return r?[...r.querySelectorAll('svg.sic')].map(s=>s.getAttribute('aria-label')).join(','):''; });
+  ok('M2 شاشة العدّ: أيقونة باركود على إضافة القارئ (٣) وقلم على اليدويّة (١)', ics==='بالقارئ,يدوي', ics+' | '+row.slice(0,120));
+  ok('M2 شاشة العدّ: لا نصّ «✍ يدوي» ولا ذيل «— بالقارئ X · يدوي Y» (الأيقونة هي المميِّز)', !row.includes('✍')&&!/—\s*بالقارئ/.test(row), row.slice(0,160));
   // M3 — الكميات للتقرير (لا تغيير على المعدود)
   const vr=await page.evaluate(()=>window.__varRows());
   const a=vr.find(r=>r.code==='A1001'), b=vr.find(r=>r.code==='B2002');
