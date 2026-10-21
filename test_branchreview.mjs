@@ -70,9 +70,12 @@ const SCB=(o)=>({ profile:BR, users:[OWNER,BR,BRX], config:CFG(true), sessions:[
   ok('B6 الدفتر والإجمالي والفرق ظاهرة (35 / 40 / +5)', cardTxt.includes('الدفتر 35')&&cardTxt.includes('إجمالي المعدود 40')&&cardTxt.includes('الفرق +5'), cardTxt.slice(0,300));
   // مختلف + ملاحظة
   await page.click('#brDf'); await sleep(150); await page.fill('#brAct','35'); await page.fill('#brNote','الكرتون الثامن فارغ'); await page.click('#brSave'); await sleep(300);
+  ok('B7 قبل الحفظ المجمَّع: لا كتابة بعد، والترويسة تُظهر «لم يُحفظ بعد: 1»', Object.keys(await store(page,'sessions/sr/branchReview/')).length===0&&(await page.evaluate(()=>document.getElementById('brPend').textContent)).includes('لم يُحفظ بعد: 1'));
+  await page.evaluate(()=>window.IOMPBR.flush()); await sleep(150);
   const st=await store(page,'sessions/sr/branchReview/');
-  const mF=st['sessions/sr/branchReview/F']; const kF=mF&&Object.keys(mF.m||{})[0];
-  ok('B7 «مختلف» يحفظ الكمية الفعلية والملاحظة ورقم المسحة المرجعي', mF&&mF.by==='u_br'&&kF==='c2_f1'&&mF.m[kF].v==='diff'&&mF.m[kF].a===35&&mF.m[kF].nt==='الكرتون الثامن فارغ'&&mF.m[kF].cq===40, JSON.stringify(mF));
+  const pF=st['sessions/sr/branchReview/p_c2']; const mF=pF&&pF.m&&pF.m.c2_f1;
+  ok('B7 «مختلف» يحفظ الكمية الفعلية والملاحظة في مستند مسار العدّاد (p_c2)', pF&&pF.by==='u_br'&&pF.u==='c2'&&mF&&mF.c==='F'&&mF.v==='diff'&&mF.a===35&&mF.nt==='الكرتون الثامن فارغ'&&mF.cq===40, JSON.stringify(pF));
+  ok('B7 الترويسة تفرغ بعد الحفظ', (await page.evaluate(()=>document.getElementById('brPend').textContent))==='');
   // مطابق في البطاقة ينتقل للتالي
   await page.click('#brPrev'); await sleep(150);
   const pos0=await page.evaluate(()=>window.IOMPBR._state().i);
@@ -86,8 +89,11 @@ const SCB=(o)=>({ profile:BR, users:[OWNER,BR,BRX], config:CFG(true), sessions:[
     const n=await page.evaluate(()=>document.querySelectorAll('[data-ok]').length);
     for(let i=1;i<=n;i++){ const done=await page.evaluate(i=>{ const b=document.querySelector('[data-ok="'+i+'"]'); const row=b.closest('.br-row'); return row.classList.contains('ok')||row.classList.contains('df'); },i); if(!done){ await page.click('[data-ok="'+i+'"]'); await sleep(120); } } }
   ok('B9 بعد مراجعة الكل يُفعَّل الإرسال', !(await page.evaluate(()=>document.getElementById('brSend').disabled)));
+  ok('B9 الحصّة: تسعة تأشيرات ⇒ مستندان فقط (مستند لكل عدّاد) لا مستند لكل صنف', true);
   await page.click('#brSend'); await sleep(200); await page.click('#cfGo'); await sleep(400);
-  const meta=(await store(page,'sessions/sr/branchReview/'))['sessions/sr/branchReview/__brmeta'];
+  const stAll=await store(page,'sessions/sr/branchReview/');
+  results[results.length-1].pass=JSON.stringify(Object.keys(stAll).sort())===JSON.stringify(['sessions/sr/branchReview/__brmeta','sessions/sr/branchReview/p_c1','sessions/sr/branchReview/p_c2']); results[results.length-1].d=JSON.stringify(Object.keys(stAll));
+  const meta=stAll['sessions/sr/branchReview/__brmeta'];
   ok('B9 الإرسال يكتب __brmeta بإقفال الجلسة نفسه والأعداد', meta&&meta.submitted===true&&meta.closedAt&&meta.closedAt.__ts===1000&&meta.steps===9&&meta.diff===1&&meta.notes===1, JSON.stringify(meta));
   const after=await store(page,'sessions/sr/counts/');
   ok('B10 المراجعة لا تمسّ أي عدّة (العدّات متطابقة بايتًا ببايت)', JSON.stringify(after)===JSON.stringify(before));
@@ -96,19 +102,46 @@ const SCB=(o)=>({ profile:BR, users:[OWNER,BR,BRX], config:CFG(true), sessions:[
   ok('B10 لا أخطاء JavaScript ولا نوافذ حوار', errs.length===0, errs.join(' | '));
   await ctx.close(); }
 
-// B11: تعذّر الحفظ يظهر صراحةً ولا يُحسب التأشير
+// B11: تعذّر الحفظ يظهر صراحةً، يبقى «غير محفوظ»، ويمنع الإرسال والخروج الصامت
 { const {ctx,page}=await boot(SCB()); await openReview(page);
-  await page.evaluate(()=>window.__failWrite('sessions/sr/branchReview/A',true));
-  await page.click('[data-ok="1"]'); await sleep(300);
-  const t=await toasts(page);
-  ok('B11 تعذّر الكتابة ⇒ رسالة خطأ ظاهرة والخطوة تبقى «لم تُراجَع»', t.some(x=>x.includes('تعذّر حفظ مراجعة'))&&!(await page.evaluate(()=>document.querySelector('[data-ok="1"]').classList.contains('on'))), JSON.stringify(t));
+  await page.evaluate(()=>window.__failWrite('sessions/sr/branchReview/p_c1',true));
+  await page.click('[data-ok="1"]'); await sleep(150); const ok1=await page.evaluate(()=>window.IOMPBR.flush()); await sleep(200);
+  const t=await toasts(page); const pend=await page.evaluate(()=>document.getElementById('brPend').textContent);
+  ok('B11 تعذّر الكتابة ⇒ رسالة خطأ ظاهرة و«⚠ غير محفوظ: 1» في الترويسة', ok1===false&&t.some(x=>x.includes('تعذّر حفظ 1'))&&pend.includes('غير محفوظ: 1'), JSON.stringify([t,pend]));
+  await page.click('#brBack'); await sleep(300);
+  ok('B11 الخروج مع غير المحفوظ ⇒ سؤالٌ صريح قبل ضياعه', await page.evaluate(()=>{ const o=document.getElementById('cfOverlay'); return !!o&&getComputedStyle(o).display!=='none'&&o.textContent.includes('غير محفوظة'); }));
+  await page.click('#cfCancel'); await sleep(150);
+  await page.evaluate(()=>window.__failWrite('sessions/sr/branchReview/p_c1',false)); await page.evaluate(()=>window.IOMPBR.flush()); await sleep(200);
+  ok('B11 عند عودة الاتصال يُحفظ المؤجَّل', !!(await store(page,'sessions/sr/branchReview/'))['sessions/sr/branchReview/p_c1']);
+  await ctx.close(); }
+
+// B11b: البحث لا يعيد بناء خانته (لوحات المفاتيح العربية)، والملاحظة بعد التأشير فقط، والقفز بين عدّادين صحيح
+{ const {ctx,page}=await boot(SCB()); await openReview(page);
+  const same=await page.evaluate(()=>{ const a=document.getElementById('brQ'); a.value='كرسى'; a.dispatchEvent(new Event('input')); const n=document.querySelectorAll('.br-row').length; return {same:document.getElementById('brQ')===a,n}; });
+  ok('B11b البحث يحدّث القائمة وحدها والخانة نفسها باقية، ومع تطبيع العربية (كرسى = كرسي)', same.same&&same.n===2, JSON.stringify(same));
+  await page.evaluate(()=>{ const a=document.getElementById('brQ'); a.value=''; a.dispatchEvent(new Event('input')); });
+  await page.click('[data-open="1"]'); await sleep(150);
+  ok('B11b لا «+ إضافة ملاحظة» قبل التأشير (فلا يُسجَّل «مطابق» ضمنيًّا)', await page.$('#brAddNote')===null);
+  await page.click('[data-u="c2"]'); await sleep(150); await page.click('#brNext'); await page.click('#brNext'); await sleep(150);
+  const before=await page.evaluate(()=>({u:window.IOMPBR._state().u,i:window.IOMPBR._state().i}));
+  await page.click('[data-jump]'); await sleep(200);
+  const st=await page.evaluate(()=>{ const S=window.IOMPBR._state(); const p=window.IOMPBR._paths().find(x=>x.uid===S.u); return {u:S.u,code:p.steps[S.i].code,q:p.steps[S.i].q}; });
+  ok('B11b «اذهب إلى» من مسار وضاح ينقل إلى موضع الصنف نفسه في مسار عبدالكريم', before.u==='c2'&&st.u==='c1'&&st.code==='C', JSON.stringify([before,st]));
+  await ctx.close(); }
+
+// B11c: جلسة بلا عدّات ⇒ يمكن الإرسال (لا قفل دائم)
+{ const s=mkSess({itemCount:6}); s.__counts=[]; s.__activity=[];
+  const {ctx,page}=await boot({ profile:BR, users:[OWNER,BR], config:CFG(true), sessions:[s] }); await openReview(page);
+  const dis=await page.evaluate(()=>document.getElementById('brSend').disabled);
+  await page.click('#brSend'); await sleep(150); await page.click('#cfGo'); await sleep(300);
+  const meta=(await store(page,'sessions/sr/branchReview/'))['sessions/sr/branchReview/__brmeta'];
+  ok('B11c جلسة بلا عدّات: الإرسال متاح ويُسجَّل بصفر خطوات', !dis&&meta&&meta.steps===0, JSON.stringify(meta));
   await ctx.close(); }
 
 // B12–B14: المدير — البوابة الإلزامية وشاشة الملاحظات
 const MARKS = (()=>{ const o={}; const all=[['A','c1_a1',6],['B','c1_b1',5],['C','c1_c1',9],['D','c1_d1',28],['X','c1_x1',3],['C','c1_c2',5],['E','c2_e1',2],['F','c2_f1',40],['C','c2_c3',2]];
-  all.forEach(([c,k,q])=>{ o[c]=o[c]||{code:c,by:'u_br',byName:'خالد',m:{}}; o[c].m[k]={v:c==='F'?'diff':'ok',a:c==='F'?35:q,nt:c==='F'?'الكرتون الثامن فارغ':'',cq:q,at:1}; }); return Object.values(o); })();
-function withReview(meta){ const s=mkSess(); s.__br=true; return s; }
-async function seedReview(page,meta){ await page.evaluate(({M,meta})=>{ M.forEach(d=>{ window.__store['sessions/sr/branchReview/'+d.code]=d; }); if(meta)window.__store['sessions/sr/branchReview/__brmeta']=meta; },{M:MARKS,meta}); }
+  all.forEach(([c,k,q])=>{ const u=k.slice(0,2); o[u]=o[u]||{u,by:'u_br',byName:'خالد',m:{}}; o[u].m[k]={c,v:c==='F'?'diff':'ok',a:c==='F'?35:q,nt:c==='F'?'الكرتون الثامن فارغ':'',cq:q,at:1}; }); return Object.values(o); })();
+async function seedReview(page,meta){ await page.evaluate(({M,meta})=>{ M.forEach(d=>{ window.__store['sessions/sr/branchReview/p_'+d.u]=JSON.parse(JSON.stringify(d)); }); if(meta)window.__store['sessions/sr/branchReview/__brmeta']=meta; },{M:MARKS,meta}); }
 { const {ctx,page}=await boot({ profile:OWNER, users:[OWNER,BR], config:CFG(true), sessions:[mkSess()] });
   await page.evaluate(()=>window.__openSession('sr')); await sleep(600);
   ok('B12 المدير يرى «📝 ملاحظات الفرع» ولا يرى «🧭 مراجعة الفرع» (لا موقع مسند له… المالك يراه)', await page.$('#brNotesBtn')!==null);

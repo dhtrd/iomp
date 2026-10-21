@@ -264,7 +264,7 @@ service cloud.firestore {
         allow create, update: if countable(sess(sid));
         allow delete: if countable(sess(sid)) || ( sess(sid).get('deleted', false) == true && can('trash.purge') );
       }
-      // مراجعة الفرع — ملاحظاتٌ فقط (لا تمسّ العدّات): مستند لكل صنف {code,m,by,byName,at} + مستند الإرسال __brmeta
+      // مراجعة الفرع — ملاحظاتٌ فقط (لا تمسّ العدّات): مستند لكل عدّاد p_<uid> {u,m,by,byName,at} + مستند الإرسال __brmeta
       match /branchReview/{rid} {
         allow read: if readData(sess(sid));
         allow create, update: if brWrite(sess(sid)) && (
@@ -272,8 +272,9 @@ service cloud.firestore {
             ? ( request.resource.data.keys().hasOnly(['submitted','by','byName','at','closedAt','steps','ok','diff','notes'])
                 && request.resource.data.get('submitted', false) == true
                 && request.resource.data.get('closedAt', null) == sess(sid).get('closedAt', null) )
-            : ( request.resource.data.keys().hasOnly(['code','m','by','byName','at'])
-                && request.resource.data.get('m', {}) is map && request.resource.data.get('m', {}).size() <= 300 ) );
+            : ( request.resource.data.keys().hasOnly(['u','m','by','byName','at'])
+                && rid == 'p_' + request.resource.data.get('u', '')                          // مستندٌ واحد لكل عدّاد: p_<uid العدّاد>
+                && request.resource.data.get('m', {}) is map && request.resource.data.get('m', {}).size() <= 5000 ) );
         allow delete: if sess(sid).get('deleted', false) == true && can('trash.purge');
       }
       // سجل الحركة — قراءة بالنطاق، إضافة فقط بواسطة الفاعل، لا تعديل؛ الحذف للحذف النهائي من السلة فقط

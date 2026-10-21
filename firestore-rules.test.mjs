@@ -272,7 +272,7 @@ await testEnv.withSecurityRulesDisabled(async (ctx) => {
   await setDoc(doc(d, 'sessions/s_brO'), { name:'مفتوحة', status:'open', started:true, assignedCounters:['u_ct'], location:'فرع أ', createdBy:'u_owner' });
   await setDoc(doc(d, 'sessions/s_br3/branchReview/__brmeta'), { submitted:true, by:'u_brv', byName:'ف', at:TOLD, closedAt: TOLD, steps:1, ok:1, diff:0, notes:0 }); // إرسالٌ قديم قبل إعادة الإقفال
 });
-const mark = (uid, sid, extra) => setDoc(doc(db(uid), 'sessions/'+sid+'/branchReview/A'), Object.assign({ code:'A', m:{ u_ct_e1:{ v:'diff', a:4, nt:'ملاحظة', cq:5, at:1 } }, by:uid, byName:'ف', at:TC }, extra||{}), { merge:true });
+const mark = (uid, sid, extra, rid) => setDoc(doc(db(uid), 'sessions/'+sid+'/branchReview/'+(rid||'p_u_ct')), Object.assign({ u:'u_ct', m:{ u_ct_e1:{ c:'A', v:'diff', a:4, nt:'ملاحظة', cq:5, at:1 } }, by:uid, byName:'ف', at:TC }, extra||{}), { merge:true });
 const meta = (uid, sid, cl) => setDoc(doc(db(uid), 'sessions/'+sid+'/branchReview/__brmeta'), { submitted:true, by:uid, byName:'ف', at:TC, closedAt:cl, steps:1, ok:0, diff:1, notes:1 });
 const markRev = (uid, sid) => updateDoc(doc(db(uid), 'sessions/'+sid), { status:'reviewed', reviewedBy:uid, reviewedByName:'م', reviewedAt:TC });
 await T('مراجعة الفرع: العلم مطفأ ⇒ مسؤول الفرع لا يكتب', assertFails(mark('u_brv','s_br')));
@@ -286,8 +286,9 @@ await T('مراجعة الفرع: المطّلع بلا الصلاحية يُم�
 await T('مراجعة الفرع: العدّاد يُمنع', assertFails(mark('u_ct','s_br')));
 await T('مراجعة الفرع: الجلسة المفتوحة (أثناء العدّ) ممنوعة', assertFails(mark('u_brv','s_brO')));
 await T('مراجعة الفرع: حقل خارج المخطّط يُرفض', assertFails(mark('u_brv','s_br',{ qty:99 })));
+await T('مراجعة الفرع: اسم المستند يجب أن يطابق عدّاده (p_<uid>)', assertFails(mark('u_brv','s_br',null,'p_u_other')));
 await T('مراجعة الفرع: لا تمسّ العدّات (مسؤول الفرع لا يكتب counts)', assertFails(setDoc(doc(db('u_brv'), 'sessions/s_br/counts/c9'), { code:'A', qty:1 })));
-await T('مراجعة الفرع: لا يحذف مسؤول الفرع مراجعته', assertFails(deleteDoc(doc(db('u_brv'), 'sessions/s_br/branchReview/A'))));
+await T('مراجعة الفرع: لا يحذف مسؤول الفرع مراجعته', assertFails(deleteDoc(doc(db('u_brv'), 'sessions/s_br/branchReview/p_u_ct'))));
 await T('بوابة الإلزام: «تمت المراجعة» قبل الإرسال مرفوضة', assertFails(markRev('u_owner','s_br')));
 await T('الإرسال: closedAt مختلف عن الجلسة مرفوض', assertFails(meta('u_brv','s_br',TOLD)));
 await T('الإرسال: مسؤول الفرع يرسل للإقفال الحالي', assertSucceeds(meta('u_brv','s_br',TC)));
