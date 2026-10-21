@@ -1363,7 +1363,7 @@ function sessDenyMsg(){ return 'هذه الجلسة ليست ضمن المكلَ
 
 const $ = id => document.getElementById(id);
 let app, auth, db, myProfile=null, adminTab='home', uploadSid=null, countsUnsub=null, actUnsub=null, sessUnsub=null, curSid=null, curSess=null, curItems=[], curCounts={};
-let permConfig=null, permUnsub=null, permUsersCache=[], _permInit=false;
+let permConfig=null, permUnsub=null, permUsersCache=[], _permInit=false, _permDead=false, _listRe=null, _listUnsub=null;
 let curBaseItems=[], curExtra=[], extraUnsub=null;
 let curNotes={}, notesUnsub=null; const _noteOpen=new Set(); const _noteDraft={};
 let sessByLoc=false;
@@ -1537,12 +1537,12 @@ async function enterApp(){show('appView');$('whoEmail').textContent=myProfile.em
   { const lt=sysDefaults().landingTab; if(lt && adminTabsAvailable().indexOf(lt)>=0) adminTab=lt; }
   startPermListener(); renderNav(); route(); reconcileAppearance(); idleInit(); notifInit(); offlineInit(); if(featuresDropboxOn())dbxAutoInit();}
 async function loadPermConfigOnce(){ try{ const d=await getDocSafe(doc(db,'config','permissions')); permConfig=d.exists()?(d.data()||{roles:{},users:{}}):{roles:{},users:{}}; }catch(e){ permConfig={roles:{},users:{}}; } }
-function startPermListener(){ if(permUnsub)return; _permInit=false;
+function startPermListener(re){ if(permUnsub)return; _permInit=false; const was=re?JSON.stringify(permConfig||null):null;
   try{ permUnsub=onSnapshot(doc(db,'config','permissions'),(d)=>{ permConfig=d.exists()?(d.data()||{roles:{},users:{}}):{roles:{},users:{}};
-        if(!_permInit){_permInit=true;return;}
-        if(myProfile){ renderNav(); if(!curSid&&!repSid&&adminTab!=='settings') route(); } },(e)=>{}); }
+        if(!_permInit){ _permInit=true; if(!re||(d.metadata&&d.metadata.fromCache)||JSON.stringify(permConfig)===was)return; }
+        if(myProfile){ renderNav(); if(!curSid&&!repSid&&adminTab!=='settings') route(); } },(e)=>{ if(offlineIsConnErr(e))_permDead=true; }); }
   catch(e){} }
-function stopPermListener(){ if(permUnsub){permUnsub();permUnsub=null;} permConfig=null; permUsersCache=[]; _permInit=false; }
+function stopPermListener(){ if(permUnsub){permUnsub();permUnsub=null;} permConfig=null; permUsersCache=[]; _permInit=false; _permDead=false; _listRe=null; listOwn(null); }
 function renderNav(){
   const nav=$('appNav'); let tabs='';
   const ab=$('acctBtn'); if(ab)ab.style.display=can('pw.change')?'':'none';
@@ -1639,7 +1639,7 @@ function adminTabsAvailable(){ const t=[]; if(canManageSessions())t.push('sessio
 function route(){ routeProgFlash(); _route(); pageEnterAnimate(); }
 function routeProgFlash(){ const p=$('routeProg'); if(!p)return; p.classList.remove('on'); void p.offsetWidth; p.classList.add('on'); clearTimeout(p._t); p._t=setTimeout(()=>p.classList.remove('on'),760); }
 function pageEnterAnimate(){ const c=$('appContent'); if(!c)return; c.classList.remove('pgin'); void c.offsetWidth; c.classList.add('pgin'); }
-function _route(){if(countsUnsub){countsUnsub();countsUnsub=null;}if(actUnsub){actUnsub();actUnsub=null;}if(repUnsub){repUnsub();repUnsub=null;}if(sessUnsub){sessUnsub();sessUnsub=null;}if(extraUnsub){extraUnsub();extraUnsub=null;}const c=$('appContent');
+function _route(){ listOwn(null); _listRe=null; if(countsUnsub){countsUnsub();countsUnsub=null;}if(actUnsub){actUnsub();actUnsub=null;}if(repUnsub){repUnsub();repUnsub=null;}if(sessUnsub){sessUnsub();sessUnsub=null;}if(extraUnsub){extraUnsub();extraUnsub=null;}const c=$('appContent');
   if(adminTab==='reports'&&canViewAnyReports()){ return renderReportsScreen(c); }
   if(adminTab==='branches'&&featuresBranchesOn()&&(can('branch.manage')||can('users.manage'))){ return renderBranchesScreen(c); }
   if(adminTab==='products'&&featuresProductCatalogOn()&&can('warehouse.manage')){ return renderProductsScreen(c); }
@@ -1800,7 +1800,7 @@ function renderHome(c){
   function bind(){ c.querySelectorAll('[data-goto]').forEach(b=>b.onclick=()=>{adminTab=b.getAttribute('data-goto');renderNav();route();});
     c.querySelectorAll('[data-dopen]').forEach(b=>b.onclick=()=>openSession(b.getAttribute('data-dopen'))); }
   bind();
-  sessUnsub=onSnapshot(collection(db,'sessions'),(qs)=>{
+  const listen=()=>{ if(sessUnsub){ try{ sessUnsub(); }catch(e){} } sessUnsub=onSnapshot(collection(db,'sessions'),(qs)=>{
     if(!$('dashKpis'))return;
     const list=[]; qs.forEach(d=>{const s=d.data(); if(s&&s.deleted!==true) list.push(Object.assign({id:d.id},s));});
     list.sort((a,b)=>tsMs(b.createdAt)-tsMs(a.createdAt));
@@ -1824,7 +1824,7 @@ function renderHome(c){
     $('dashSess').innerHTML=list.slice(0,6).map(s=>'<div class="sess"><div class="info"><div class="nm">'+esc(s.name||s.id)+'</div><div class="muted">'+esc(s.location||'—')+' • الأصناف: '+(s.itemCount||0)+'</div></div><span class="tag '+(cls[s.status]||'')+'">'+esc(sessStatusLabel(s.status))+'</span><button class="btn ghost sm" data-dopen="'+esc(s.id)+'">فتح</button></div>').join('')||'<p class="muted">لا جلسات بعد — أنشئ جلستك الأولى من «جلسات الجرد».</p>';
     refreshNotifBadge(list);
     bind();
-  },(err)=>{ if($('actionCenter'))$('actionCenter').innerHTML='<p class="muted">تعذّر تحميل الجلسات: '+errAr(err.code||err.message)+'</p>'; if($('dashSess'))$('dashSess').innerHTML=''; });
+  },(err)=>{ listDied(err,'actionCenter',listen); if($('actionCenter'))$('actionCenter').innerHTML='<p class="muted">تعذّر تحميل الجلسات: '+errAr(err.code||err.message)+'</p>'; if($('dashSess'))$('dashSess').innerHTML=''; }); }; listen();
 }
 
 function renderRoleHome(c){
@@ -1833,20 +1833,20 @@ function renderRoleHome(c){
 }
 function renderCounterHome(c){
   c.innerHTML=myTasksBanner()+'<div class="card"><h2>جلسات الجرد المتاحة</h2><div id="counterSess"><p class="muted">جارٍ التحميل…</p></div></div>';
-  onSnapshot(query(collection(db,'sessions'),orderBy('createdAt','desc')),(qs)=>{
+  const listen=()=>listOwn(onSnapshot(query(collection(db,'sessions'),orderBy('createdAt','desc')),(qs)=>{
     const rows=[];qs.forEach(d=>{const s=d.data();if(!s.deleted&&s.status==='open'&&s.started===true&&(s.itemCount||0)>0&&Array.isArray(s.assignedCounters)&&s.assignedCounters.indexOf(myProfile.uid)>=0){rows.push('<div class="sess"><div class="info"><div class="nm">'+esc(s.name)+'</div><div class="muted">'+esc(s.location||'')+' • الأصناف: '+fmt(s.itemCount)+'</div></div><button class="btn sm" data-open="'+d.id+'">ابدأ العد</button></div>');}});
     $('counterSess').innerHTML=rows.length?rows.join(''):'<p class="muted">لا جلسات متاحة للعد حالياً.</p>';
     $('counterSess').querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>openSession(b.getAttribute('data-open')));
-  },(err)=>{$('counterSess').innerHTML='<p class="status show err">تعذّر التحميل: '+errAr(err.code)+'</p>';});
+  },(err)=>{ listDied(err,'counterSess',listen); $('counterSess').innerHTML='<p class="status show err">تعذّر التحميل: '+errAr(err.code)+'</p>';})); listen();
 }
 
 function renderViewerHome(c){
   c.innerHTML=myTasksBanner()+'<div class="card"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><div style="flex:1;min-width:180px"><h2 style="margin:0">تقارير الفروقات</h2><div class="muted">اختر جلسة لعرض تقرير فروقاتها (المعدود مقابل الدفتري).</div></div></div><div id="viewerSess" style="margin-top:14px"><p class="muted">جارٍ التحميل…</p></div></div>';
-  onSnapshot(query(collection(db,'sessions'),orderBy('createdAt','desc')),(qs)=>{
+  const listen=()=>listOwn(onSnapshot(query(collection(db,'sessions'),orderBy('createdAt','desc')),(qs)=>{
     const rows=[];qs.forEach(d=>{const s=d.data();if(!s.deleted&&(s.itemCount||0)>0&&canViewSession(s)){rows.push('<div class="sess"><div class="info"><div class="nm">'+esc(s.name)+'</div><div class="muted">'+esc(s.location||'')+' • الأصناف: '+fmt(s.itemCount)+' • '+(s.status==='open'?'مفتوحة':esc(s.status||''))+'</div></div><button class="btn sm" data-rep="'+d.id+'">📊 عرض التقرير</button></div>');}});
     $('viewerSess').innerHTML=rows.length?rows.join(''):'<p class="muted">لا جلسات فيها بيانات بعد.</p>';
     $('viewerSess').querySelectorAll('[data-rep]').forEach(b=>b.onclick=()=>openVarianceReport(b.getAttribute('data-rep'),'home'));
-  },(err)=>{$('viewerSess').innerHTML='<p class="status show err">تعذّر التحميل: '+errAr(err.code)+'</p>';});
+  },(err)=>{ listDied(err,'viewerSess',listen); $('viewerSess').innerHTML='<p class="status show err">تعذّر التحميل: '+errAr(err.code)+'</p>';})); listen();
 }
 
 function renderUsers(c){
@@ -2831,7 +2831,7 @@ function renderSessions(c){
     if(r.err){ st('sessStatus','err',r.err); return; }
     const sel=$('s_loc'); if(sel){ sel.innerHTML='<option value="">— اختر مستودعاً —</option>'+activeWarehouses().map(w=>'<option value="'+esc(w.name)+'">'+esc(w.name)+'</option>').join('')+'<option value="__new">+ مستودع جديد…</option>'; sel.value=r.ok; if(sel.__selxSync)sel.__selxSync(); } };
   if($('s_loc'))enhanceSelect($('s_loc'));
-  onSnapshot(query(collection(db,'sessions'),orderBy('createdAt','desc')),(qs)=>{
+  const listen=()=>listOwn(onSnapshot(query(collection(db,'sessions'),orderBy('createdAt','desc')),(qs)=>{
     const SESS=[]; qs.forEach(d=>{const s=d.data(); if(s.deleted)return; SESS.push({id:d.id,s});});
     const rowH=(id,s)=>{ const stt=sessStatusOf(s); const bcls=(stt==='open'?'open':(stt==='approved'?'off':'')); const openLbl=(stt==='open'?(s.started===true?'عدّ / متابعة':'تجهيز وتكليف'):(stt==='approved'?'عرض (مقفلة)':'مراجعة / اعتماد')); const sLbl=(stt==='open'&&s.started!==true?'قيد التجهيز':sessStatusLabel(stt));
       const delBtn=(canDel&&stt==='open'&&s.started!==true)?'<button class="btn ghost sm" data-del="'+id+'" title="حذف الجلسة" style="color:var(--danger)">🗑</button>':'';
@@ -2849,7 +2849,7 @@ function renderSessions(c){
     $('sessList').querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>openSession(b.getAttribute('data-open')));
     $('sessList').querySelectorAll('[data-rep]').forEach(b=>b.onclick=()=>openVarianceReport(b.getAttribute('data-rep'),'home'));
     $('sessList').querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>deleteSession(b.getAttribute('data-del')));
-  },(err)=>{$('sessList').innerHTML='<p class="status show err">تعذّر التحميل: '+errAr(err.code)+'</p>';});
+  },(err)=>{ listDied(err,'sessList',listen); $('sessList').innerHTML='<p class="status show err">تعذّر التحميل: '+errAr(err.code)+'</p>';})); listen();
 }
 function renderWarehouses(c){
   const active=activeWarehouses();
@@ -4060,6 +4060,11 @@ if(_oqBC)_oqBC.onmessage=()=>{ if(!featuresOfflineOn())return; oqLocked(offlineQ
 function oqDrop(op){ return oqLocked(async()=>{ const cur=await offlineQueueGet(); const i=cur.findIndex(x=>x.seq===op.seq&&x.at===op.at&&x.op===op.op&&x.code===op.code); if(i>=0){ cur.splice(i,1); await offlineStore.set(OFFLINE_QUEUE_KEY,cur); } _oq=cur; _offlineQueueLen=cur.filter(oqOwn).length; oqPing(); return cur; }); }
 function qDownFor(e){ _qDown=Date.now()+(/exhaust|quota/i.test(String((e&&(e.code||e.message))||''))?OFFLINE_RETRY_MS:30000); }
 function oqKick(){ if(_kickT||!netOnline()||_qDown>Date.now())return; _kickT=setTimeout(()=>{ _kickT=0; offlineAutoTick(); },600); }
+function listOwn(u){ if(_listUnsub){ try{ _listUnsub(); }catch(e){} } _listUnsub=u||null; }
+function listDied(err,el,fn){ if(offlineIsConnErr(err))_listRe={node:$(el),fn:fn}; }
+function globalReattach(){ if(!myProfile)return;
+  if(_permDead){ _permDead=false; if(permUnsub){ try{ permUnsub(); }catch(e){} permUnsub=null; } startPermListener(true); }
+  const r=_listRe; _listRe=null; if(r&&r.node&&r.node.isConnected)r.fn(); }
 function cntReattach(){ if(!_cntDead)return; if(_cntDead!==curSid||!$('clist')||!_reattach){ _cntDead=null; return; }
   const s=$('csearch'); if(scanBusy||scanQueue.length||(s&&s._scBuf!=null)){ setTimeout(cntReattach,1000); return; }
   _cntDead=null; _reattach(); offlineUpdateChip(); }
@@ -4139,7 +4144,7 @@ async function offlineFlush0(manual){ const quiet=(manual==='auto'); if(quiet)ma
   _offlineSyncing=true; offlineUpdateChip();
   let flushed=0; const flushedBySid={}; let failed=false, lastErr=null; const rejected=[];
   try{
-    let q=(await oqLocked(offlineQueueGet)).filter(oqOwn); if(!q.length){ _qDown=0; if(_cntDead)cntReattach(); if(manual)toastOk('لا عمليات بانتظار المزامنة.'); return {ok:true,flushed:0}; }
+    let q=(await oqLocked(offlineQueueGet)).filter(oqOwn); if(!q.length){ _qDown=0; if(_cntDead)cntReattach(); globalReattach(); if(manual)toastOk('لا عمليات بانتظار المزامنة.'); return {ok:true,flushed:0}; }
     if(!netOnline()){ if(manual)toastWarn('لا اتصال — ستُزامَن العمليات تلقائيًّا عند عودة الاتصال.'); return {ok:false,offline:true}; }
     for(let pass=0;pass<50&&q.length&&!failed;pass++){ q=q.slice().sort((a,b)=>a.seq-b.seq);
     const skip=new Set(); let bad=0;
@@ -4161,7 +4166,7 @@ async function offlineFlush0(manual){ const quiet=(manual==='auto'); if(quiet)ma
   for(const sid in flushedBySid) await offlineLogSync(sid,flushedBySid[sid]);
   if(rejected.length){ try{ const prev=(await offlineStore.get(OFFLINE_REJECTED_KEY))||[]; await offlineStore.set(OFFLINE_REJECTED_KEY, prev.concat(rejected)); }catch(_){} toastErr('رُفضت '+fmt(rejected.length)+' عملية عدّ (قد تكون الجلسة أُقفلت أثناء الانقطاع) — سُجّلت في «العمليات المرفوضة» ولم تعُد تحجب الطابور.'); }
   const own=(_oq||[]).filter(oqOwn).length;
-  if(!failed&&!own){ _qDown=0; _flushFailN=0; if(_cntDead)cntReattach(); }
+  if(!failed&&!own){ _qDown=0; _flushFailN=0; if(_cntDead)cntReattach(); globalReattach(); }
   if(failed&&quiet&&!/exhaust|quota/i.test(String((lastErr&&(lastErr.code||lastErr.message))||''))&&(++_flushFailN)%6===0)toastErr('تتعذّر مزامنة '+fmt(own)+' عمليّة عدٍّ منذ مدّة ('+errAr((lastErr&&(lastErr.code||lastErr.message))||'?')+') — تحقّق من الاتصال واضغط «مزامنة الآن»، ولا تمسح بيانات المتصفّح.');
   if(failed){ offlineSetSyncStatus({state:'failed',at:Date.now(),remaining:_offlineQueueLen,flushed:flushed}); if(!quiet)toastErr('تعذّرت مزامنة بعض عمليات العدّ — تبقّى '+fmt(_offlineQueueLen)+' بانتظار المحاولة.'); }
   else if(!rejected.length){ offlineSetSyncStatus({state:'done',at:Date.now(),flushed:flushed}); if(flushed>0)toastOk('اكتملت المزامنة — '+fmt(flushed)+' عملية ✓'); }
@@ -4182,7 +4187,7 @@ function offlineInit(){ offlineDeviceId(); offlineRefreshLen();
       setInterval(offlineAutoTick,OFFLINE_RETRY_MS); document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible')offlineAutoTick(); }); }catch(e){} }
   setTimeout(offlineAutoTick,1000); }
 const OFFLINE_RETRY_MS=300000;
-async function offlineAutoTick(){ if(!featuresOfflineOn()||!myProfile||_offlineSyncing||!netOnline())return null; if(!(await offlineRefreshLen())){ if(_cntDead&&_cntDead===curSid&&_qDown<=Date.now())cntReattach(); return null; } return offlineFlush('auto'); }
+async function offlineAutoTick(){ if(!featuresOfflineOn()){ if(myProfile&&netOnline())globalReattach(); return null; } if(!myProfile||_offlineSyncing||!netOnline())return null; if(!(await offlineRefreshLen())){ if(_cntDead&&_cntDead===curSid&&_qDown<=Date.now())cntReattach(); if(_qDown<=Date.now())globalReattach(); return null; } return offlineFlush('auto'); }
 let _pendingAdds={};
 function pendReapply(){ for(const code in _pendingAdds){ const list=_pendingAdds[code]||[]; if(!list.length)continue;
   const cc=curCounts[code]||{code:code,qty:0,entries:[]}; const have=new Set((cc.entries||[]).map(e=>e&&e.id));

@@ -377,6 +377,8 @@ window.__addEntry = (code,v)=>addEntry(code,v);
 window.__curCounts = ()=>Object.keys(curCounts||{});
 // ر١٠ (م٢٤): خطاطيف العدّ دون اتصال — تُمرَّر تجربة الطابور/المزامنة عبر بديل localStorage (IndexedDB محجوب على file://)
 window.__featuresOfflineOn = ()=>featuresOfflineOn();
+window.__permCfg = ()=>permConfig; // إعادة ربط مستمع الصلاحيات بعد عودة الحصّة
+window.__lisN = (p)=>__listeners.filter(l=>l.path===p).length; // عدد المستمعين الحيّين على مسار (كشف التسرّب/التكرار)
 window.__offline = {
   setOnline:(b)=>{ _forcedOnline = (b===null? null : !!b); offlineUpdateChip(); return (b? (featuresOfflineOn()? offlineFlush(false) : Promise.resolve()) : Promise.resolve()); },
   isOnline:()=>netOnline(),
