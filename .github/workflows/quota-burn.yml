@@ -1,0 +1,17 @@
+name: اختبار نفاد الحصّة (قراءة فقط — لمرة واحدة)
+on:
+  push:
+    branches: [ops/quota-burn]
+jobs:
+  burn:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with: { node-version: 22 }
+      - run: npm install firebase-admin
+      - name: قراءة حتى نفاد الحصّة
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: node ops/quota_burn.mjs
