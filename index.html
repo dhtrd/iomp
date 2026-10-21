@@ -4509,7 +4509,8 @@ async function dbxBuildFullBackup(prog){
       counts:await dbxColDocs(collection(db,'sessions',sid,'counts')),
       snapshot:await dbxColDocs(collection(db,'sessions',sid,'snapshot')),
       extraItems:await dbxColDocs(collection(db,'sessions',sid,'extraItems')),
-      activity:await dbxColDocs(collection(db,'sessions',sid,'activity'))}); }
+      activity:await dbxColDocs(collection(db,'sessions',sid,'activity')),
+      branchReview:await dbxColDocs(collection(db,'sessions',sid,'branchReview'))}); }
   P('قراءة الحركات…'); const movements=await dbxColDocs(collection(db,'movements'));
   const countersArr=await dbxColDocs(collection(db,'counters')); const counters={}; countersArr.forEach(c=>{ counters[c.id]=c.doc; });
   P('قراءة الفروع…'); const brDocs=await dbxColDocs(collection(db,'branches')); const branches=[];
