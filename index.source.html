@@ -135,6 +135,9 @@ body{font-family:'IBM Plex Sans Arabic','Segoe UI',Tahoma,Arial,sans-serif;backg
 #appView[data-nav="collapsed"] .navind{opacity:0}
 #appView[data-nav="collapsed"] .topbar{padding-inline-start:60px} /* فسحة الزر المثبّت حين تكون القائمة مطوية */
 .container{max-width:900px;margin:0 auto;padding:20px 16px 60px;width:100%}
+/* ج٢ (طلب المالك): أيقونة مصدر العدّ بجانب الرقم + شاشتا العدّ والتقرير بعرض الشاشة (عمودان ≥ ١٠٢٤px) */
+.sic{width:15px;height:15px;vertical-align:-3px;flex:none}.sn,.sw{display:inline-flex;align-items:center;gap:3px;white-space:nowrap}.sw{flex-wrap:wrap}.sic.s{color:var(--navy700)}.sic.m{color:#B45309}
+@media(min-width:1024px){body.wide #appContent{max-width:none;padding-inline:24px}body.wide #clist{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:12px;align-items:start}body.wide #clist>p{grid-column:1/-1}}
 @media(max-width:820px){
   .side{position:fixed;inset-inline-start:0;top:0;height:100%;z-index:50;transform:translateX(100%);width:252px!important;padding-inline:12px!important;box-shadow:0 20px 48px -12px rgba(26,31,54,.3)}
   #appView[data-nav="drawer"] .side{transform:none}
@@ -1068,6 +1071,7 @@ input[type="checkbox"]:not(.rcap):not(.rtask){width:18px!important;min-width:18p
         </div>
       </div>
       <div class="container" id="appContent"></div>
+      <svg width="0" height="0" style="position:absolute" aria-hidden="true"><symbol id="ic-bc" viewBox="0 0 24 24"><path d="M3 5v14M6.5 5v14M9.5 5v14M13 5v14M16 5v14M18.5 5v14M21 5v14" fill="none" stroke="currentColor" stroke-width="2"/></symbol><symbol id="ic-pen" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol></svg>
     </main>
   </div>
   <div class="udrawer-ov" id="ueDrawerOv"></div>
@@ -1704,7 +1708,7 @@ function adminTabsAvailable(){ const t=[]; if(canManageSessions())t.push('sessio
 function route(){ routeProgFlash(); _route(); pageEnterAnimate(); }
 function routeProgFlash(){ const p=$('routeProg'); if(!p)return; p.classList.remove('on'); void p.offsetWidth; p.classList.add('on'); clearTimeout(p._t); p._t=setTimeout(()=>p.classList.remove('on'),760); }
 function pageEnterAnimate(){ const c=$('appContent'); if(!c)return; c.classList.remove('pgin'); void c.offsetWidth; c.classList.add('pgin'); }
-function _route(){ listOwn(null); _listRe=null; if(countsUnsub){countsUnsub();countsUnsub=null;}if(actUnsub){actUnsub();actUnsub=null;}if(repUnsub){repUnsub();repUnsub=null;}if(sessUnsub){sessUnsub();sessUnsub=null;}if(extraUnsub){extraUnsub();extraUnsub=null;}const c=$('appContent');
+function _route(){ listOwn(null); _listRe=null; document.body.classList.remove('wide'); if(countsUnsub){countsUnsub();countsUnsub=null;}if(actUnsub){actUnsub();actUnsub=null;}if(repUnsub){repUnsub();repUnsub=null;}if(sessUnsub){sessUnsub();sessUnsub=null;}if(extraUnsub){extraUnsub();extraUnsub=null;}const c=$('appContent');
   if(adminTab==='reports'&&canViewAnyReports()){ return renderReportsScreen(c); } // ر٧: شاشة التقارير الموحّدة (م١٩)
   if(adminTab==='branches'&&featuresBranchesOn()&&(can('branch.manage')||can('users.manage'))){ return renderBranchesScreen(c); } // ر٨-ب: إدارة الفروع (م١٧) خلف علم
   if(adminTab==='products'&&featuresProductCatalogOn()&&can('warehouse.manage')){ return renderProductsScreen(c); } // ر٩: كتالوج المنتجات (م١٥) خلف علم
@@ -3178,7 +3182,7 @@ async function openSession(sid){
 function actAttach(sid){ if(actUnsub||!sid)return null;
   actUnsub=onSnapshot(query(collection(db,'sessions',sid,'activity'),orderBy('at','desc'),limit(40)),(qs)=>{ _actLastQs=qs; const p=$('actPanel'); if(p&&p.style.display==='none'){ _actDirty=true; return; } _actDirty=false; renderActivity(qs); },(err)=>{});
   return actUnsub; }
-function renderCountingShell(){
+function renderCountingShell(){ document.body.classList.add('wide');
   const c=$('appContent'); const blind=curSess.blind;
   { const pt=$('pageTitle'); if(pt&&curSess)pt.textContent='جرد: '+(curSess.name||''); } // إصلاح-٦ (بند ٤): عنوان الترويسة يعكس الجلسة المفتوحة بدل «لوحة المعلومات»
   const stt=sessStatusOf(curSess);
@@ -3414,7 +3418,7 @@ function countRowHtml(it,blind,frozen){ {const cc=curCounts[it.code];const count
     else if(counted&&it.book==null&&it.manual){diffChip=' • <b class="dpos">الفرق: زيادة +'+fmt(total)+' (خارج الدفتر)</b>';} // الصنف اليدوي يُوسَم «زيادة» وقت العد نفس غيره (طلب العميل)
     let box='';
     if(counted&&cc.entries&&cc.entries.length){
-      box='<div style="flex-basis:100%;margin-top:8px;padding-top:8px;border-top:1px dashed var(--hair)"><div class="muted" style="font-size:11.5px;margin-bottom:2px">الإضافات ('+fmt(entriesOps(cc.entries))+')'+srcLine(cc.entries)+(frozen?':':' — اضغط × لحذف كمية:')+'</div>'+cc.entries.map((e,i)=>'<span style="display:inline-flex;align-items:center;gap:5px;background:'+(entrySrc(e)==='m'?'#FEF3C7':'var(--navy100)')+';border-radius:20px;padding:3px 10px;margin:3px;font-size:13px"'+(entrySrc(e)==='m'?' title="إدخال يدوي"':'')+'>'+(entrySrc(e)==='m'?'<span style="font-size:11px;color:#92400E;font-weight:600">✍ يدوي</span>':'')+'<b>'+fmt(e.q)+'</b>'+((entryN(e)>1&&histOpt('history.badge'))?' <span class="muted" title="تتابع عدٍّ واحدٌ متّصل — '+fmt(entryN(e))+' مسحات">×'+fmt(entryN(e))+'</span>':'')+(e.byName?' <span class="muted">'+esc(e.byName)+'</span>':'')+(e.pending?' <span title="قيد التأكيد — تُزامَن الآن">⏳</span>':'')+((frozen||e.pending)?'':' <button data-delc="'+esc(it.code)+'" data-deli="'+i+'" data-deln="'+entryN(e)+'" data-dele="'+esc(e.id||'')+'" title="حذف هذه الكمية" style="border:none;background:none;color:var(--danger);cursor:pointer;font-weight:700;font-size:15px">×</button>')+'</span>').join('')+'</div>';
+      box='<div style="flex-basis:100%;margin-top:8px;padding-top:8px;border-top:1px dashed var(--hair)"><div class="muted" style="font-size:11.5px;margin-bottom:2px">الإضافات ('+fmt(entriesOps(cc.entries))+')'+(frozen?':':' — اضغط × لحذف كمية:')+'</div>'+cc.entries.map((e,i)=>'<span style="display:inline-flex;align-items:center;gap:5px;background:var(--navy100);border-radius:20px;padding:3px 10px;margin:3px;font-size:13px"'+(entrySrc(e)==='m'?' title="إدخال يدوي"':'')+'>'+srcIc(entrySrc(e))+'<b>'+fmt(e.q)+'</b>'+((entryN(e)>1&&histOpt('history.badge'))?' <span class="muted" title="تتابع عدٍّ واحدٌ متّصل — '+fmt(entryN(e))+' مسحات">×'+fmt(entryN(e))+'</span>':'')+(e.byName?' <span class="muted">'+esc(e.byName)+'</span>':'')+(e.pending?' <span title="قيد التأكيد — تُزامَن الآن">⏳</span>':'')+((frozen||e.pending)?'':' <button data-delc="'+esc(it.code)+'" data-deli="'+i+'" data-deln="'+entryN(e)+'" data-dele="'+esc(e.id||'')+'" title="حذف هذه الكمية" style="border:none;background:none;color:var(--danger);cursor:pointer;font-weight:700;font-size:15px">×</button>')+'</span>').join('')+'</div>';
     }
     // ملاحظات العدّ (طلب العميل): الملاحظات المسجّلة ظاهرة دومًا؛ ومربّع «ملاحظة» يفتح محرّرًا يكتب فيه العدّاد نص الملاحظة
     const codeS=String(it.code); const nn=curNotes[codeS]; const notes=(nn&&nn.notes)||[]; const noteOpen=!frozen&&_noteOpen.has(codeS);
@@ -4525,7 +4529,7 @@ function histOpt(k){ const o=(permConfig&&permConfig.history)||{}; return o[k]==
 function entryN(e){ const n=e&&e.n; return (n==null||!(n>1))?1:Math.floor(n); }              // غياب n ⇒ مسحةٌ واحدة (توافق رجعي مطلق)
 /* مصدر السطر: m=يدوي · s=قارئ (والتتابع المدموج قارئٌ حتمًا حتى في البيانات القديمة) · u=قبل التمييز */
 function srcQ(list,qty){ if(!list)return {scanQty:null,manQty:null,unkQty:null}; const o=srcSplit(list); return {scanQty:o.s,manQty:o.m,unkQty:(qty!=null?Math.round((qty-o.s-o.m)*1e6)/1e6:o.u)}; } // أعمدة «بالقارئ/يدوي» (غير المعدود = فارغ)
-function srcLine(list){ const o=srcSplit(list); return (o.s||o.m)?(' — بالقارئ '+fmt(o.s)+' · يدوي '+fmt(o.m)+(o.u?(' · غير مصنّف '+fmt(o.u)):'')):''; }
+function srcIc(k){ return k==='s'?'<svg class="sic s" role="img" aria-label="بالقارئ"><use href="#ic-bc"/></svg>':(k==='m'?'<svg class="sic m" role="img" aria-label="يدوي"><use href="#ic-pen"/></svg>':''); } // ج٢: باركود = قارئ، قلم = يدوي، القديم بلا أيقونة
 function entrySrc(e){ return (e&&e.src==='manual')?'m':((e&&(e.src==='scan'||e.mrg||entryN(e)>1))?'s':'u'); }
 function srcSplit(list){ const o={s:0,m:0,u:0}; (list||[]).forEach(e=>{ o[entrySrc(e)]+=Number(e&&e.q)||0; }); return o; }
 function entriesOps(list){ let t=0; (list||[]).forEach(e=>{ t+=entryN(e); }); return t; }    // عدد الإضافات الفعليّة لا عدد الأسطر
@@ -5436,12 +5440,13 @@ function stopCamera(){ _camOn=false; camReset(); try{ if(_zxingReader&&_zxingRea
 // ===== VARIANCE REPORT (تقرير الفروقات — المرحلة 5) =====
 // تجميع «من أضاف» من إدخالات العدّ: اسم الفاعل مقابل مجموع كميّته + تفصيل عدّاته (م٦: المطّلع يراجع العدّات الفردية كما في شاشة العد)
 function repAgg(entries){
-  const m={}; (entries||[]).forEach(e=>{const n=(e&&e.byName!=null?String(e.byName).trim():'')||'—'; const g=m[n]||(m[n]={q:0,parts:[]}); const q=(e&&e.q?e.q:0); g.q+=q;
-    g.parts.push(entrySrc(e)==='m'?('✍'+fmt(q)):q);}); // طلب العميل: مسحات التتابع لا تُفكّ إلى ١+١ — كلّ سطرٍ (تتابعٌ مدموجٌ بكميّته أو إضافةٌ واحدة) جزءٌ واحد، كما تظهر في شاشة العدّ. والإضافات المنفصلة الحقيقيّة تبقى مفصّلةً «(٤ + ٨)».
-  return Object.keys(m).map(n=>({name:n,q:m[n].q,parts:m[n].parts})).sort((a,b)=>b.q-a.q);
+  const m={}; (entries||[]).forEach(e=>{const n=(e&&e.byName!=null?String(e.byName).trim():'')||'—'; const g=m[n]||(m[n]={q:0,parts:[],qs:[],ss:[]}); const q=(e&&e.q?e.q:0); g.q+=q;
+    g.parts.push(entrySrc(e)==='m'?('✍'+fmt(q)):q); g.qs.push(q); g.ss.push(entrySrc(e));}); // طلب العميل: مسحات التتابع لا تُفكّ إلى ١+١ — كلّ سطرٍ (تتابعٌ مدموجٌ بكميّته أو إضافةٌ واحدة) جزءٌ واحد، كما تظهر في شاشة العدّ. والإضافات المنفصلة الحقيقيّة تبقى مفصّلةً «(٤ + ٨)».
+  return Object.keys(m).map(n=>({name:n,q:m[n].q,parts:m[n].parts,qs:m[n].qs,ss:m[n].ss})).sort((a,b)=>b.q-a.q);
 }
 // نص تفصيل العدّات لفاعلٍ واحد: «الاسم: الإجمالي (ق١ + ق٢ …)» — يظهر التفصيل فقط عند تعدد العدّات
-function whoDetail(w,html){ const parts=(w.parts&&(w.parts.length>1||typeof w.parts[0]==='string'))?(' ('+w.parts.map(p=>typeof p==='string'?p:fmt(p)).join(' + ')+')'):'';
+function whoDetail(w,html,ic){ if(ic&&html&&w.ss)return esc(w.name)+': '+(w.ss.length>1?fmt(w.q)+' <span class="muted sw">(<span>'+w.qs.map((q,i)=>'<span class="sn">'+srcIc(w.ss[i])+fmt(q)+'</span>').join('</span> + <span>')+'</span>)</span>':'<span class="sn">'+fmt(w.q)+srcIc(w.ss[0])+'</span>'); // ج٢: شاشة التقرير فقط — الطباعة والتصدير بلا تغيير
+   const parts=(w.parts&&(w.parts.length>1||typeof w.parts[0]==='string'))?(' ('+w.parts.map(p=>typeof p==='string'?p:fmt(p)).join(' + ')+')'):'';
   return html?(esc(w.name)+': '+fmt(w.q)+(parts?' <span class="muted">'+parts+'</span>':'')):(w.name+': '+fmt(w.q)+parts); }
 // محرك حساب الفروقات: لكل صنف حالة وفرق وقيمة بالتكلفة.
 function computeVariance(items,counts){
@@ -5518,7 +5523,7 @@ async function sessWriteSummary(sid,items,counts){ if(!featuresSessionSummaryOn(
 async function openVarianceReport(sid,backTo){
   try{ actFlush(); }catch(e){} runReset();                                   // ط-١٤: مغادرة شاشة العدّ تقطع التتابع وتُفرِغ سطره
   if(!canViewAnyReports()){ $('appContent').innerHTML='<div class="card"><p class="status show err">ليست لديك صلاحية عرض التقارير.</p></div>'; return; }
-  repBackTo=backTo||'home';
+  repBackTo=backTo||'home'; document.body.classList.add('wide');
   listOwn(null); _listRe=null; if(countsUnsub){countsUnsub();countsUnsub=null;} if(actUnsub){actUnsub();actUnsub=null;} if(repUnsub){repUnsub();repUnsub=null;} if(sessUnsub){sessUnsub();sessUnsub=null;}if(extraUnsub){extraUnsub();extraUnsub=null;}
   const c=$('appContent'); c.innerHTML='<div class="card"><p class="muted">جارٍ تحميل التقرير…</p></div>';
   try{
@@ -5695,12 +5700,12 @@ function renderReportRows(){
   const body=shown.map(r=>{
     const diffCell=r.hasDiff?colored(r.diff,fmt(r.diff)):'—';
     const varCell=r.varValue!=null?colored(r.varValue,fmt(round2(r.varValue))):'—';
-    const whoCell=showWho?'<td class="muted" style="font-size:12px">'+(r.who.length?r.who.map(w=>whoDetail(w,true)).join('<br>'):'—')+(r.manual?' <span class="tag" style="font-size:10px">يدوي</span>':'')+'</td>':''; // م٦: تفصيل العدّات (4 + 20 …) للمراجعة
+    const whoCell=showWho?'<td class="muted" style="font-size:12px">'+(r.who.length?r.who.map(w=>whoDetail(w,true,1)).join('<br>'):'—')+(r.manual?' <span class="tag" style="font-size:10px">يدوي</span>':'')+'</td>':''; // م٦: تفصيل العدّات (4 + 20 …) للمراجعة
     const notesCell=showNotes?'<td style="font-size:12px;max-width:240px">'+((r.notes&&r.notes.length)?r.notes.map(n=>'📝 '+esc(n.text||'')+(n.byName?' <span class="muted">— '+esc(n.byName)+'</span>':'')).join('<br>'):'<span class="muted">—</span>')+'</td>':'';
     return '<tr><td class="num" style="direction:ltr;text-align:right"><span class="tag">'+esc(r.code)+'</span></td>'+
       '<td>'+esc(r.name)+(r.manual?' <span class="tag" style="background:#FEF3C7;color:#92400E">'+(r.src==='catalog'&&catOpt('catalogAdd.badge')!==false?'كتالوج':'يدوي')+'</span>':'')+'</td><td class="muted">'+esc(r.category||'—')+'</td>'+
       '<td class="num">'+(r.book!=null?fmt(r.book):'—')+'</td>'+
-      '<td class="num">'+(r.isCounted?fmt(r.counted):'—')+'</td>'+
+      '<td class="num">'+(r.isCounted?'<span class="sn">'+fmt(r.counted)+(r.scanQty?srcIc('s'):'')+(r.manQty?srcIc('m'):'')+'</span>':'—')+'</td>'+
       '<td class="num">'+diffCell+'</td>'+
       '<td><span class="st '+r.status+'">'+STLABEL[r.status]+'</span>'+((r.book!=null&&r.book<0)?' <span class="tag" style="font-size:10px" title="رُفع في ملف الجرد برصيد دفتري سالب — يُحسب ضمن الزيادات">دفتري سالب</span>':'')+((r.status==='uncounted'&&r.book!=null&&r.book>0)?' <span class="tag" style="font-size:10px" title="لم يُعدّ بعد — سيُعامل صفرًا ويُحسب ضمن العجز">يُحسب عجزًا</span>':'')+'</td>'+
       (fin?'<td class="num">'+(r.cost!=null?fmt(r.cost):'—')+'</td>'+
