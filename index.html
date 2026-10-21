@@ -2981,7 +2981,7 @@ function snapCacheSet(sid,items){ if(!Array.isArray(items)||!items.length)return
   snapCachePrune(sid); }
 async function openSession(sid){
   try{ actFlush(); }catch(e){} runReset();
-  if(countsUnsub){countsUnsub();countsUnsub=null;} if(actUnsub){actUnsub();actUnsub=null;} if(repUnsub){repUnsub();repUnsub=null;} if(sessUnsub){sessUnsub();sessUnsub=null;}if(extraUnsub){extraUnsub();extraUnsub=null;}if(notesUnsub){notesUnsub();notesUnsub=null;}
+  listOwn(null); _listRe=null; if(countsUnsub){countsUnsub();countsUnsub=null;} if(actUnsub){actUnsub();actUnsub=null;} if(repUnsub){repUnsub();repUnsub=null;} if(sessUnsub){sessUnsub();sessUnsub=null;}if(extraUnsub){extraUnsub();extraUnsub=null;}if(notesUnsub){notesUnsub();notesUnsub=null;}
   const c=$('appContent'); c.innerHTML='<div class="card"><p class="muted">جارٍ تحميل الجلسة…</p></div>';
   try{
     const sdoc=await (featuresOfflineOn()?getDocSafe:getDoc)(doc(db,'sessions',sid)); if(!sdoc.exists()){c.innerHTML='<div class="card">الجلسة غير موجودة.</div>';return;}
@@ -4187,7 +4187,7 @@ function offlineInit(){ offlineDeviceId(); offlineRefreshLen();
       setInterval(offlineAutoTick,OFFLINE_RETRY_MS); document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible')offlineAutoTick(); }); }catch(e){} }
   setTimeout(offlineAutoTick,1000); }
 const OFFLINE_RETRY_MS=300000;
-async function offlineAutoTick(){ if(!featuresOfflineOn()){ if(myProfile&&netOnline())globalReattach(); return null; } if(!myProfile||_offlineSyncing||!netOnline())return null; if(!(await offlineRefreshLen())){ if(_cntDead&&_cntDead===curSid&&_qDown<=Date.now())cntReattach(); if(_qDown<=Date.now())globalReattach(); return null; } return offlineFlush('auto'); }
+async function offlineAutoTick(){ if(!featuresOfflineOn()){ if(myProfile&&netOnline()){ globalReattach(); if(_cntDead&&_cntDead===curSid)cntReattach(); } return null; } if(!myProfile||_offlineSyncing||!netOnline())return null; if(!(await offlineRefreshLen())){ if(_cntDead&&_cntDead===curSid&&_qDown<=Date.now())cntReattach(); if(_qDown<=Date.now())globalReattach(); return null; } return offlineFlush('auto'); }
 let _pendingAdds={};
 function pendReapply(){ for(const code in _pendingAdds){ const list=_pendingAdds[code]||[]; if(!list.length)continue;
   const cc=curCounts[code]||{code:code,qty:0,entries:[]}; const have=new Set((cc.entries||[]).map(e=>e&&e.id));
@@ -5101,7 +5101,7 @@ async function openVarianceReport(sid,backTo){
   try{ actFlush(); }catch(e){} runReset();
   if(!canViewAnyReports()){ $('appContent').innerHTML='<div class="card"><p class="status show err">ليست لديك صلاحية عرض التقارير.</p></div>'; return; }
   repBackTo=backTo||'home';
-  if(countsUnsub){countsUnsub();countsUnsub=null;} if(actUnsub){actUnsub();actUnsub=null;} if(repUnsub){repUnsub();repUnsub=null;} if(sessUnsub){sessUnsub();sessUnsub=null;}if(extraUnsub){extraUnsub();extraUnsub=null;}
+  listOwn(null); _listRe=null; if(countsUnsub){countsUnsub();countsUnsub=null;} if(actUnsub){actUnsub();actUnsub=null;} if(repUnsub){repUnsub();repUnsub=null;} if(sessUnsub){sessUnsub();sessUnsub=null;}if(extraUnsub){extraUnsub();extraUnsub=null;}
   const c=$('appContent'); c.innerHTML='<div class="card"><p class="muted">جارٍ تحميل التقرير…</p></div>';
   try{
     const sdoc=await getDoc(doc(db,'sessions',sid)); if(!sdoc.exists()){c.innerHTML='<div class="card">الجلسة غير موجودة.</div>';return;}

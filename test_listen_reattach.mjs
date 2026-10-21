@@ -104,6 +104,23 @@ async function outageCycle(page){ await page.evaluate(()=>window.__quotaOut(true
   ok('L8 العلم مطفأ: تغيير الصلاحيات يصل بعد عودة الحصّة', f, 'suppliers='+f);
   await ctx.close(); }
 
+// L9 — فتح جلسة العدّ من «الجلسات المتاحة» يُلغي مستمع قائمة الجلسات (لا فوترة لكل تغيير جلسةٍ أثناء العدّ)
+{ const {ctx,page}=await boot({profile:CNT,users:[CNT,OWNER],config:ON,sessions:[S1]});
+  const onHome=await page.evaluate(()=>window.__lisN('sessions'));
+  await page.evaluate(()=>window.__openSession('s1')); await sleep(500);
+  const inCount=await page.evaluate(()=>window.__lisN('sessions'));
+  ok('L9 مستمع قائمة الجلسات يُلغى عند فتح شاشة العدّ', onHome===1&&inCount===0, 'home='+onHome+' counting='+inCount);
+  await ctx.close(); }
+
+// L10 — العلم مطفأ وداخل شاشة العدّ: عدّات الأجهزة الأخرى تعود حيّة بعد عودة الحصّة
+{ const {ctx,page}=await boot({profile:OWNER,users:[OWNER],config:{features:{}},sessions:[S1]});
+  await page.evaluate(()=>window.__openSession('s1')); await sleep(500);
+  await outageCycle(page);
+  await page.evaluate(()=>window.__mockSet('sessions/s1/counts/A1001',{code:'A1001',qty:3,entries:[{id:'y1',q:3,by:'u_other',byName:'آخر',at:1,src:'scan'}]})); await sleep(300);
+  const q=await page.evaluate(()=>window.__qtyOf('A1001'));
+  ok('L10 العلم مطفأ: عدّات الآخرين تصل شاشة العدّ بعد عودة الحصّة (٣)', q===3, 'qty='+q);
+  await ctx.close(); }
+
 await browser.close();
 let pass=0; for(const r of results){ console.log((r.pass?'✓':'✗')+' '+r.n+(r.d&&!r.pass?('  << '+r.d):'')); if(r.pass)pass++; }
 console.log(`\nRECON ${pass}/${results.length}`);

@@ -2,7 +2,7 @@
 
 > Written in **English for precision**. The product is **Arabic‑first (RTL)**.
 > **ABSOLUTE OUTPUT RULE:** every artifact for the client — UI strings, reports, printed documents, install/handover docs, commit/PR text meant for the client, error messages, and all chat replies — **MUST be in Arabic (RTL)**. Only internal reasoning and code identifiers may be non‑Arabic. Code identifiers, Firestore field names and permission keys stay exactly as defined below (some role keys are literally Arabic strings — keep them Arabic).
-> **Last updated:** 2026‑10‑20 (after commit `7b3c774` on `main`: quota‑exhaustion resilience + manual/scanner source tagging).
+> **Last updated:** 2026‑10‑21 (global listener re‑attach after quota recovery; managed session‑list listener).
 
 ---
 
@@ -20,7 +20,7 @@ You are a senior engineer continuing development on **IOMP**, a production inven
 4. **Every delivery = only the changed files + an Arabic install/handover doc (`وثيقة تركيب`)** + update the **test count** in `README.md` and `.github/workflows/ci.yml`.
 5. **NEVER put secrets in chat/replies.** Never echo `firebaseConfig` fields or the `OWNER_EMAIL` value.
 6. **Preserve 100%:** existing logic, identifiers, RTL layout, printing. **CI is the sole judge of Firestore rules.** Measure the rules ceiling on any `firestore.rules` change.
-7. **Deploy size ≤ 200,000 bytes gzipped** (`gzip -c index.html | wc -c`) — currently **196,482**; margin ≈ 3.5 KB — guard it.
+7. **Deploy size ≤ 200,000 bytes gzipped** (`gzip -c index.html | wc -c`) — currently **196,953**; margin ≈ 3 KB — guard it.
 8. **`firestore.rules` is not touched except by explicit decision**, validated only by CI/emulator.
 9. **Before trusting an adversarial edge case, get an independent review** of any change to the count/queue/sync paths (the 2026‑10 change needed three review rounds; see §12).
 
@@ -30,7 +30,7 @@ Single‑file web app, no framework (inline CSS + vanilla JS).
 - **`index.source.html`** = documented source of truth. **Edit ONLY here.**
 - **`node build_release.js`** → generates **`index.html`** (comments stripped via `acorn`) and proves byte‑for‑byte code identity. Expected: `التحقّق : الشيفرة متطابقةٌ حرفًا بحرف …✓`. **Never add a `// comment` at the end of a fragment that is followed by more code on the same line** (it silently comments out the rest — a real 2026‑10 incident caught only by the parser).
 - **`node build_harness.js`** → `harness.html` (instrumented, gitignored).
-- **`node run_all_tests.mjs`** → must finish **`TOTAL: 1590/1590 — ALL GREEN ✓`** (57 `test_*.mjs`, sequential, fails on first red file).
+- **`node run_all_tests.mjs`** → must finish **`TOTAL: 1602/1602 — ALL GREEN ✓`** (58 `test_*.mjs`, sequential, fails on first red file).
 
 ```bash
 npm install && npm install --no-save acorn
@@ -47,8 +47,8 @@ gzip -c index.html | wc -c    # must stay < 200000
 
 | Item | Value |
 |---|---|
-| Tests | **`TOTAL: 1590/1590 — ALL GREEN ✓`** (57 files). Note: README previously said 1540 while the real pre‑change total was 1526 — documentation drift, fixed. |
-| Deploy size | **196,482 bytes gzipped** — ceiling **200,000** |
+| Tests | **`TOTAL: 1602/1602 — ALL GREEN ✓`** (58 files). Note: README previously said 1540 while the real pre‑change total was 1526 — documentation drift, fixed. |
+| Deploy size | **196,953 bytes gzipped** — ceiling **200,000** |
 | `firestore.rules` | **28,833 bytes** — unchanged |
 | Hosting | GitHub Pages via CI · Firebase **Spark (free)** |
 
@@ -99,6 +99,7 @@ Device queue `offlineStore` (IndexedDB in production; localStorage fallback on `
 - **Queue integrity:** every queue read‑modify‑write goes through `oqLocked()` (in‑tab promise chain + `navigator.locks` `'iomp-oq'` across tabs); `oqDrop(op)` matches `seq+at+op+code`; `BroadcastChannel('iomp-oq')` refreshes other tabs. `offlineFlush` = cross‑tab single flusher (`navigator.locks 'iomp-oq-flush'`, `ifAvailable`) ⇒ `offlineFlush0`, which drains in passes (ops added during a flush are flushed in order), stops if signed out, writes queued activity logs (`op.log`, incl. adjustment reasons) **after** `oqDrop` (fire‑and‑forget), skips other users' ops (`oqOwn`), and **skips per item** on a connection error (keeps that item's order) — it breaks only on a real outage (quota error or two different items failing in a row).
 - **Per‑item ordering & degraded mode:** `offDirect(code)` = flag && (offline || `_qDown` active || `oqHas(code)`). After a quota error `qDownFor()` routes writes straight to the queue for `OFFLINE_RETRY_MS` (5 min; 30 s for other connection errors) — because the real SDK retries a failing transaction ≈5× (~8 s per scan). `oqKick()` flushes 600 ms after an enqueue once the window expires.
 - **Auto sync:** `offlineAutoTick()` every `OFFLINE_RETRY_MS`, on tab visibility, 1 s after boot, plus the `online` event. Auto failures are quiet (`offlineFlush('auto')`); every 6th non‑quota failure shows an explicit error. Full drain clears `_qDown` and re‑attaches dead listeners via `cntReattach()` (no shell re‑render, waits for scan idle, only on the counting screen; also from the tick when the queue is empty).
+- **Global re‑attach (2026‑10‑21, `test_listen_reattach.mjs`, 12 checks):** the `config/permissions` listener (`_permDead`) and the visible session‑list listener (`listDied` → `_listRe = {node, fn}`) are re‑attached by `globalReattach()` at the same recovery points as `cntReattach` (and on every tick when the flag is OFF, which also calls `cntReattach`). Perm re‑attach re‑renders only if the config changed and the snapshot is not `fromCache` (no periodic re‑render during an outage). Session‑list listeners (counter/viewer home, sessions tab) are **managed** via `listOwn()` → `_listUnsub`, torn down in `_route()`, `openSession`, `openVarianceReport` and `stopPermListener` (previously leaked and were billed per visit). Dashboard unsubscribes its old `sessUnsub` before re‑listening.
 - **Listener death:** counts listener error ⇒ `_cntDead`; if nothing was ever received, counts are loaded from cache, else a persistent warning. Chip shows «— ⚠ قد لا تظهر عدّات الأجهزة الأخرى…».
 - Quota counter (`iomp-quota-<date>`, read 50k / write 20k). Spark quota resets at midnight Pacific (10:00 KSA in PDT, 11:00 in PST).
 - **Known limits:** protection requires the flag; a device that never opened the session before exhaustion cannot start counting; the queue is per device/browser (no private windows); during exhaustion devices don't see each other's counts.
@@ -109,7 +110,7 @@ Unchanged from the previous spec: product catalog م15 (`products`, variants, `P
 
 ## 18 · TESTING & MEASUREMENT
 
-57 test files → `run_all_tests.mjs` (1590). New in 2026‑10: `test_quota_exhaust.mjs` (40: boot/open from cache, queue reflection after reload, auto sync, degraded mode, ordering vs queued reset, lock under concurrent scanning, per‑item stuck isolation, audit log after sync, other‑user ops), `test_srcmark.mjs` (24: real keyboard timing scanner vs hand, phone keyboard, camera, offline, exports, legacy). Harness additions in `build_harness.js`: `__quotaOut(b)` (reads/transactions/listeners reject `resource-exhausted`, listeners die), `__cacheMiss(b)`, `getDocFromCache`/`getDocsFromCache` stubs, `__txCalls`, `__failRead` also fails transactions on that path, hooks `__me`, `__cntEntries`, `__qtyOf`, `__autoTick`, `__retryMs`, `__varRows`, `__qDownClear`, `__offChip`. Measurement scripts are read‑only — never modify.
+58 test files → `run_all_tests.mjs` (1602). `test_listen_reattach.mjs` (12: perm/list/dashboard re‑attach, no re‑render storm, form input kept, no duplicate/leaked `sessions` listener, flag‑off path); hooks `__permCfg`, `__lisN(path)`. New in 2026‑10: `test_quota_exhaust.mjs` (40: boot/open from cache, queue reflection after reload, auto sync, degraded mode, ordering vs queued reset, lock under concurrent scanning, per‑item stuck isolation, audit log after sync, other‑user ops), `test_srcmark.mjs` (24: real keyboard timing scanner vs hand, phone keyboard, camera, offline, exports, legacy). Harness additions in `build_harness.js`: `__quotaOut(b)` (reads/transactions/listeners reject `resource-exhausted`, listeners die), `__cacheMiss(b)`, `getDocFromCache`/`getDocsFromCache` stubs, `__txCalls`, `__failRead` also fails transactions on that path, hooks `__me`, `__cntEntries`, `__qtyOf`, `__autoTick`, `__retryMs`, `__varRows`, `__qDownClear`, `__offChip`. Measurement scripts are read‑only — never modify.
 
 ## 19 · KNOWN PENDING WORK
 
