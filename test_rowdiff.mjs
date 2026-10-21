@@ -11,8 +11,9 @@ const OWNER = { uid:'u_owner', email:'a2@dhtrd.com', name:'المالك', role:'
 const N = 1500; const items=[], counts=[];
 for(let i=0;i<N;i++){ const code='99'+String(i).padStart(6,'0'); items.push({code,name:'صنف رقم '+i,category:'ك'+(i%5),book:3,cost:10});
   if(i%2===0) counts.push({code,qty:2,entries:[{id:'e'+i,q:2,by:'u_o',byName:'عدّاد آخر',at:1,src:'scan',n:2}]}); }
-const chunks=[]; for(let i=0;i<N;i+=400) chunks.push(items.slice(i,i+400));
-const SC = { profile:OWNER, users:[OWNER], sessions:[{ id:'s', name:'جرد', status:'open', started:true, assignedCounters:['u_owner'], location:'ف', itemCount:N, __chunks:chunks, __counts:counts }] };
+items.splice(4,0,{code:'99000003',name:'صنف مكرّر الكود (جلسة قديمة قبل ح‑١)',category:'ك',book:1,cost:10}); // كودٌ مكرّر في القائمة
+const chunks=[]; for(let i=0;i<items.length;i+=400) chunks.push(items.slice(i,i+400));
+const SC = { profile:OWNER, users:[OWNER], sessions:[{ id:'s', name:'جرد', status:'open', started:true, assignedCounters:['u_owner'], location:'ف', itemCount:items.length, __chunks:chunks, __counts:counts }] };
 const results=[]; const ok=(n,c,d='')=>results.push({n,pass:!!c,d});
 const sleep=(ms)=>new Promise(r=>setTimeout(r,ms));
 const browser=await chromium.launch({ executablePath:EXE, args:['--no-sandbox'] });
@@ -21,7 +22,8 @@ await page.goto(HARNESS+'?s='+encodeURIComponent(b64(SC))); await page.waitForFu
 await page.evaluate(()=>window.__openSession('s')); await page.waitForFunction(()=>window.__has('clist')); await sleep(500);
 const idle=async()=>{ for(let i=0;i<300;i++){ if(await page.evaluate(()=>window.__scanIdle()))break; await sleep(10); } };
 // مقارنة: ناتج المسار الجاري مقابل الرسم الكامل لنفس البيانات
-const same=()=>page.evaluate(()=>{ const a=document.getElementById('clist').innerHTML; window.__rclFull(); const b=document.getElementById('clist').innerHTML; return a===b; });
+// يقارن بالناتج المتوقَّع دون إعادة رسم ⇒ انحراف الذاكرة المؤقّتة عبر عمليّات متتالية يُكشَف (لا تُصفَّر بين الخطوات)
+const same=()=>page.evaluate(()=>document.getElementById('clist').innerHTML===window.__rclExpect());
 
 // R1 — تحديثٌ من جهاز آخر يستبدل بطاقة صنفه وحدها (فحص بنيويّ حتميّ — لا يعتمد على سرعة عدّاء CI)، والزمن يُطبع للمعلومة
 { const r=await page.evaluate(async()=>{ const tick=()=>new Promise(r=>requestAnimationFrame(()=>setTimeout(r,0)));
@@ -41,11 +43,24 @@ const same=()=>page.evaluate(()=>{ const a=document.getElementById('clist').inne
     if(r<0.35) await page.evaluate(([c,k])=>window.__mockSet('sessions/s/counts/'+c,{code:c,qty:k%7+1,entries:[{id:'r'+k,q:k%7+1,by:'o',byName:'جهاز آخر',at:k,src:k%2?'scan':'manual'}]}),[code,k]);
     else if(r<0.45) await page.evaluate((c)=>window.__mockSet('sessions/s/counts/'+c,null),code);
     else if(r<0.75){ await page.evaluate((c)=>window.__scanCommit(c,'field'),code); await idle(); }
-    else if(r<0.85) await page.evaluate((v)=>{ const s=document.getElementById('csearch'); s.value=v; s.dispatchEvent(new Event('input',{bubbles:true})); }, rnd()<0.5?'':'9900000');
+    else if(r<0.80) await page.evaluate((v)=>{ const s=document.getElementById('csearch'); s.value=v; s.dispatchEvent(new Event('input',{bubbles:true})); }, rnd()<0.5?'':'9900000');
+    else if(r<0.84) await page.evaluate(([c,k])=>window.__mockSet('sessions/s/itemNotes/'+c,{code:c,notes:[{id:'nt'+k,text:'ملاحظة '+k,by:'o',byName:'آخر',at:k}]}),[code,k]);
+    else if(r<0.87) await page.evaluate((c)=>{ try{ window.__removeEntry(c,0); }catch(e){} },code);
+    else if(r<0.89) await page.evaluate((c)=>{ try{ window.__resetItem(c); }catch(e){} },code);
     else await page.evaluate(([c,k])=>window.__mockSet('sessions/s/counts/'+c,{code:c,qty:2,entries:[{id:'m'+k,q:1,by:'o',byName:'آخر',at:k,src:'scan'},{id:'n'+k,q:1,by:'p',byName:'ثالث',at:k+1,src:'manual'}]}),[code,k]);
     await sleep(15); await idle(); await sleep(80);
     if(!(await same())){ bad++; if(!first)first='k='+k+' r='+r.toFixed(2)+' code='+code; } }
-  ok('R2 بعد ٢٠٠ عمليّة عشوائيّة: القائمة مطابقة حرفًا بحرف للرسم الكامل', bad===0, 'mismatches='+bad+' first: '+first); }
+  ok('R2 بعد ٢٠٠ عمليّة عشوائيّة متتالية (أجهزة أخرى، مسح، بحث، ملاحظات، حذف، تصفير، كود مكرّر): مطابقة حرفيّة دائمة للرسم الكامل', bad===0, 'mismatches='+bad+' first: '+first); }
+
+// R5 — كودٌ مكرّر في القائمة: مسحةٌ ثم تحديثٌ من جهاز آخر ⇒ البطاقتان تعرضان الإجمالي الصحيح نفسه
+{ await page.evaluate(()=>{ const s=document.getElementById('csearch'); s.value='99000003'; s.dispatchEvent(new Event('input',{bubbles:true})); }); await sleep(300);
+  await page.evaluate(()=>window.__mockSet('sessions/s/counts/99000003',null)); await sleep(150);
+  await page.evaluate(()=>window.__scanCommit('99000003','field')); await idle(); await sleep(200);
+  await page.evaluate(()=>window.__mockSet('sessions/s/counts/99000005',{code:'99000005',qty:77,entries:[{id:'w1',q:77,by:'o',byName:'آخر',at:9,src:'scan'}]})); await sleep(200);
+  await page.evaluate(()=>{ const s=document.getElementById('csearch'); s.value=''; s.dispatchEvent(new Event('input',{bubbles:true})); }); await sleep(300);
+  const tot=await page.evaluate(()=>[...document.querySelectorAll('[data-row="99000003"]')].map(r=>(r.textContent.match(/الإجمالي: (\d+)/)||[])[1]||'-'));
+  const q=await page.evaluate(()=>window.__qtyOf('99000003'));
+  ok('R5 كود مكرّر: البطاقتان تعرضان الإجمالي نفسه المطابق للكمية بعد مسحة وتحديث خارجي', tot.length===2&&tot.every(t=>t===String(q))&&(await same()), JSON.stringify({tot,q})); }
 
 // R3 — ما يكتبه العدّاد لا يضيع: كمية في «أضف» وملاحظة قيد الكتابة تبقيان مع تركيزهما حين يُرقَّع صفّهما أو غيره
 { await page.evaluate(()=>{ const s=document.getElementById('csearch'); s.value=''; s.dispatchEvent(new Event('input',{bubbles:true})); }); await sleep(300);
