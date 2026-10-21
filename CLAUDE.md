@@ -20,7 +20,7 @@ You are a senior engineer continuing development on **IOMP**, a production inven
 4. **Every delivery = only the changed files + an Arabic install/handover doc (`وثيقة تركيب`)** + update the **test count** in `README.md` and `.github/workflows/ci.yml`.
 5. **NEVER put secrets in chat/replies.** Never echo `firebaseConfig` fields or the `OWNER_EMAIL` value.
 6. **Preserve 100%:** existing logic, identifiers, RTL layout, printing. **CI is the sole judge of Firestore rules.** Measure the rules ceiling on any `firestore.rules` change.
-7. **Deploy size ≤ 200,000 bytes gzipped** (`gzip -c index.html | wc -c`) — currently **197,436**; margin ≈ 2.5 KB — guard it.
+7. **Deploy size ≤ 200,000 bytes gzipped** (`gzip -c index.html | wc -c`) — currently **197,967**; margin ≈ 2 KB — guard it.
 8. **`firestore.rules` is not touched except by explicit decision**, validated only by CI/emulator.
 9. **Before trusting an adversarial edge case, get an independent review** of any change to the count/queue/sync paths (the 2026‑10 change needed three review rounds; see §12).
 
@@ -30,7 +30,7 @@ Single‑file web app, no framework (inline CSS + vanilla JS).
 - **`index.source.html`** = documented source of truth. **Edit ONLY here.**
 - **`node build_release.js`** → generates **`index.html`** (comments stripped via `acorn`) and proves byte‑for‑byte code identity. Expected: `التحقّق : الشيفرة متطابقةٌ حرفًا بحرف …✓`. **Never add a `// comment` at the end of a fragment that is followed by more code on the same line** (it silently comments out the rest — a real 2026‑10 incident caught only by the parser).
 - **`node build_harness.js`** → `harness.html` (instrumented, gitignored).
-- **`node run_all_tests.mjs`** → must finish **`TOTAL: 1622/1622 — ALL GREEN ✓`** (59 `test_*.mjs`, sequential, fails on first red file).
+- **`node run_all_tests.mjs`** → must finish **`TOTAL: 1626/1626 — ALL GREEN ✓`** (60 `test_*.mjs`, sequential, fails on first red file).
 
 ```bash
 npm install && npm install --no-save acorn
@@ -47,8 +47,8 @@ gzip -c index.html | wc -c    # must stay < 200000
 
 | Item | Value |
 |---|---|
-| Tests | **`TOTAL: 1622/1622 — ALL GREEN ✓`** (59 files). Note: README previously said 1540 while the real pre‑change total was 1526 — documentation drift, fixed. |
-| Deploy size | **197,436 bytes gzipped** — ceiling **200,000** |
+| Tests | **`TOTAL: 1626/1626 — ALL GREEN ✓`** (60 files). Note: README previously said 1540 while the real pre‑change total was 1526 — documentation drift, fixed. |
+| Deploy size | **197,967 bytes gzipped** — ceiling **200,000** |
 | `firestore.rules` | **28,833 bytes** — unchanged |
 | Hosting | GitHub Pages via CI · Firebase **Spark (free)** |
 
@@ -72,6 +72,8 @@ Scan engine: cadence capture (`SCAN_CADENCE_MS=40`, `SCAN_IDLE_MS=60`, `SCAN_MIN
 - `scan`: external scanner burst (cadence), camera, scanner into the «أضف» field, bulk‑injected/pasted code.
 - `manual`: typed quantity in «أضف» (`addFrom`), or a code typed by hand in the search box + Enter — classified on `input` events (works with phone keyboards where keydown is `Unidentified`): manual iff more than half the characters arrived with gaps > `MAN_KEY_MS=100` (`_hk`); `insertReplacementText` ⇒ manual. Job `src:'hand'` ⇒ `addEntry(...,{man:true})`.
 - Manual adds call `runBreak()` (never merge into or across a scan run). `entrySrc(e)`: `manual`⇒m; `scan` or merged run (`n>1`/`mrg`)⇒s; else u (legacy). `srcSplit`. **Display (ج٢, 2026‑10‑21, owner‑approved, no flag):** `srcIc(k)` renders an SVG sprite icon (`#ic-bc` barcode = scan, `#ic-pen` pen = manual, none = legacy) before each chip number on the count screen and next to «المعدود» / each «من أضاف» part on the on‑screen variance report (`whoDetail(w,true,1)` via `repAgg` `qs/ss`). Print and Excel keep `whoDetail(w,…)` text with «✍n» unchanged. `body.wide` (set in `renderCountingShell`/`openVarianceReport`, cleared in `_route`) removes the 900px cap ≥1024px and makes `#clist` a 2‑column grid.
+
+**Row‑diff rendering (البند ١, 2026‑10‑21):** data‑change paths (counts listener via `renderCountListLive`, `addEntry`, `pendDrop`, scan‑idle flushes) call `renderCountListDiff()`: it recomputes `countRowHtml` for the visible ≤300 rows and replaces only rows whose HTML differs from the cache `_rclRows` (kept by `renderCountList` and `patchCountRow`; `_rclIdx` code→index). Any change in visible membership/order/blind/frozen (`rclKey`) ⇒ full `renderCountList()`. Output is byte‑identical to a full render. `#clist>.sess{content-visibility:auto}` skips offscreen layout. Measured at 1500 items: remote update 372 → ~40–65 ms, own scan 396 → ~55–75 ms.
 
 ## 8 · SESSION LIFECYCLE
 
@@ -110,7 +112,7 @@ Unchanged from the previous spec: product catalog م15 (`products`, variants, `P
 
 ## 18 · TESTING & MEASUREMENT
 
-59 test files → `run_all_tests.mjs` (1622). `test_srcicons.mjs` (20: ج٢ source icons on count chips + report «المعدود»/«من أضاف», wide layout 1440/1024/768/390, print & Excel unchanged, other screens keep 900px). `test_listen_reattach.mjs` (12: perm/list/dashboard re‑attach, no re‑render storm, form input kept, no duplicate/leaked `sessions` listener, flag‑off path); hooks `__permCfg`, `__lisN(path)`. New in 2026‑10: `test_quota_exhaust.mjs` (40: boot/open from cache, queue reflection after reload, auto sync, degraded mode, ordering vs queued reset, lock under concurrent scanning, per‑item stuck isolation, audit log after sync, other‑user ops), `test_srcmark.mjs` (24: real keyboard timing scanner vs hand, phone keyboard, camera, offline, exports, legacy). Harness additions in `build_harness.js`: `__quotaOut(b)` (reads/transactions/listeners reject `resource-exhausted`, listeners die), `__cacheMiss(b)`, `getDocFromCache`/`getDocsFromCache` stubs, `__txCalls`, `__failRead` also fails transactions on that path, hooks `__me`, `__cntEntries`, `__qtyOf`, `__autoTick`, `__retryMs`, `__varRows`, `__qDownClear`, `__offChip`. Measurement scripts are read‑only — never modify.
+60 test files → `run_all_tests.mjs` (1626). `test_rowdiff.mjs` (4: one remote update replaces exactly one card, byte‑identical to full render after 200 random ops, focus/value kept, membership change ⇒ full render); hooks `__rclFull`, `__rclDiff`, `__cntRebuild`, `__rowHtmlAll`. `test_srcicons.mjs` (20: ج٢ source icons on count chips + report «المعدود»/«من أضاف», wide layout 1440/1024/768/390, print & Excel unchanged, other screens keep 900px). `test_listen_reattach.mjs` (12: perm/list/dashboard re‑attach, no re‑render storm, form input kept, no duplicate/leaked `sessions` listener, flag‑off path); hooks `__permCfg`, `__lisN(path)`. New in 2026‑10: `test_quota_exhaust.mjs` (40: boot/open from cache, queue reflection after reload, auto sync, degraded mode, ordering vs queued reset, lock under concurrent scanning, per‑item stuck isolation, audit log after sync, other‑user ops), `test_srcmark.mjs` (24: real keyboard timing scanner vs hand, phone keyboard, camera, offline, exports, legacy). Harness additions in `build_harness.js`: `__quotaOut(b)` (reads/transactions/listeners reject `resource-exhausted`, listeners die), `__cacheMiss(b)`, `getDocFromCache`/`getDocsFromCache` stubs, `__txCalls`, `__failRead` also fails transactions on that path, hooks `__me`, `__cntEntries`, `__qtyOf`, `__autoTick`, `__retryMs`, `__varRows`, `__qDownClear`, `__offChip`. Measurement scripts are read‑only — never modify.
 
 ## 19 · KNOWN PENDING WORK
 

@@ -718,7 +718,11 @@ window.__cntEntries = (c)=>((curCounts[c]&&curCounts[c].entries)||[]).map(e=>({q
 window.__qtyOf = (c)=>(curCounts[c]&&curCounts[c].qty)||0;
 window.__autoTick = ()=>offlineAutoTick();
 window.__qDownClear = ()=>{ _qDown=0; };
-window.__offChip = ()=>{ const c=document.getElementById('offlineChip'); return c?c.textContent:''; };
+window.__rclFull = ()=>renderCountList();
+window.__rclDiff = ()=>renderCountListDiff();
+window.__cntRebuild = ()=>cntRebuild();
+window.__rowHtmlAll = ()=>{ const b=curSess&&curSess.blind, f=!canCount(); return curItems.slice(0,300).map(it=>countRowHtml(it,b,f)).length; }; // البند ١: الرسم الكامل المرجعي (لمقارنة الترقيع حرفًا بحرف)
+window.__offChip =()=>{ const c=document.getElementById('offlineChip'); return c?c.textContent:''; };
 window.__retryMs = ()=>OFFLINE_RETRY_MS;
 window.__varRows = ()=>computeVariance(curItems,curCounts).map(r=>({code:r.code,counted:r.counted,scanQty:r.scanQty,manQty:r.manQty,unkQty:r.unkQty}));
 window.__ready = true;
