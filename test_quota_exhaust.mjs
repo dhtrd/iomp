@@ -121,6 +121,7 @@ let p2;
 // تذهب المسحات مباشرةً إلى طابور الجهاز بلا أي محاولةٍ للخادم (فوريّة)، وتعود للخادم بعد أوّل مزامنةٍ ناجحة.
 { const ctx6=await browser.newContext(); const page=await ctx6.newPage();
   await boot(page,{profile:OWNER,users:[OWNER],config:ON,sessions:SESS},true); await openSr(page);
+  await sleep(800); // مزامنة الإقلاع التلقائيّة (setTimeout(offlineAutoTick,1000)) تقع قبل نافذة القياس لا داخلها — كانت تُحسب محاولةً ثانية على عدّاء CI الأبطأ
   await page.evaluate(()=>window.__quotaOut(true)); await sleep(60);
   const t0=await page.evaluate(()=>window.__txCalls());
   await scan(page,'A1001',1); const t1=await page.evaluate(()=>window.__txCalls());
