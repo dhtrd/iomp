@@ -330,5 +330,56 @@ async function open(ctx){
   S.bu=(e)=>{ if(S&&pendN()){ flush(); e.preventDefault(); e.returnValue=''; } }; window.addEventListener('beforeunload',S.bu);
   window.scrollTo(0,0); render();
 }
-window.IOMPBR={open:open,flush:()=>S?flush():Promise.resolve(true),_paths:()=>D&&D.paths,_state:()=>S};
+/* ───────── تجهيز حسابات الفروع للمراجعة (زرّ واحد في مركز الإدارة — طلب المالك ٢١-١٠) ─────────
+   المرشَّح: حساب نشط، ليس المالك، له موقعٌ مُسند واحد على الأقل. العدّاد (دور «عدّاد») غير مؤشَّر افتراضيًّا —
+   لا يراجع عدّه بنفسه — ويمكن تأشيره يدويًّا. لا يُمنح إلا الناقص فقط كاستثناءٍ فردي (perms.users[uid]):
+   «مراجعة الفرع للجرد»، و«عرض تقارير مستودعه فقط» إن لم يكن يرى التقارير أصلًا. لا يُسحب شيء ولا يُمسّ دور.
+   الحسابات الجديدة: يُعاد الضغط على الزر بعد إسناد مواقعها — الحسابات الجاهزة تظهر «✓ جاهز» ولا تُكتب مرّتين. */
+async function setup(ctx){
+  const x=ctx; css();
+  let users=[];
+  try{ const qs=await x.getDocs(x.collection(x.db,'users')); qs.forEach(d=>users.push(Object.assign({uid:d.id},d.data()))); }
+  catch(err){ x.toastErr('تعذّر تحميل المستخدمين: '+x.errAr(err.code||err.message)); return; }
+  const need=u=>{ const o={}; if(!x.userCan(u,'session.branchReview'))o['session.branchReview']=true;
+    if(!x.userCan(u,'report.view')&&!x.userCan(u,'report.view.location'))o['report.view.location']=true; return o; };
+  const rows=users.filter(u=>u.active!==false&&!x.isOwnerU(u)&&x.userLocationsOf(u.uid).length)
+    .map(u=>({u,locs:x.userLocationsOf(u.uid),need:need(u)})).sort((a,b)=>String(a.u.name||'').localeCompare(String(b.u.name||''),'ar'));
+  const E=v=>x.esc(v);
+  const ov=document.createElement('div'); ov.id='brSetupOv';
+  ov.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(15,20,35,.45);display:flex;align-items:flex-start;justify-content:center;padding:24px 12px;overflow:auto';
+  const body=rows.length?rows.map((r,i)=>{ const ready=!Object.keys(r.need).length, ctr=r.u.role==='عدّاد';
+      return '<label style="display:flex;gap:10px;align-items:flex-start;padding:10px 4px;border-bottom:1px solid var(--hair);min-height:44px">'+
+        '<input type="checkbox" data-i="'+i+'" style="width:20px;height:20px;margin-top:2px"'+(ready?' disabled checked':(ctr?'':' checked'))+'>'+
+        '<span style="flex:1;min-width:0"><b>'+E(r.u.name||r.u.email||r.u.uid)+'</b> <span class="muted">· '+E(x.roleLabel(r.u.role||''))+'</span>'+
+        '<span class="muted" style="display:block">المواقع: '+E(r.locs.join('، '))+'</span>'+
+        (ready?'<span style="color:var(--success);font-size:12.5px;font-weight:600">✓ جاهز للمراجعة</span>':
+          '<span style="font-size:12.5px;color:var(--warn)">سيُمنح: '+Object.keys(r.need).map(k=>k==='session.branchReview'?'مراجعة الفرع للجرد':'عرض تقارير مستودعه فقط').join(' + ')+(ctr?' — <b>عدّاد</b> (غير مؤشَّر افتراضيًّا)':'')+'</span>')+
+        '</span></label>'; }).join('')
+    :'<p class="muted" style="padding:12px 0">لا حسابات نشطة لها مواقع مُسندة. أسنِد موقع الفرع للحساب أولًا من «الصلاحيات ← المستخدم».</p>';
+  ov.innerHTML='<div class="card" role="dialog" aria-modal="true" aria-labelledby="brSetupT" style="width:min(640px,100%);margin:0">'+
+    '<h2 id="brSetupT" style="margin:0 0 6px">تجهيز حسابات الفروع للمراجعة</h2>'+
+    '<p class="muted" style="margin-bottom:8px">الحسابات النشطة التي لها مواقع مُسندة. تُمنح الصلاحيات الناقصة فقط كاستثناءٍ فردي، ولا يُسحب شيء. الحسابات الجديدة: أسنِد موقعها ثم اضغط الزر مجدّدًا.</p>'+
+    '<div style="max-height:60vh;overflow:auto">'+body+'</div>'+
+    '<div style="display:flex;gap:8px;justify-content:flex-start;margin-top:14px;flex-wrap:wrap"><button class="btn" id="brSetupGo" style="min-height:44px">تطبيق على المؤشَّر</button><button class="btn ghost" id="brSetupNo" style="min-height:44px">إلغاء</button></div>'+
+    '<div class="status" id="brSetupSt"></div></div>';
+  document.body.appendChild(ov);
+  const close=()=>{ ov.remove(); document.removeEventListener('keydown',esc); };
+  const esc=(e)=>{ if(e.key==='Escape')close(); }; document.addEventListener('keydown',esc);
+  ov.addEventListener('click',e=>{ if(e.target===ov)close(); });
+  ov.querySelector('#brSetupNo').onclick=close;
+  const go=ov.querySelector('#brSetupGo'); if(!rows.length)go.disabled=true;
+  go.onclick=async()=>{
+    const pick=[...ov.querySelectorAll('input[data-i]:checked:not([disabled])')].map(c=>rows[Number(c.getAttribute('data-i'))]).filter(r=>Object.keys(r.need).length);
+    const stEl=ov.querySelector('#brSetupSt');
+    if(!pick.length){ stEl.className='status show info'; stEl.textContent='لا شيء لتطبيقه — كل المؤشَّر جاهز.'; return; }
+    const usersPatch={}; pick.forEach(r=>{ usersPatch[r.u.uid]=r.need; });
+    go.disabled=true; stEl.className='status show info'; stEl.textContent='جارٍ الحفظ…';
+    try{ // setDoc+merge: مفاتيح الصلاحيات (فيها نقاط) تُحفظ حرفيًّا كمفاتيح خريطة، وتُدمج مع استثناءات الفرد القائمة دون مسحها
+      await x.setDoc(x.doc(x.db,'config','permissions'),{users:usersPatch,updatedBy:x.uid,updatedByName:(x.me&&x.me.name)||'',updatedAt:x.serverTimestamp()},{merge:true});
+      pick.forEach(r=>x.setUser(r.u.uid,r.need));
+      x.toastOk('جُهِّز '+pick.length+' حسابًا لمراجعة الفرع ✓'); close(); }
+    catch(err){ go.disabled=false; stEl.className='status show err'; stEl.textContent='تعذّر الحفظ: '+x.errAr(err.code||err.message)+' — لم يتغيّر شيء.'; }
+  };
+}
+window.IOMPBR={open:open,setup:setup,flush:()=>S?flush():Promise.resolve(true),_paths:()=>D&&D.paths,_state:()=>S};
 })();

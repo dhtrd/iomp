@@ -228,6 +228,30 @@ async function seedReview(page,meta){ await page.evaluate(({M,meta})=>{ M.forEac
   ok('B21 النسخة الكاملة تتضمّن branchReview (تأشيرات العدّادين + الإرسال)', j.includes('"branchReview"')&&j.includes('p_c1')&&j.includes('__brmeta')&&j.includes('الكرتون الثامن فارغ'), j.slice(0,200));
   await ctx.close(); }
 
+// B22: «⚙ تجهيز حسابات الفروع للمراجعة» — يمنح الناقص فقط لمن له موقع، والعدّاد غير مؤشَّر، ولا يمسّ غيرهم
+{ const CTR={ uid:'u_ctr', email:'ct@x.com', name:'عدّاد الفرع', role:'عدّاد', active:true };
+  const RDY={ uid:'u_rdy', email:'rd@x.com', name:'جاهز مسبقًا', role:'مطّلع', active:true };
+  const NOL={ uid:'u_nol', email:'nl@x.com', name:'بلا موقع', role:'مطّلع', active:true };
+  const OFF={ uid:'u_off', email:'of@x.com', name:'موقوف', role:'مطّلع', active:false };
+  const cfg={ features:{branchReview:true}, roles:{'مطّلع':{'report.view':false,'report.view.location':true}},
+    users:{ u_rdy:{'session.branchReview':true}, u_br:{'pw.change':false} }, userLocations:{ u_br:['فرع أ'], u_ctr:['فرع أ'], u_rdy:['فرع ب'], u_off:['فرع أ'] } };
+  const {ctx,page,errs}=await boot({ profile:OWNER, users:[OWNER,BR,CTR,RDY,NOL,OFF], config:cfg, sessions:[mkSess()] });
+  await page.evaluate(()=>window.__setTab('admin')); await sleep(600);
+  await page.click('#brSetupBtn'); await page.waitForSelector('#brSetupOv',{timeout:6000}); await sleep(200);
+  const rows=await page.evaluate(()=>[...document.querySelectorAll('#brSetupOv label')].map(l=>({t:l.textContent,ch:l.querySelector('input').checked,dis:l.querySelector('input').disabled})));
+  const by=n=>rows.find(r=>r.t.includes(n))||{};
+  ok('B22 القائمة: من له موقع ونشط فقط (لا «بلا موقع» ولا «موقوف» ولا المالك)', rows.length===3&&!rows.some(r=>/بلا موقع|موقوف|المالك/.test(r.t)), JSON.stringify(rows.map(r=>r.t.slice(0,30))));
+  ok('B22 الجاهز مسبقًا «✓ جاهز» ومقفل، والعدّاد غير مؤشَّر، ومسؤول الفرع مؤشَّر', by('جاهز مسبقًا').dis&&by('جاهز مسبقًا').t.includes('✓ جاهز')&&!by('عدّاد الفرع').ch&&by('خالد').ch&&by('خالد').t.includes('مراجعة الفرع للجرد'), JSON.stringify(rows));
+  await page.click('#brSetupGo'); await sleep(400);
+  const c=(await store(page,'config/permissions'))['config/permissions'];
+  ok('B22 التطبيق: يُمنح الناقص فقط لمسؤول الفرع، ويُبقي استثناءه السابق، ولا يمسّ العدّاد ولا الجاهز', JSON.stringify(c.users.u_br)===JSON.stringify({'pw.change':false,'session.branchReview':true})&&!c.users.u_ctr&&JSON.stringify(c.users.u_rdy)===JSON.stringify({'session.branchReview':true}), JSON.stringify(c.users));
+  ok('B22 لا تغيير على الأدوار ولا المواقع، ورسالة نجاح ظاهرة', JSON.stringify(c.roles)===JSON.stringify(cfg.roles)&&JSON.stringify(c.userLocations)===JSON.stringify(cfg.userLocations)&&(await toasts(page)).some(x=>x.includes('جُهِّز 1')), JSON.stringify(await toasts(page)));
+  await page.click('#brSetupBtn'); await page.waitForSelector('#brSetupOv'); await sleep(200);
+  ok('B22 الضغط مجدّدًا: مسؤول الفرع صار «✓ جاهز» (لا كتابة مكرّرة)', await page.evaluate(()=>[...document.querySelectorAll('#brSetupOv label')].find(l=>l.textContent.includes('خالد')).textContent.includes('✓ جاهز')));
+  await page.keyboard.press('Escape'); await sleep(150);
+  ok('B22 Esc يغلق النافذة، ولا أخطاء', await page.$('#brSetupOv')===null&&errs.length===0, errs.join('|'));
+  await ctx.close(); }
+
 await browser.close();
 let pass=0; for(const r of results){ console.log((r.pass?'✓':'✗')+' '+r.n+(r.d&&!r.pass?('  << '+r.d):'')); if(r.pass)pass++; }
 console.log(`\nRECON ${pass}/${results.length}`);
