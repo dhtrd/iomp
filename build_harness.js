@@ -718,6 +718,12 @@ window.__cntEntries = (c)=>((curCounts[c]&&curCounts[c].entries)||[]).map(e=>({q
 window.__qtyOf = (c)=>(curCounts[c]&&curCounts[c].qty)||0;
 window.__autoTick = ()=>offlineAutoTick();
 window.__qDownClear = ()=>{ _qDown=0; };
+window.__rclFull = ()=>renderCountList();
+window.__rclDiff = ()=>renderCountListDiff();
+window.__cntRebuild = ()=>cntRebuild();
+window.__rclExpect = ()=>{ const qn=arNorm((document.getElementById('csearch')?document.getElementById('csearch').value:'').trim()); let list=curItems; if(qn)list=curItems.filter(it=>(it.code&&arNorm(it.code).indexOf(qn)>=0)||(it.name&&arNorm(it.name).indexOf(qn)>=0)||(it.barcode&&arNorm(it.barcode).indexOf(qn)>=0));
+  const b=curSess.blind, f=!canCount(); const html=list.slice(0,300).map(it=>countRowHtml(it,b,f)).join(''); const tmp=document.createElement('div');
+  tmp.innerHTML=(list.length?html:'<p class="empty-hint">لا أصناف مطابقة.</p>')+(list.length>300?'<p class="muted" style="padding:8px">عرض أول 300 صنف — استخدم البحث ('+fmt(list.length)+' مطابق).</p>':''); return tmp.innerHTML; }; // البند ١: ناتج الرسم الكامل المتوقَّع دون لمس القائمة (يكشف انحراف الذاكرة المؤقّتة عبر عمليّات متتالية) // البند ١: الرسم الكامل المرجعي (لمقارنة الترقيع حرفًا بحرف)
 window.__offChip = ()=>{ const c=document.getElementById('offlineChip'); return c?c.textContent:''; };
 window.__retryMs = ()=>OFFLINE_RETRY_MS;
 window.__varRows = ()=>computeVariance(curItems,curCounts).map(r=>({code:r.code,counted:r.counted,scanQty:r.scanQty,manQty:r.manQty,unkQty:r.unkQty}));

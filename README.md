@@ -29,7 +29,7 @@ npx firebase emulators:exec --only firestore --project demo-iomp "node firestore
 # ١) عدّل index.source.html (فيه التعليقات)
 node build_release.js        # ٢) يولّد index.html ويتحقّق من تطابق الشيفرة حرفًا بحرف
 node build_harness.js        # ٣) يبني harness.html
-node run_all_tests.mjs       # ٤) يجب أن يُنهي بـ TOTAL: 1622/1622 — ALL GREEN ✓
+node run_all_tests.mjs       # ٤) يجب أن يُنهي بـ TOTAL: 1627/1627 — ALL GREEN ✓
 ```
 لتشغيل الحزمة على ملفٍّ آخر: `SRC_HTML=index.source.html node run_all_tests.mjs`
 

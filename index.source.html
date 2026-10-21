@@ -136,6 +136,7 @@ body{font-family:'IBM Plex Sans Arabic','Segoe UI',Tahoma,Arial,sans-serif;backg
 #appView[data-nav="collapsed"] .topbar{padding-inline-start:60px} /* فسحة الزر المثبّت حين تكون القائمة مطوية */
 .container{max-width:900px;margin:0 auto;padding:20px 16px 60px;width:100%}
 /* ج٢ (طلب المالك): أيقونة مصدر العدّ بجانب الرقم + شاشتا العدّ والتقرير بعرض الشاشة (عمودان ≥ ١٠٢٤px) */
+@media(min-width:1024px){#clist>.sess{content-visibility:auto;contain-intrinsic-size:auto 170px}} /* البند ١: البطاقات خارج الشاشة لا تُحسب ولا تُرسم — للشاشات العريضة فقط (Safari على الجوال بلا تثبيت تمرير مضمون) */
 .sic{width:15px;height:15px;vertical-align:-3px;flex:none}.sn,.sw{display:inline-flex;align-items:center;gap:3px;white-space:nowrap}.sw{flex-wrap:wrap}.sic.s{color:var(--navy700)}.sic.m{color:#B45309}
 @media(min-width:1024px){body.wide #appContent{max-width:none;padding-inline:24px}body.wide #clist{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:12px;align-items:start}body.wide #clist>p{grid-column:1/-1}}
 @media(max-width:820px){
@@ -3391,6 +3392,22 @@ async function doAddItem(){
 function countProgressUpdate(){ if(!$('cprog'))return; const done=Object.keys(curCounts).length;
   $('cprog').style.width=curItems.length?(done/curItems.length*100)+'%':'0%';
   if($('cprogtext'))$('cprogtext').textContent=fmt(done)+' / '+fmt(curItems.length)+' معدود'; }
+let _rclRows=null, _rclKey=null;
+function rclKey(list,blind,frozen){ return (blind?1:0)+'|'+(frozen?1:0)+'|'+list.length+'|'+list.slice(0,300).map(it=>it.code).join(','); }
+/* البند ١ (ورقة اتفاق معتمدة ٢١-١٠-٢٠٢٦): تحديث البيانات يُرقّع البطاقات التي تغيّر نصّها فقط — الناتج مطابقٌ حرفًا للرسم الكامل
+   (النصّ نفسه من countRowHtml). تغيّر الأصناف الظاهرة (بحث/صنف جديد/حذف/أول رسم) ⇒ الرسم الكامل كما كان. */
+function renderCountListDiff(){ const cl=$('clist'); if(!cl)return; if(!_rclRows||!curSess){ renderCountList(); return; }
+  const qn=arNorm(($('csearch')?$('csearch').value:'').trim());
+  const list=qn?curItems.filter(it=>(it.code&&arNorm(it.code).indexOf(qn)>=0)||(it.name&&arNorm(it.name).indexOf(qn)>=0)||(it.barcode&&arNorm(it.barcode).indexOf(qn)>=0)):curItems;
+  const blind=curSess.blind, frozen=!canCount(), sh=list.slice(0,300);
+  if(rclKey(list,blind,frozen)!==_rclKey||cl.children.length<sh.length){ renderCountList(); return; }
+  { const _cs=$('csearch'); if(_cs)_cs._scRq=(_cs.value||''); }
+  countProgressUpdate(); const ae=document.activeElement;
+  for(let i=0;i<sh.length;i++){ const h=countRowHtml(sh[i],blind,frozen); if(h===_rclRows[i])continue;
+    const row=cl.children[i], t=document.createElement('div'); t.innerHTML=h; const nw=t.firstElementChild; if(!row||!nw){ renderCountList(); return; }
+    const keep=(ae&&row.contains(ae)&&ae.classList&&(ae.classList.contains('padd')||ae.classList.contains('cnotetxt')))?{cls:ae.classList.contains('padd')?'padd':'cnotetxt',val:ae.value,s:ae.selectionStart,e:ae.selectionEnd}:null;
+    row.parentNode.replaceChild(nw,row); bindCountRows(nw); _rclRows[i]=h;
+    if(keep){ const x=nw.querySelector('.'+keep.cls); if(x){ x.value=keep.val; try{ x.focus(); if(keep.s!=null)x.setSelectionRange(keep.s,keep.e); }catch(_){} } } } }
 function renderCountList(){
   if(!$('clist'))return;
   // إصلاح التداخل: احفظ حقل الإدخال اليدويّ المركَّز (كمية «أضف» أو محرّر ملاحظة) قبل إعادة البناء، ثمّ استعِده —
@@ -3403,7 +3420,8 @@ function renderCountList(){
   let list=curItems; if(qn)list=curItems.filter(it=>(it.code&&arNorm(it.code).indexOf(qn)>=0)||(it.name&&arNorm(it.name).indexOf(qn)>=0)||(it.barcode&&arNorm(it.barcode).indexOf(qn)>=0));
   const blind=curSess.blind; const frozen=!canCount();
   countProgressUpdate();
-  const html=list.slice(0,300).map(it=>countRowHtml(it,blind,frozen)).join('');
+  const rows=list.slice(0,300).map(it=>countRowHtml(it,blind,frozen)), html=rows.join('');
+  _rclRows=rows; _rclKey=rclKey(list,blind,frozen); // البند ١: نصّ كل صفٍّ مرسوم ⇒ الترقيع يقارن به
   $('clist').innerHTML=(list.length?html:'<p class="empty-hint">لا أصناف مطابقة.</p>')+(list.length>300?'<p class="muted" style="padding:8px">عرض أول 300 صنف — استخدم البحث ('+fmt(list.length)+' مطابق).</p>':'');
   bindCountRows($('clist'));
   if(_keep){ let _t=null; $('clist').querySelectorAll('.'+_keep.cls).forEach(x=>{ if(String(x.getAttribute('data-code'))===_keep.code)_t=x; });
@@ -3456,8 +3474,8 @@ function countRowFind(code){ const cl=$('clist'); if(!cl)return null; const ch=c
 function patchCountRow(code){ code=String(code); const cl=$('clist'); if(!cl)return false;
   const row=countRowFind(code); if(!row)return false;
   const it=scanIndexGet().C.get(code); if(!it)return false;
-  const tmp=document.createElement('div'); tmp.innerHTML=countRowHtml(it,curSess&&curSess.blind,!canCount());
-  const nw=tmp.firstElementChild; if(!nw)return false;
+  const h=countRowHtml(it,curSess&&curSess.blind,!canCount()); const tmp=document.createElement('div'); tmp.innerHTML=h;
+  const nw=tmp.firstElementChild; if(!nw)return false; { const ix=Array.prototype.indexOf.call(cl.children,row); if(_rclRows&&ix>=0&&ix<_rclRows.length)_rclRows[ix]=h; } // موضع الصفّ الفعليّ (يصحّ مع كودٍ مكرّر في القائمة)
   const ae=document.activeElement, keepPadd=(ae&&ae.classList&&ae.classList.contains('padd')&&row.contains(ae))?ae.value:null;
   row.parentNode.replaceChild(nw,row); bindCountRows(nw);
   if(keepPadd!=null){ const p=nw.querySelector('.padd'); if(p){ p.value=keepPadd; p.focus(); } } // لا نُضيّع ما يكتبه العدّاد يدويًّا
@@ -4392,7 +4410,7 @@ function offlineApplyOptimistic(op,nr){ const code=op.code;
   else if(op.op==='remove'){ const cc=curCounts[code]; if(cc&&cc.entries){ let i=op.index; if(op.eid!=null){ const j=cc.entries.findIndex(e=>e&&e.id===op.eid); if(j>=0)i=j; } if(i>=0&&i<cc.entries.length){ cc.qty=(cc.qty||0)-(cc.entries[i].q||0); cc.entries.splice(i,1); if(!cc.entries.length)delete curCounts[code]; } } }
   else if(op.op==='reset'){ delete curCounts[code]; }
   else if(op.op==='additem'){ if(op.item&&!curItems.some(x=>String(x.code)===String(code))){ curExtra=curExtra.concat([Object.assign({},op.item,{manual:true})]); curItems=curBaseItems.concat(curExtra); } } // ط-١٣: الصنف يظهر فورًا فيتعرّف عليه الماسح في المسحة التالية
-  if(!nr&&$('clist'))renderCountList(); }
+  if(!nr&&$('clist'))renderCountListDiff(); }
 async function offlineEnqueueAndReflect(op){ const entry=await offlineEnqueue(op); offlineApplyOptimistic(entry);
   oqKick();
   if(!netOnline())toastWarn('دون اتصال — حُفظ محليًّا وسيُزامَن تلقائيًّا ('+fmt(_offlineQueueLen)+' بانتظار المزامنة)');
@@ -4512,7 +4530,7 @@ function pendDrop(code,eid,confirmOk,quiet){ const l=_pendingAdds[code]||[]; con
         arr[j]=x; cc.entries=arr; } } }
   else if(cc&&cc.entries){ const j=cc.entries.findIndex(e=>e&&e.id===eid);
     if(j>=0){ if(confirmOk){ delete cc.entries[j].pending; } else { cc.qty=(cc.qty||0)-(cc.entries[j].q||0); cc.entries.splice(j,1); if(!cc.entries.length){ delete curCounts[code]; } } } }
-  if($('clist')){ if(quiet)renderCountTouch(code); else renderCountList(); } } // م٦-٤ ط-٦: مسار المسح يُرقّع صفّه فقط
+  if($('clist')){ if(quiet)renderCountTouch(code); else renderCountListDiff(); } } // م٦-٤ ط-٦: مسار المسح يُرقّع صفّه فقط
 /* ═══════════ ط-١٤ — المرحلة ٤: إعادة تصميم سجلّ المسح (Scan History) ═══════════
    النصّ الحاكم: «كل مدخلٍ في السجلّ يمثّل تتابع عدٍّ واحدًا متّصلًا. لا تدمج تتابعاتٍ مفصولة.»
    ⇒ مسحاتٌ متتالية لنفس الصنف من نفس العدّاد = سطرٌ واحد بعدّاد n (أحمد ×٣)؛
@@ -4596,7 +4614,7 @@ async function addEntry(code,val,opt){ opt=opt||{};
   const prec=mrun?{id:eid,q:d,by:auth.currentUser.uid,byName:myProfile.name||'',at:at,mrg:1,run:mrun.eid,ri:mrun.ri,seq:(mrun.seq||1)+1,src:sk}
                 :{id:eid,q:d,by:auth.currentUser.uid,byName:myProfile.name||'',at:at,src:sk};
   (_pendingAdds[code]=_pendingAdds[code]||[]).push(prec);
-  pendReapply(); if($('clist')){ if(opt.quiet)renderCountTouch(code); else renderCountList(); } // ظهور لحظي قبل أي شبكة
+  pendReapply(); if($('clist')){ if(opt.quiet)renderCountTouch(code); else renderCountListDiff(); } // ظهور لحظي قبل أي شبكة
   try{
     const ri=await countWriteAdd(curSid,code,d,at,eid,mrun,sk);
     pendDrop(code,eid,true,opt.quiet);
@@ -5328,7 +5346,7 @@ async function scanStep(job){
 
 // عند فراغ الطابور: تُنفَّذ إعادة الرسم الكاملة المؤجَّلة مرّةً واحدة (بدل مرّة لكل مسحة)
 function scanDrained(){ const s=$('csearch');
-  if(_rclPending&&!(s&&s._scBuf!=null)){ _rclPending=false; clearTimeout(_rclT); _rclT=0; if($('clist'))renderCountList(); }
+  if(_rclPending&&!(s&&s._scBuf!=null)){ _rclPending=false; clearTimeout(_rclT); _rclT=0; if($('clist'))renderCountListDiff(); }
   if(_caRPend&&!(s&&s._scBuf!=null))caFlush();                      // م٧: لوحة المعاينة تُرسم بعد فراغ الطابور لا أثناءه
   scanFocusGuard(); }                                                // ط-٨: حزمة جارية ⇒ يؤجَّل الرسم لمؤقّت الأمان
 
@@ -5358,7 +5376,7 @@ function scanArmField(el,onScan){ if(!el||el._scArmed)return; el._scArmed=true;
     clearTimeout(el._scTimer); el._scDue=Date.now()+SCAN_IDLE_MS; el._scLate=0;
     el._scTimer=setTimeout(function(){ scanFieldFlush(el); },SCAN_IDLE_MS); });
   el.addEventListener('blur',function(){ el._scBuf=null; el._scPre=''; el._scFast=0; el._scSlow=0; clearTimeout(el._scTimer); el._scTimer=0;
-    if(_rclPending){ _rclPending=false; clearTimeout(_rclT); _rclT=0; if($('clist'))renderCountList(); } });
+    if(_rclPending){ _rclPending=false; clearTimeout(_rclT); _rclT=0; if($('clist'))renderCountListDiff(); } });
   return el; }
 
 /* تفريغ الحزمة: تُعدّ مسحةً فقط إن استوفت الطول والنمط — وإلّا فهي كتابة بشرية تُترك كما هي */
@@ -5398,9 +5416,9 @@ function csearchInput(){ if(scanMode)return; const el=$('csearch'); if(!el)retur
 function renderCountListLive(){ if(!$('clist'))return;
   const s=$('csearch');
   if(scanBusy||scanQueue.length||(s&&s._scBuf!=null)){ _rclPending=true;   // ط-٨: لا نحجب الخيط وحروف الباركود تتدفّق
-    clearTimeout(_rclT); _rclT=setTimeout(function(){ if(_rclPending){ _rclPending=false; if($('clist'))renderCountList(); } },SCAN_IDLE_MS+40);
+    clearTimeout(_rclT); _rclT=setTimeout(function(){ if(_rclPending){ _rclPending=false; if($('clist'))renderCountListDiff(); } },SCAN_IDLE_MS+40);
     return; }
-  _rclPending=false; clearTimeout(_rclT); _rclT=0; renderCountList(); }
+  _rclPending=false; clearTimeout(_rclT); _rclT=0; renderCountListDiff(); }
 function toggleScanMode(){ scanMode=!scanMode; ensureAudio(); const b=$('scanModeBtn'),s=$('csearch'); if(b){ b.style.background=scanMode?'var(--success)':''; b.style.color=scanMode?'#fff':''; b.textContent=scanMode?'🔫 إيقاف وضع الماسح':'🔫 وضع الماسح'; } if(s){ if(scanMode){ s.placeholder='🔫 امسح الباركود الآن…'; s.value=''; s.focus(); } else { s.placeholder='ابحث بالكود أو الاسم…'; } } if(scanMode)scanFeedback('وضع الماسح مُفعّل: كل مسح يَعُدّ ١+ بصوت تلقائيًّا — بلا Enter وبلا ضغط زر.',true); else if($('scanStatus')){$('scanStatus').style.display='none';$('scanStatus').className='';} }
 // تحميل ZXing عند الحاجة فقط (بديل يعمل على كل المتصفحات عند غياب القارئ المدمج)
 function loadZXing(){ if(window.ZXing)return Promise.resolve(); if(_zxingLoading)return _zxingLoading; _zxingLoading=new Promise((res,rej)=>{ const s=document.createElement('script'); s.src='https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js'; s.async=true; s.onload=()=>res(); s.onerror=()=>rej(new Error('zxing-load')); document.head.appendChild(s); }); return _zxingLoading; }
