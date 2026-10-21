@@ -125,39 +125,45 @@ function tally(){ const ms=allSteps().map(markOf); const diff=ms.filter(m=>m&&m.
   return {steps:ms.length, left:ms.filter(m=>!m).length, ok:ms.filter(m=>m&&m.v==='ok').length, diff, notes:ms.filter(m=>m&&m.nt).length}; }
 
 /* ───────── الحفظ المجمَّع ───────── */
-function pendN(){ return S?Object.keys(S.pend).reduce((a,u)=>a+Object.keys(S.pend[u]).length,0):0; }
+function pendN(st){ st=st||S; return st?Object.keys(st.pend).reduce((a,u)=>a+Object.keys(st.pend[u]).length,0):0; }
 function setMark(s,v,a,note){
-  const mk={c:String(s.code),v:v,a:num(a),nt:String(note||'').slice(0,500),cq:s.q,at:Date.now()};
+  const mk={c:String(s.code),v:v,a:num(a),nt:String(note||'').slice(0,200),cq:s.q,at:Date.now()};
   S.marks[s.key]=mk; (S.pend[s.uid]=S.pend[s.uid]||{})[s.key]=mk; S.dirtyMeta=true;
   if(pendN()>=FLUSH_N)flush(); else { clearTimeout(S.ft); S.ft=setTimeout(()=>flush(),FLUSH_MS); }
 }
-function flush(){
-  if(!S)return Promise.resolve(true); clearTimeout(S.ft);
-  if(S.flushing)return S.flushing.then(()=>flush());
-  const st=S;
+// كل حفظٍ مربوطٌ بحالته (st) وسياقه (st.x) ساعة بدئه — لا يكتب في جلسةٍ أخرى إن فُتحت مراجعةٌ غيرها أثناءه
+function flush(st){
+  st=st||S; if(!st)return Promise.resolve(true); clearTimeout(st.ft);
+  if(st.flushing)return st.flushing.then(()=>flush(st));
+  const x=st.x;
   const run=async()=>{
     let bad=null;
     for(const u of Object.keys(st.pend)){ const part=Object.assign({},st.pend[u]); const keys=Object.keys(part); if(!keys.length)continue;
-      try{ await X.setDoc(X.doc(X.db,'sessions',X.sid,'branchReview','p_'+u),{u:u,m:part,by:X.uid,byName:(X.me&&X.me.name)||'',at:X.serverTimestamp()},{merge:true});
+      try{ await x.setDoc(x.doc(x.db,'sessions',x.sid,'branchReview','p_'+u),{u:u,m:part,by:x.uid,byName:(x.me&&x.me.name)||'',at:x.serverTimestamp()},{merge:true});
         keys.forEach(k=>{ if(st.pend[u]&&st.pend[u][k]===part[k])delete st.pend[u][k]; }); }
       catch(err){ bad=err; } }
-    if(!bad&&st.dirtyMeta&&metaFresh(st.meta)){ // تعديلٌ بعد الإرسال ⇒ يُحدَّث ملخّص الإرسال نفسه بأرقامه الجديدة
-      const t=tally(); if(t.left===0){ try{ await writeMeta(t); }catch(err){ bad=err; } } }
-    if(bad){ st.flushErr=true; X.toastErr('تعذّر حفظ '+pendN()+' تأشيرًا: '+X.errAr(bad.code||bad.message)+' — ستبقى ظاهرةً «غير محفوظة» وتُعاد المحاولة تلقائيًّا.'); clearTimeout(st.ft); st.ft=setTimeout(()=>flush(),FLUSH_MS*3); }
-    else { st.flushErr=false; st.dirtyMeta=false; }
-    updPend(); return !bad;
+    if(!bad&&st.dirtyMeta&&st===S&&metaFresh(st.meta)){ // تعديلٌ بعد الإرسال ⇒ يُحدَّث ملخّص الإرسال نفسه بأرقامه الجديدة
+      const t=tally(); if(t.left===0){ try{ await writeMeta(st,t); }catch(err){ bad=err; } } }
+    if(bad){
+      const sst=((x.sess()||{}).status), gone=bad.code==='permission-denied'||(x.sid===x.curSid()&&sst&&sst!=='review');   // خرجت الجلسة من «قيد المراجعة» ⇒ لا حلقة إعادة محاولةٍ بلا نهاية
+      if(gone){ x.toastErr('لم تُحفظ '+pendN(st)+' تأشيرات: الجلسة لم تعد «قيد المراجعة» (أو رُفض الحفظ) — لا تُعاد المحاولة.'); stop(st); return false; }
+      st.flushErr=true; x.toastErr('تعذّر حفظ '+pendN(st)+' تأشيرًا: '+x.errAr(bad.code||bad.message)+' — ستبقى ظاهرةً «غير محفوظة» وتُعاد المحاولة تلقائيًّا.'); clearTimeout(st.ft); st.ft=setTimeout(()=>flush(st),FLUSH_MS*3); }
+    else { st.flushErr=false; if(!pendN(st))st.dirtyMeta=false; }
+    if(st===S)updPend(); return !bad;
   };
   st.flushing=run().finally(()=>{ st.flushing=null; }); return st.flushing;
 }
-async function writeMeta(t){ const sess=X.sess()||{};
-  const meta={submitted:true,by:X.uid,byName:(X.me&&X.me.name)||'',at:X.serverTimestamp(),closedAt:sess.closedAt==null?null:sess.closedAt,steps:t.steps,ok:t.ok,diff:t.diff,notes:t.notes};
-  await X.setDoc(X.doc(X.db,'sessions',X.sid,'branchReview',META),meta); if(S)S.meta=Object.assign({},meta,{at:null}); }
+async function writeMeta(st,t){ const x=st.x; const sess=x.sess()||{};
+  const meta={submitted:true,by:x.uid,byName:(x.me&&x.me.name)||'',at:x.serverTimestamp(),closedAt:sess.closedAt==null?null:sess.closedAt,steps:t.steps,ok:t.ok,diff:t.diff,notes:t.notes};
+  await x.setDoc(x.doc(x.db,'sessions',x.sid,'branchReview',META),meta); st.meta=Object.assign({},meta,{at:null}); }
 function updPend(){ const el=document.getElementById('brPend'); if(!el||!S)return; const n=pendN();
   el.className='br-pend'+(S.flushErr?' err':''); el.textContent=n?(S.flushErr?'⚠ غير محفوظ: '+n+' — تُعاد المحاولة':'⏳ لم يُحفظ بعد: '+n):''; }
 async function leave(){
   if(pendN()&&!(await flush())){ if(!(await X.confirmDialog({title:'تأشيرات غير محفوظة',message:'تعذّر حفظ '+pendN()+' تأشيرًا. إن خرجت الآن ستضيع. هل تخرج دونها؟',confirmLabel:'اخرج دون حفظ',danger:true})))return; }
   stop(); X.back(); }
-function stop(){ if(!S)return; clearTimeout(S.ft); clearInterval(S.poll); document.removeEventListener('visibilitychange',S.vis); window.removeEventListener('beforeunload',S.bu); S=null; }
+function stop(st){ st=st||S; if(!st)return; clearTimeout(st.ft); clearInterval(st.poll); try{ if(st.unsrv)st.unsrv(); }catch(e){}
+  document.removeEventListener('visibilitychange',st.vis); window.removeEventListener('beforeunload',st.bu); st.pend={}; if(S===st)S=null; }
+const srvOk=()=>!!(S&&S.srvOk);
 
 /* ───────── أدوات العرض ───────── */
 const E=s=>X.esc(s);
@@ -187,7 +193,7 @@ function renderReview(){
   let h='<div class="br-wrap" id="brRoot"><div class="card" style="margin:0"><div class="br-head"><button class="btn ghost sm" id="brBack">→ رجوع</button><h2>مراجعة الفرع — '+E(sess.name||'')+'</h2>'+
     (p?'<button type="button" class="btn ghost sm" id="brMode">'+(S.view==='card'?'☰ القائمة':'▢ البطاقة')+'</button>':'')+'</div>'+
     '<div class="muted" style="margin-top:4px">'+E(sess.location||'')+' • الترتيب = ترتيب العدّ الفعلي لكل عدّاد. المراجعة ملاحظاتٌ فقط ولا تغيّر أي كمية.</div>'+
-    (!X.srv()?'<div class="status show info" style="margin-top:10px">⏳ العدّات معروضة من نسخة الجهاز — بانتظار تأكيدها من الخادم قبل الإرسال.</div>':'')+
+    (!srvOk()?'<div class="status show info" style="margin-top:10px">⏳ العدّات معروضة من نسخة الجهاز — بانتظار تأكيدها من الخادم قبل الإرسال.</div>':'')+
     (metaFresh(S.meta)?'<div class="status show ok" style="margin-top:10px">✓ أُرسلت المراجعة'+(S.meta.byName?' — '+E(S.meta.byName):'')+'. أي تعديلٍ بعدها يُحدِّث الإرسال تلقائيًّا.</div>':'')+
     (stale?'<div class="status show info" style="margin-top:10px">أُعيد الإقفال بعد آخر إرسال — راجِع الخطوات الجديدة أو المتغيّرة ثم أرسل من جديد.</div>':'')+
     (p?'<div class="br-tabs" style="margin-top:12px">'+tabs+'</div>':'')+
@@ -239,7 +245,7 @@ function cardHtml(p){
   h+='<div class="br-acts"><button type="button" class="br-btn k'+(m&&m.v==='ok'?' on':'')+'" id="brOk" style="flex:1;min-height:54px;font-size:17px">مطابق ✓</button><button type="button" class="br-btn d'+((ed==='diff')?' on':'')+'" id="brDf" style="flex:1;min-height:54px;font-size:17px">مختلف</button></div>';
   if(ed==='diff'||ed==='note'){
     h+='<div class="br-ed">'+(ed==='diff'?'<label style="display:flex;align-items:center;justify-content:space-between;gap:10px;font-weight:600;color:var(--danger)">الكمية الفعلية في هذا الموضع<input class="br-in" id="brAct" inputmode="decimal" style="width:110px;text-align:center" value="'+E(m&&m.v==='diff'?m.a:'')+'" placeholder="'+E(X.fmt(s.q))+'"></label>':'')+
-      '<textarea class="br-ta" id="brNote" maxlength="500" placeholder="ملاحظة الفرع (يراها المدير)">'+E(m?m.nt||'':'')+'</textarea>'+
+      '<textarea class="br-ta" id="brNote" maxlength="200" placeholder="ملاحظة الفرع (يراها المدير)">'+E(m?m.nt||'':'')+'</textarea>'+
       '<button type="button" class="btn" id="brSave" style="min-height:44px">حفظ'+(ed==='diff'?' «مختلف»':' الملاحظة')+'</button></div>';
   } else if(m) h+='<button type="button" class="br-lnk" id="brAddNote" style="align-self:flex-start">+ إضافة ملاحظة</button>';   // الملاحظة بعد التأشير فقط — فلا يُسجَّل «مطابق» ضمنيًّا
   h+='</div><div class="br-nav"><button type="button" class="btn ghost" id="brPrev"'+(S.i<=0?' disabled':'')+'>→ السابق</button><button type="button" class="btn ghost" id="brNext"'+(S.i>=p.steps.length-1?' disabled':'')+'>التالي ←</button></div>';
@@ -254,7 +260,7 @@ function bindCard(p){
   document.getElementById('brDf').onclick=()=>{ S.ed='diff'; renderReview(); const a=document.getElementById('brAct'); if(a)a.focus(); };
   const an=document.getElementById('brAddNote'); if(an)an.onclick=()=>{ S.ed='note'; renderReview(); const t=document.getElementById('brNote'); if(t)t.focus(); };
   const sv=document.getElementById('brSave'); if(sv)sv.onclick=()=>{
-    const note=String((document.getElementById('brNote')||{}).value||'').trim().slice(0,500);
+    const note=String((document.getElementById('brNote')||{}).value||'').trim().slice(0,200);
     const ai=document.getElementById('brAct');
     if(ai){ const a=X.numv(ai.value); if(a==null||a<0){ X.toastErr('أدخل الكمية الفعلية في هذا الموضع (رقم صفر أو أكبر).'); ai.focus(); return; } setMark(s,'diff',a,note); }
     else if(m) setMark(s,m.v,num(m.a),note);
@@ -264,14 +270,15 @@ function bindCard(p){
 }
 
 async function submit(){
-  const t=tally();
+  const st=S; if(!st)return; const t=tally();
   if(t.left>0){ X.toastErr('بقي '+t.left+' خطوة لم تُراجَع — أكمل المراجعة أولًا.'); return; }
-  if(!X.srv()){ X.toastErr('العدّات لم تُؤكَّد من الخادم بعد (الجهاز يعرض نسخته المحفوظة) — تحقّق من الاتصال ثم أعد المحاولة.'); return; }
+  if(!srvOk()){ X.toastErr('العدّات لم تُؤكَّد من الخادم بعد (الجهاز يعرض نسخته المحفوظة) — تحقّق من الاتصال ثم أعد المحاولة.'); return; }
   if(!(await X.confirmDialog({title:'إرسال مراجعة الفرع',message:'مطابق: '+t.ok+' • مختلف: '+t.diff+' • ملاحظات: '+t.notes+' — ستظهر المراجعة للمدير، ولا تتغيّر أي كمية معدودة.',confirmLabel:'إرسال'})))return;
-  if(!S)return;
-  if(!(await flush())){ X.toastErr('لم تُرسَل المراجعة: توجد تأشيرات لم تُحفظ بعد — أعد المحاولة.'); return; }
-  try{ await writeMeta(tally()); if(S)S.dirtyMeta=false; X.toastOk('أُرسلت مراجعة الفرع ✓ — بانتظار المدير'); renderReview(); }
-  catch(err){ X.toastErr('تعذّر إرسال المراجعة: '+X.errAr(err.code||err.message)+' — لم تُرسَل، أعد المحاولة.'); }
+  if(S!==st)return;
+  if(!(await flush(st))){ if(S===st)X.toastErr('لم تُرسَل المراجعة: توجد تأشيرات لم تُحفظ بعد — أعد المحاولة.'); return; }
+  if(S!==st)return;                                   // غادر المستخدم أو فتح مراجعةً أخرى أثناء الحفظ ⇒ لا إرسال باسم غيرها
+  try{ await writeMeta(st,tally()); if(!pendN(st))st.dirtyMeta=false; st.x.toastOk('أُرسلت مراجعة الفرع ✓ — بانتظار المدير'); if(S===st)renderReview(); }
+  catch(err){ st.x.toastErr('تعذّر إرسال المراجعة: '+st.x.errAr(err.code||err.message)+' — لم تُرسَل، أعد المحاولة.'); }
 }
 
 /* ───────── شاشة المدير: ملاحظات الفرع ───────── */
@@ -301,7 +308,7 @@ function render(){ if(!S)return; if(S.mode==='notes')renderNotes(); else renderR
 
 /* ───────── نقطة الدخول ───────── */
 async function open(ctx){
-  if(S){ if(pendN())await flush(); stop(); }
+  if(S){ const old=S; if(pendN(old)&&!(await flush(old))){ if(!(await ctx.confirmDialog({title:'تأشيرات غير محفوظة',message:'تعذّر حفظ '+pendN(old)+' تأشيرًا من المراجعة السابقة. إن تابعت ستضيع. هل تتابع؟',confirmLabel:'تابع دون حفظ',danger:true})))return; } stop(old); }
   X=ctx; css(); D=null;
   const c=document.getElementById('appContent'); if(!c)return;
   c.innerHTML='<div class="card" id="brLoading"><p class="muted">جارٍ تحميل مراجعة الفرع…</p></div>';
@@ -311,11 +318,14 @@ async function open(ctx){
   if(!X.got()){ fail('تعذّر تحميل عدّات الجلسة — لا يمكن بدء المراجعة دون العدّات كاملة. تحقّق من الاتصال ثم أعد المحاولة.'); return; }
   let store; try{ store=await loadStore(); } catch(err){ if(still())fail('تعذّر تحميل المراجعة: '+X.errAr(err.code||err.message)); return; }
   if(!still())return;
-  S={mode:X.mode,u:null,i:0,q:'',f:'all',ed:null,nf:'diff',view:(window.innerWidth>=1024?'list':'card'),marks:store.marks,meta:store.meta,edits:store.edits,pend:{},ft:0,flushing:null,flushErr:false,dirtyMeta:false};
-  rebuild(); S.u=(D.paths[0]||{}).uid||null; S.srvSeen=X.srv();
+  const st=S={x:X,mode:X.mode,u:null,i:0,q:'',f:'all',ed:null,nf:'diff',view:(window.innerWidth>=1024?'list':'card'),marks:store.marks,meta:store.meta,edits:store.edits,pend:{},ft:0,flushing:null,flushErr:false,dirtyMeta:false,srvOk:false};
+  rebuild(); S.u=(D.paths[0]||{}).uid||null; S.srvSeen=false;
+  // تأكيد الخادم: مستمعٌ على العدّات نفسها بـ includeMetadataChanges (يتشارك هدف المراقبة مع مستمع التطبيق فلا قراءات إضافية)
+  // لأن الانتقال «من الكاش ← مؤكَّد من الخادم» دون تغيّر مستند لا يُطلق حدثًا في مستمع التطبيق العادي.
+  try{ st.unsrv=X.snapMeta(X.collection(X.db,'sessions',X.sid,'counts'),(qs)=>{ if(!(qs.metadata&&qs.metadata.fromCache))st.srvOk=true; },()=>{}); }catch(e){ st.srvOk=true; }
   // العدّات/الأصناف قد تصل من الخادم بعد نسخة الكاش ⇒ إعادة بناءٍ هادئة حين تتغيّر، دون مقاطعة كتابةٍ جارية
-  S.poll=setInterval(()=>{ if(!onScreen()){ if(!pendN())stop(); return; } const ae=document.activeElement; if(ae&&/^br(Note|Act|Q)$/.test(ae.id))return;
-    if(!sigSame(D.sig,dataSig())||S.srvSeen!==X.srv()){ S.srvSeen=X.srv(); render(); } },1500);
+  S.poll=setInterval(()=>{ if(!onScreen()){ if(!pendN())stop(); return; } const ae=document.activeElement; if(S.ed||(ae&&/^br(Note|Act|Q)$/.test(ae.id)))return;   // لا إعادة رسمٍ والمحرّر مفتوح (لا يضيع نصٌّ مكتوب)
+    if(!sigSame(D.sig,dataSig())||S.srvSeen!==srvOk()){ S.srvSeen=srvOk(); render(); } },1500);
   S.vis=()=>{ if(document.visibilityState==='hidden'&&pendN())flush(); }; document.addEventListener('visibilitychange',S.vis);
   S.bu=(e)=>{ if(S&&pendN()){ flush(); e.preventDefault(); e.returnValue=''; } }; window.addEventListener('beforeunload',S.bu);
   window.scrollTo(0,0); render();

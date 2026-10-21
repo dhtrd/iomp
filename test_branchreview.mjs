@@ -202,6 +202,25 @@ async function seedReview(page,meta){ await page.evaluate(({M,meta})=>{ M.forEac
   ok('B18 «اذهب إلى #…» ينقل إلى الموضع الآخر للصنف', await page.evaluate(()=>window.IOMPBR._state().i===5));
   await ctx.close(); }
 
+// B19: عدّاتٌ من الكاش فقط (بلا تأكيد خادم) ⇒ تنبيه ورفض الإرسال، ثم يزول فور تأكيد الخادم دون أي تعديل للعدّات
+{ const s=mkSess(); s.__counts=[COUNTS[0]];
+  const {ctx,page}=await boot({ profile:BR, users:[OWNER,BR], config:CFG(true), sessions:[s] });
+  await page.evaluate(()=>window.__cacheOnly(true)); await openReview(page);
+  ok('B19 من الكاش: تنبيه «بانتظار تأكيدها من الخادم»', await page.evaluate(()=>document.getElementById('appContent').textContent.includes('بانتظار تأكيدها من الخادم')));
+  await page.click('[data-ok="1"]'); await sleep(150); await page.click('#brSend'); await sleep(250);
+  { const tt=await toasts(page); ok('B19 من الكاش: الإرسال مرفوض برسالة صريحة ولا __brmeta', tt.some(x=>x.includes('لم تُؤكَّد من الخادم'))&&!(await store(page,'sessions/sr/branchReview/'))['sessions/sr/branchReview/__brmeta'], JSON.stringify(tt)); }
+  await page.evaluate(()=>window.__cacheOnly(false)); await sleep(1900);
+  ok('B19 بعد تأكيد الخادم (دون تغيّر أي مستند): يزول التنبيه ويُقبل الإرسال', await page.evaluate(()=>!document.getElementById('appContent').textContent.includes('بانتظار تأكيدها')&&window.IOMPBR._state().srvOk===true));
+  await ctx.close(); }
+
+// B20: رفض الحفظ نهائيًّا (خرجت الجلسة من المراجعة) ⇒ رسالة واحدة صريحة ولا حلقة إعادة محاولة
+{ const {ctx,page}=await boot(SCB()); await openReview(page);
+  await page.evaluate(()=>window.__failWrite('sessions/sr/branchReview/p_c1','perm'));
+  await page.click('[data-ok="1"]'); await sleep(100); await page.evaluate(()=>window.IOMPBR.flush()); await sleep(200);
+  const t=await toasts(page);
+  ok('B20 رفضٌ نهائي ⇒ «لم تُحفظ … لا تُعاد المحاولة» وتتوقف الوحدة (لا مؤقّتات باقية)', t.some(x=>x.includes('لا تُعاد المحاولة'))&&(await page.evaluate(()=>window.IOMPBR._state()===null)), JSON.stringify(t));
+  await ctx.close(); }
+
 await browser.close();
 let pass=0; for(const r of results){ console.log((r.pass?'✓':'✗')+' '+r.n+(r.d&&!r.pass?('  << '+r.d):'')); if(r.pass)pass++; }
 console.log(`\nRECON ${pass}/${results.length}`);

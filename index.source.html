@@ -3167,7 +3167,7 @@ async function openSession(sid){
     const attach=()=>{ ca13Warm(); // ط-١٣: تسخين الكتالوج الرئيسيّ (٠–١ قراءة، لا يحجب فتح الجلسة) — البثّ الحيّ: اليدوي + الملاحظات + العدّات + الحركة + حالة الجلسة
       extraUnsub=onSnapshot(collection(db,'sessions',sid,'extraItems'),(qs)=>{ const ex=[]; qs.forEach(d=>{const x=d.data(); if(x&&x.code!=null)ex.push(Object.assign({},x,{manual:true}));}); curExtra=ex; curItems=curBaseItems.concat(curExtra); oqReflect(1); if($('clist'))renderCountList(); },(err)=>{}); // اليدوي يُوسَم manual دائمًا ⇒ شارة «يدوي» ووسم «زيادة» وقت العد
       notesUnsub=onSnapshot(collection(db,'sessions',sid,'itemNotes'),(qs)=>{ curNotes={}; qs.forEach(d=>{const x=d.data(); if(x&&x.code!=null)curNotes[String(x.code)]=x;}); if($('clist'))renderCountList(); },(err)=>{});
-      countsUnsub=onSnapshot(collection(db,'sessions',sid,'counts'),(qs)=>{_cntGot=1;_cntSrv=!(qs.metadata&&qs.metadata.fromCache);_cntEvt++;_srvCounts={};qs.forEach(d=>{const x=d.data();if(x&&x.code!=null)_srvCounts[x.code]=x;});cntRebuild();renderCountListLive();},(err)=>{ _cntDead=sid; offlineUpdateChip();
+      countsUnsub=onSnapshot(collection(db,'sessions',sid,'counts'),(qs)=>{_cntGot=1;_cntEvt++;_srvCounts={};qs.forEach(d=>{const x=d.data();if(x&&x.code!=null)_srvCounts[x.code]=x;});cntRebuild();renderCountListLive();},(err)=>{ _cntDead=sid; offlineUpdateChip();
         if(!_cntGot&&featuresOfflineOn())getDocsFromCache(collection(db,'sessions',sid,'counts')).then(qs=>{ if(curSid!==sid||_cntGot)return; if(qs.empty)throw 0; _srvCounts={}; qs.forEach(d=>{const x=d.data();if(x&&x.code!=null)_srvCounts[x.code]=x;}); cntRebuild(); renderCountListLive(); }).catch(()=>{ if(curSid===sid&&!_cntGot)toastErr('تعذّر تحميل العدّات السابقة لهذه الجلسة ولا نسخة لها على هذا الجهاز — الأرقام الظاهرة لا تشمل ما عُدّ قبل الآن. لا تُعِد عدّ صنفٍ لمجرّد ظهوره صفرًا.'); }); }); // الخادم + المعلَّق + طابور الجهاز ⇒ لا يختفي عدٌّ غير مُزامَن؛ والمستمع الميّت (نفاد الحصّة) يُعاد بعد أوّل مزامنةٍ ناجحة // دمج المعلَّق ⇒ لا يختفي عدّك أثناء تأكيد الخادم (م٦-٤ ط-٦: الرسم الكامل يُؤجَّل أثناء رشقة المسح)
       // م٦-٤ ط-٦: سجل الحركة لا يُعاد بناؤه ولوحته مطويّة (الحالة الافتراضية) — يُبنى مرة واحدة عند فتحها
       /* ط-١٥ (د-٧): لا مستمعَ للحركة قبل أن تُفتَح لوحته. سببه في وثيقة ٦ §١-٣: Firestore يفوتر مستندًا
@@ -3515,13 +3515,13 @@ function featuresDropboxOn(){ return !!(permConfig && permConfig.features && per
 function featuresBranchReviewOn(){ return !!(permConfig && permConfig.features && permConfig.features.branchReview); } // مراجعة الفرع قبل الاعتماد — config/permissions.features.branchReview — افتراضيًا معطّل
 /* مراجعة الفرع: الشاشة كلها في branch-review.js وتُحمَّل عند الطلب فقط (لا تدخل في حجم index.html).
    هنا فقط: من يحقّ له المراجعة، والتحميل، وبوابة «تمت المراجعة». المراجعة ملاحظاتٌ ولا تكتب في العدّات. */
-const BR_META='__brmeta', BR_V='2'; // BR_V: رقم إصدار branch-review.js — يُرفع مع كل تعديلٍ عليه كي لا تعمل صفحةٌ جديدة بوحدةٍ قديمة من الكاش
+const BR_META='__brmeta', BR_V='3'; // BR_V: رقم إصدار branch-review.js — يُرفع مع كل تعديلٍ عليه كي لا تعمل صفحةٌ جديدة بوحدةٍ قديمة من الكاش
 let _brP=null, _brAuto=null;
 function brCan(s){ return featuresBranchReviewOn()&&can('session.branchReview')&&!!s&&(isOwner()||myLocations().indexOf(s.location||'')>=0)&&canSeeSessionData(s); }
 function brLoad(){ return _brP||(_brP=new Promise((ok,no)=>{ const el=document.createElement('script'); el.src='branch-review.js?v='+BR_V; el.onload=ok; el.onerror=()=>{ _brP=null; el.remove(); no(new Error('تعذّر تحميل شاشة مراجعة الفرع — تحقّق من الاتصال ثم أعد المحاولة.')); }; document.head.appendChild(el); })); }
 function brOpen(mode){ const sid=curSid;
   brLoad().then(()=>{ if(curSid!==sid)return;
-    window.IOMPBR.open({mode,db,doc,collection,query,where,getDocs,getDoc,setDoc,serverTimestamp,sid,curSid:()=>curSid,sess:()=>curSess,items:()=>curItems,counts:()=>curCounts,got:()=>_cntGot,srv:()=>_cntSrv,arNorm,
+    window.IOMPBR.open({mode,db,doc,collection,query,where,getDocs,getDoc,setDoc,serverTimestamp,sid,curSid:()=>curSid,sess:()=>curSess,items:()=>curItems,counts:()=>curCounts,got:()=>_cntGot,snapMeta:(r,cb,er)=>_fsOnSnapshot(r,{includeMetadataChanges:true},cb,er),arNorm,
       me:myProfile,uid:auth.currentUser.uid,esc,fmt,numv,tsMs,fmtDT:fmtDateTimeAr,toastOk,toastErr,errAr,confirmDialog,srcIc,entrySrc,entryN,safeId,back:renderCountingShell}); })
   .catch(e=>toastErr(e.message)); }
 function featuresSessionSummaryOn(){ return !!(permConfig && permConfig.features && permConfig.features.sessionSummary); } // إصلاح-٤: علم ملخّص الجلسة المشتقّ لحماية حصة قراءات Spark — config/permissions.features.sessionSummary — افتراضيًا معطّل
@@ -4386,7 +4386,7 @@ function offlineIsConnErr(err){ if(!err)return false; const c=(err.code||'')+'',
 async function offlineQueueGet(){ return (await offlineStore.get(OFFLINE_QUEUE_KEY))||[]; }
 /* نفاد حصّة القراءة/الانقطاع: القراءة من الخادم تسقط إلى كاش Firestore الدائم على الجهاز بدل إيقاف العمل.
    ما لم يُحفَظ على الجهاز سابقًا يبقى خطأً صريحًا (لا اختلاق بيانات). القراءة من الكاش لا تمسّ الحصّة ولا القواعد. */
-let _flushFailN=0, _cacheNote=0, _oq=null, _srvCounts={}, _cntDead=null, _qDown=0, _qNoteAt=0, _oqLock=Promise.resolve(), _cntGot=0, _cntSrv=0, _cntEvt=0, _kickT=0, _reattach=null, _lastCache=false;
+let _flushFailN=0, _cacheNote=0, _oq=null, _srvCounts={}, _cntDead=null, _qDown=0, _qNoteAt=0, _oqLock=Promise.resolve(), _cntGot=0, _cntEvt=0, _kickT=0, _reattach=null, _lastCache=false;
 /* قفل الطابور: كلّ قراءةٍ-تعديلٍ-كتابة على طابور الجهاز تمرّ بسلسلةٍ واحدة ⇒ الإضافة أثناء الدفع لا تُفقِد عمليّةً ولا تُكرّرها، ولا يتكرّر رقم التسلسل */
 function oqLocked(fn){ const run=()=>(navigator.locks&&navigator.locks.request)?navigator.locks.request('iomp-oq',()=>fn()):fn(); const p=_oqLock.then(run,run); _oqLock=p.then(()=>{},()=>{}); return p; } // القفل يشمل التبويبات (Web Locks) حين يتوفّر
 const _oqBC=(()=>{ try{ return new BroadcastChannel('iomp-oq'); }catch(e){ return null; } })(); function oqPing(){ try{ if(_oqBC)_oqBC.postMessage(1); }catch(e){} }
@@ -4418,7 +4418,7 @@ function oqReflect(items){ if(!_oq||!featuresOfflineOn())return; _oq.forEach(op=
     if(op.op==='add'){ const x=_srvCounts[op.code]; if(x&&(x.entries||[]).some(e=>e&&(e.id===op.eid||e.lastEid===op.eid)))return; } // وصلت الخادمَ للتوّ ⇒ لا تُعرض مرّتين
     if(op.op==='remove'&&op.eid!=null){ const c=curCounts[op.code]; if(!c||!(c.entries||[]).some(e=>e&&e.id===op.eid))return; } // حُذف سلفًا ⇒ لا سقوط إلى الفهرس
     offlineApplyOptimistic(op,1); }); }
-async function cntOpen(){ _srvCounts={}; _cntDead=null; _cntGot=0; _cntSrv=0; _oq=featuresOfflineOn()?await oqLocked(offlineQueueGet):null; oqReflect(1); cntRebuild(); }
+async function cntOpen(){ _srvCounts={}; _cntDead=null; _cntGot=0; _oq=featuresOfflineOn()?await oqLocked(offlineQueueGet):null; oqReflect(1); cntRebuild(); }
 async function offlineNextSeq(){ let n=Number(await offlineStore.get(OFFLINE_SEQ_KEY))||0; n++; await offlineStore.set(OFFLINE_SEQ_KEY,n); return n; }
 async function offlineRefreshLen(){ _offlineQueueLen=(await oqLocked(offlineQueueGet)).filter(oqOwn).length; offlineUpdateChip(); try{ syncStripRefresh(); }catch(e){} return _offlineQueueLen; } // ر١١: تحديث مؤشّر المزامنة الموحّد أيضًا
 // إدراج عملية في الطابور (بالترتيب) مع معرّف الجهاز والطابع ورقم العملية
