@@ -66,6 +66,7 @@ const { ast }=createRequire(import.meta.url)('./build_deploy.js');
 const same=(x,y)=>ast(x)===ast(y);
 ok('د٦ يكشف تغيير رقم/نصّ/معرّف/عامل', !same('a={x:1}','a={x:2}') && !same('x="أ"','x="ب"') && !same('f(a)','f(b)') && !same('a+b','a-b') && !same('a=`x${b}`','a=`y${b}`'));
 ok('د٦ يتسامح في {a}≡{a:a} و30≡"30" والمسافات فقط', same('({a})','({a:a})') && same('({30:1})','({"30":1})') && same('if(a){b()}','if (a) {\n  b();\n}'));
+ok('د٦ يكشف تغييرات terser الخطرة (توجيه "use\\x20strict"، نصّ القالب الخام، <!--)', !same('"use\\x20strict";a()','"use strict";a()') && !same('a=`\\u0041`','a=`A`') && !same('x=a<!--b\n','x=a;\n'));
 ok('د٦ لا يتسامح في __proto__ ولا 1e3≠"1e3"', !same('({__proto__})','({__proto__:__proto__})') && !same('({1e3:1})','({"1e3":1})'));
 
 let pass=0; for(const r of results){ console.log((r.pass?'✓':'✗')+' '+r.n+(r.d&&!r.pass?('  << '+r.d):'')); if(r.pass)pass++; }

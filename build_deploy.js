@@ -73,7 +73,7 @@ if (require.main === module) (async () => {
     fail('شجرة الصياغة اختلفت بعد الضغط عند ' + k + ':\n  قبل: ' + a.slice(k - 120, k + 120) + '\n  بعد: ' + b.slice(k - 120, k + 120));
   }
   /* ولا يجوز أن يظهر «</script» داخل الشيفرة فيقطع الوسم */
-  if (/<\/script/i.test(code)) fail('الناتج يحوي «</script» داخل الشيفرة');
+  if (/<\/script|<!--/i.test(code)) fail('الناتج يحوي «</script» أو «<!--» داخل الشيفرة (قد يكسر وسم السكربت)');
 
   const out = head + code + tail;
   fs.mkdirSync(path.dirname(OUT) || '.', { recursive: true });

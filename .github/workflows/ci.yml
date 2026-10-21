@@ -6,13 +6,13 @@ on:
 
 jobs:
   app-tests:
-    name: اختبارات التطبيق (١٧٠٢)
+    name: اختبارات التطبيق (١٧٠٣)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
         with: { node-version: 22 }
-      - run: npm install
+      - run: npm ci
       - name: تثبيت متصفح الاختبار
         run: npx playwright-core install chromium
       - name: تشغيل الحزمة كاملة
@@ -47,7 +47,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
         with: { node-version: 22 }
-      - run: npm install
+      - run: npm ci
       - name: تجهيز موقع النشر (التطبيق مضغوط المسافات + PWA)
         run: |
           mkdir -p _site
