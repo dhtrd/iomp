@@ -2460,7 +2460,7 @@ function renderAdminCenter(c){
     chk('featSummaryToggle',featuresSessionSummaryOn(),'ملخّص الجلسة لحماية حصة القراءات 🔒 (إصلاح-٤) — يُكتب ملخّصٌ عند الإقفال/الاعتماد فتقرأه الإشعارات والفروع بلا إعادة حساب كامل (يتطلّب نشر قواعد الأمان)')+
     '<div style="margin:2px 0 12px"><button class="btn ghost sm" id="saveFeatSummary">حفظ</button> <span class="status" id="sumFeatStatus" style="display:inline"></span></div>'+
     chk('featBrToggle',featuresBranchReviewOn(),'مراجعة الفرع قبل الاعتماد 🔒 — مسؤول الفرع يراجع الجرد بترتيب العدّ ويرسل ملاحظاته، ولا «تمت المراجعة» قبلها (يتطلّب نشر قواعد الأمان)')+
-    '<div style="margin:2px 0 4px"><button class="btn ghost sm" id="saveFeatBr">حفظ</button> <span class="status" id="brFeatStatus" style="display:inline"></span></div></div>'+
+    '<div style="margin:2px 0 4px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="btn ghost sm" id="saveFeatBr">حفظ</button><button class="btn ghost sm" id="brSetupBtn">⚙ تجهيز حسابات الفروع للمراجعة</button> <span class="status" id="brFeatStatus" style="display:inline"></span></div></div>'+
     '<div class="card"><h2>النسخ الاحتياطي</h2><p class="muted">تصدير/استعادة إعدادات النظام (الإعدادات + الأعلام + الأدوار + المستودعات) كملفّ JSON مع مجموع تحقّقي — على جهة العميل، بلا تكلفة ولا خدمة خارجية.</p>'+
     '<div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn" id="acExport">⬇ تصدير نسخة احتياطية (JSON)</button></div>'+
     '<div class="field" style="margin-top:12px"><label>استعادة من نصّ JSON</label><textarea id="acRestoreJson" placeholder="ألصق محتوى ملف النسخة الاحتياطية هنا…" class="inp" style="width:100%;min-height:96px;font-family:monospace;direction:ltr"></textarea></div>'+
@@ -2494,6 +2494,8 @@ function renderAdminCenter(c){
   if($('saveFeatDropbox'))$('saveFeatDropbox').onclick=saveFeatDropbox;
   if($('saveFeatSummary'))$('saveFeatSummary').onclick=saveFeatSummary;
   if($('saveFeatBr'))$('saveFeatBr').onclick=saveFeatBr;
+  if($('brSetupBtn'))$('brSetupBtn').onclick=()=>brLoad().then(()=>window.IOMPBR.setup({db,doc,collection,getDocs,setDoc,serverTimestamp,uid:auth.currentUser.uid,me:myProfile,esc,toastOk,toastErr,errAr,roleLabel,userCan,userLocationsOf,isOwnerU:u=>u.email===OWNER_EMAIL,
+    perm:()=>permConfig,setUser:(id,o)=>{ permConfig=permConfig||{roles:{},users:{}}; permConfig.users=permConfig.users||{}; permConfig.users[id]=Object.assign({},permConfig.users[id],o); }})).catch(e=>toastErr(e.message));
   if($('acExport'))$('acExport').onclick=acDownloadBackup;
   if($('acRestoreBtn'))$('acRestoreBtn').onclick=acDoRestore;
   if(featuresDropboxOn())dbxWireCard();
@@ -3340,7 +3342,7 @@ function featuresProductCatalogOn(){ return !!(permConfig && permConfig.features
 function featuresOfflineOn(){ return !!(permConfig && permConfig.features && permConfig.features.offlineCount); }
 function featuresDropboxOn(){ return !!(permConfig && permConfig.features && permConfig.features.dropboxBackup); }
 function featuresBranchReviewOn(){ return !!(permConfig && permConfig.features && permConfig.features.branchReview); }
-const BR_META='__brmeta', BR_V='3';
+const BR_META='__brmeta', BR_V='4';
 let _brP=null, _brAuto=null;
 function brCan(s){ return featuresBranchReviewOn()&&can('session.branchReview')&&!!s&&(isOwner()||myLocations().indexOf(s.location||'')>=0)&&canSeeSessionData(s); }
 function brLoad(){ return _brP||(_brP=new Promise((ok,no)=>{ const el=document.createElement('script'); el.src='branch-review.js?v='+BR_V; el.onload=ok; el.onerror=()=>{ _brP=null; el.remove(); no(new Error('تعذّر تحميل شاشة مراجعة الفرع — تحقّق من الاتصال ثم أعد المحاولة.')); }; document.head.appendChild(el); })); }
