@@ -29,12 +29,13 @@ npx firebase emulators:exec --only firestore --project demo-iomp "node firestore
 # ١) عدّل index.source.html (فيه التعليقات)
 node build_release.js        # ٢) يولّد index.html ويتحقّق من تطابق الشيفرة حرفًا بحرف
 node build_harness.js        # ٣) يبني harness.html
-node run_all_tests.mjs       # ٤) يجب أن يُنهي بـ TOTAL: 1687/1687 — ALL GREEN ✓
+node run_all_tests.mjs       # ٤) يجب أن يُنهي بـ TOTAL: 1702/1702 — ALL GREEN ✓
+node build_deploy.js         # ٥) (اختياري محليًّا) ملفّ النشر مضغوط المسافات في _site/ مع إثبات تطابق شجرة الصياغة
 ```
 لتشغيل الحزمة على ملفٍّ آخر: `SRC_HTML=index.source.html node run_all_tests.mjs`
 
 ## CI/CD
-كل دفع إلى `main`: اختبارات التطبيق (١٬٥٩٠) + اختبارات القواعد بالمحاكي ← وعند الخضرة: نشر تلقائي إلى GitHub Pages.
+كل دفع إلى `main`: اختبارات التطبيق (١٬٧٠٢) + اختبارات القواعد بالمحاكي ← وعند الخضرة: `build_deploy.js` يضغط مسافات `index.html` (بلا إعادة تسمية ولا حذف شيفرة، مع إثبات تطابق شجرة الصياغة وفحص السقف 200,000) ثم نشر تلقائي إلى GitHub Pages.
 
 ## أدوات القياس (لا اختبارات — لا تعدّل شيئًا)
 ```bash
