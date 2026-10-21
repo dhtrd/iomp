@@ -20,7 +20,7 @@ You are a senior engineer continuing development on **IOMP**, a production inven
 4. **Every delivery = only the changed files + an Arabic install/handover doc (`وثيقة تركيب`)** + update the **test count** in `README.md` and `.github/workflows/ci.yml`.
 5. **NEVER put secrets in chat/replies.** Never echo `firebaseConfig` fields or the `OWNER_EMAIL` value.
 6. **Preserve 100%:** existing logic, identifiers, RTL layout, printing. **CI is the sole judge of Firestore rules.** Measure the rules ceiling on any `firestore.rules` change.
-7. **Deploy size ≤ 200,000 bytes gzipped** (`gzip -c index.html | wc -c`) — currently **199,448**; margin ≈ 0.8 KB — guard it. New large UI goes into a lazily loaded file (precedent: `branch-review.js`).
+7. **Deploy size ≤ 200,000 bytes gzipped**, measured on the **deployed** file (`node build_deploy.js` ⇒ `gzip -c < _site/index.html | wc -c`) — currently **192,866** (tested `index.html` = 199,437). `build_deploy.js` fails (and CI does not deploy) above the ceiling. New large UI still goes into a lazily loaded file (precedent: `branch-review.js`).
 8. **`firestore.rules` is not touched except by explicit decision**, validated only by CI/emulator.
 9. **Before trusting an adversarial edge case, get an independent review** of any change to the count/queue/sync paths (the 2026‑10 change needed three review rounds; see §12).
 
@@ -30,14 +30,15 @@ Single‑file web app, no framework (inline CSS + vanilla JS).
 - **`index.source.html`** = documented source of truth. **Edit ONLY here.**
 - **`node build_release.js`** → generates **`index.html`** (comments stripped via `acorn`) and proves byte‑for‑byte code identity. Expected: `التحقّق : الشيفرة متطابقةٌ حرفًا بحرف …✓`. **Never add a `// comment` at the end of a fragment that is followed by more code on the same line** (it silently comments out the rest — a real 2026‑10 incident caught only by the parser).
 - **`node build_harness.js`** → `harness.html` (instrumented, gitignored).
-- **`node run_all_tests.mjs`** → must finish **`TOTAL: 1687/1687 — ALL GREEN ✓`** (61 `test_*.mjs`, sequential, fails on first red file).
+- **`node run_all_tests.mjs`** → must finish **`TOTAL: 1703/1703 — ALL GREEN ✓`** (62 `test_*.mjs`, sequential, fails on first red file).
+- **`node build_deploy.js`** (2026‑10‑21, owner choice «ضغط المسافات عند البناء») → `_site/index.html`: terser `compress:false, mangle:false, keep_quoted_props, ecma 2020` on the module script only; head/tail (HTML/CSS) byte‑identical; proves **acorn AST equality** (positions dropped; tolerated only `{a}`≡`{a:a}` except `__proto__`, and numeric non‑computed key `30`≡`"30"`). Runs in the CI deploy job. Tests and harness keep using the readable `index.html` (harness patches are text‑based). Pinned devDeps `acorn@8.19.0`, `terser@5.36.0`. Tested by `test_deploy_build.mjs` (16: build+proof, head/tail identical, ceiling, no renamed declarations, both files boot in Chromium with a neutral Firebase stub and render the identical login DOM, comparator self‑tests incl. directive/template‑raw/`<!--` detection).
 
 ```bash
 npm install && npm install --no-save acorn
 export CHROME_EXE=$(node -e "console.log(require('playwright-core').chromium.executablePath())")
 # cloud fallback: export CHROME_EXE=/opt/pw-browsers/chromium_headless_shell-1194/chrome-linux/headless_shell
 node build_release.js && node build_harness.js && node run_all_tests.mjs
-gzip -c index.html | wc -c    # must stay < 200000
+node build_deploy.js          # deploy file + AST proof; fails above 200000 gz
 ```
 **Harness caveats:** in the HOOKS template write `[0-9]` not `\d`. The س٥/س٦ group in `test_scanflow` is load‑sensitive — rerun alone before calling it a regression. Headless Chromium on `file://` can **lose localStorage between page loads** — tests that simulate a reload must copy device storage explicitly (see `reloadLike` in `test_quota_exhaust.mjs`), never rely on navigation persistence.
 
@@ -47,8 +48,8 @@ gzip -c index.html | wc -c    # must stay < 200000
 
 | Item | Value |
 |---|---|
-| Tests | **`TOTAL: 1687/1687 — ALL GREEN ✓`** (61 files) · rules emulator **141/141**. Note: README previously said 1540 while the real pre‑change total was 1526 — documentation drift, fixed. |
-| Deploy size | **199,448 bytes gzipped** (`index.html` only; `branch-review.js` is separate) — ceiling **200,000** |
+| Tests | **`TOTAL: 1703/1703 — ALL GREEN ✓`** (62 files) · rules emulator **141/141**. Note: README previously said 1540 while the real pre‑change total was 1526 — documentation drift, fixed. |
+| Deploy size | **192,866 bytes gzipped** (deployed `_site/index.html` after `build_deploy.js`; tested `index.html` = 199,437; `branch-review.js` is separate) — ceiling **200,000** |
 | `firestore.rules` | **31,499 bytes** — `branchReview` subcollection + mandatory gate (2026‑10‑21) |
 | Hosting | GitHub Pages via CI · Firebase **Spark (free)** |
 
@@ -114,7 +115,7 @@ Unchanged from the previous spec: product catalog م15 (`products`, variants, `P
 
 ## 18 · TESTING & MEASUREMENT
 
-61 test files → `run_all_tests.mjs` (1687). `test_branchreview.mjs` (60: per‑counter path order, multi‑location steps, src/added/edited badges, search incl. arNorm, batched per‑counter saves + visible unsaved/failed state, submit gate & stale meta after re‑close, notes screen, flag OFF = unchanged, other branch denied, cache‑only counts block submit, permanent denial stops retries, 390px); harness hooks `__failWrite(path,true|'perm')`, `__cacheOnly(b)` (includeMetadataChanges listeners). `test_rowdiff.mjs` (5: one remote update replaces exactly one card; 200 consecutive random ops (remote, scans, search, notes, removeEntry, reset, duplicate code) compared with `__rclExpect()` without resetting the cache; duplicate code shows the same total on both cards; focus/value kept; membership change ⇒ full render); hooks `__rclFull`, `__rclDiff`, `__cntRebuild`, `__rclExpect`. `test_srcicons.mjs` (20: ج٢ source icons on count chips + report «المعدود»/«من أضاف», wide layout 1440/1024/768/390, print & Excel unchanged, other screens keep 900px). `test_listen_reattach.mjs` (12: perm/list/dashboard re‑attach, no re‑render storm, form input kept, no duplicate/leaked `sessions` listener, flag‑off path); hooks `__permCfg`, `__lisN(path)`. New in 2026‑10: `test_quota_exhaust.mjs` (40: boot/open from cache, queue reflection after reload, auto sync, degraded mode, ordering vs queued reset, lock under concurrent scanning, per‑item stuck isolation, audit log after sync, other‑user ops), `test_srcmark.mjs` (24: real keyboard timing scanner vs hand, phone keyboard, camera, offline, exports, legacy). Harness additions in `build_harness.js`: `__quotaOut(b)` (reads/transactions/listeners reject `resource-exhausted`, listeners die), `__cacheMiss(b)`, `getDocFromCache`/`getDocsFromCache` stubs, `__txCalls`, `__failRead` also fails transactions on that path, hooks `__me`, `__cntEntries`, `__qtyOf`, `__autoTick`, `__retryMs`, `__varRows`, `__qDownClear`, `__offChip`. Measurement scripts are read‑only — never modify.
+62 test files → `run_all_tests.mjs` (1703). `test_branchreview.mjs` (60: per‑counter path order, multi‑location steps, src/added/edited badges, search incl. arNorm, batched per‑counter saves + visible unsaved/failed state, submit gate & stale meta after re‑close, notes screen, flag OFF = unchanged, other branch denied, cache‑only counts block submit, permanent denial stops retries, 390px); harness hooks `__failWrite(path,true|'perm')`, `__cacheOnly(b)` (includeMetadataChanges listeners). `test_rowdiff.mjs` (5: one remote update replaces exactly one card; 200 consecutive random ops (remote, scans, search, notes, removeEntry, reset, duplicate code) compared with `__rclExpect()` without resetting the cache; duplicate code shows the same total on both cards; focus/value kept; membership change ⇒ full render); hooks `__rclFull`, `__rclDiff`, `__cntRebuild`, `__rclExpect`. `test_srcicons.mjs` (20: ج٢ source icons on count chips + report «المعدود»/«من أضاف», wide layout 1440/1024/768/390, print & Excel unchanged, other screens keep 900px). `test_listen_reattach.mjs` (12: perm/list/dashboard re‑attach, no re‑render storm, form input kept, no duplicate/leaked `sessions` listener, flag‑off path); hooks `__permCfg`, `__lisN(path)`. New in 2026‑10: `test_quota_exhaust.mjs` (40: boot/open from cache, queue reflection after reload, auto sync, degraded mode, ordering vs queued reset, lock under concurrent scanning, per‑item stuck isolation, audit log after sync, other‑user ops), `test_srcmark.mjs` (24: real keyboard timing scanner vs hand, phone keyboard, camera, offline, exports, legacy). Harness additions in `build_harness.js`: `__quotaOut(b)` (reads/transactions/listeners reject `resource-exhausted`, listeners die), `__cacheMiss(b)`, `getDocFromCache`/`getDocsFromCache` stubs, `__txCalls`, `__failRead` also fails transactions on that path, hooks `__me`, `__cntEntries`, `__qtyOf`, `__autoTick`, `__retryMs`, `__varRows`, `__qDownClear`, `__offChip`. Measurement scripts are read‑only — never modify.
 
 ## 19 · KNOWN PENDING WORK
 
