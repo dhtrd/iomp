@@ -86,7 +86,8 @@ function getDocs(ref){ if(__qOut) return __QE(); if(__failPaths[__refPath(ref)])
   if(ref&&ref.__query&&Array.isArray(ref.cs)){ ref.cs.forEach(c=>{ if(c&&c.__where){ docs=docs.filter(d=>{ const v=(d.data()||{})[c.__where]; if(c.op==='==')return v===c.v; if(c.op==='in')return Array.isArray(c.v)&&c.v.indexOf(v)>=0; if(c.op==='!=')return v!==c.v; return true; }); } }); }
   return Promise.resolve({forEach:cb=>docs.forEach(cb), docs, size:docs.length, empty:docs.length===0}); }
 function __deepMerge(t,s){ for(const k in s){ const v=s[k]; if(v&&typeof v==='object'&&!Array.isArray(v)&&!v.__ts){ if(!t[k]||typeof t[k]!=='object')t[k]={}; __deepMerge(t[k],v);} else t[k]=v; } return t; }
-function setDoc(ref, data, opts){ const path=ref.path; if(opts&&opts.merge){ const cur=__store[path]||{}; __store[path]=__deepMerge(__clone(cur), __clone(data)); } else { __store[path]=__clone(data); } __afterWrite(path); return Promise.resolve(); }
+const __failW={}; window.__failWrite=(p,b)=>{ if(b)__failW[p]=true; else delete __failW[p]; }; // مراجعة الفرع: محاكاة تعذّر الكتابة على مسارٍ بعينه
+function setDoc(ref, data, opts){ const path=ref.path; if(__failW[path]) return Promise.reject({code:'unavailable',message:'network'}); if(opts&&opts.merge){ const cur=__store[path]||{}; __store[path]=__deepMerge(__clone(cur), __clone(data)); } else { __store[path]=__clone(data); } __afterWrite(path); return Promise.resolve(); }
 function updateDoc(ref, data){ const path=ref.path; if(__store[path]==null) return Promise.reject({code:'not-found'}); const cur=__store[path];
   for(const key in data){ const val=data[key]; if(key.indexOf('.')>=0){ const parts=key.split('.'); let o=cur; for(let i=0;i<parts.length-1;i++){ if(!o[parts[i]]||typeof o[parts[i]]!=='object')o[parts[i]]={}; o=o[parts[i]]; } o[parts[parts.length-1]]=__clone(val); } else { cur[key]=__clone(val); } }
   __afterWrite(path); return Promise.resolve(); }
