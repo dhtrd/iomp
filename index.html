@@ -1291,6 +1291,7 @@ const CAPS = [
   {key:'session.assign',  label:'تكليف العدّادين وبدء الجرد', hint:'إسناد العدّادين وقفل الطاقم ببدء الجرد'},
   {key:'session.close',   label:'إغلاق الجلسة للمراجعة',   hint:'رفع الجلسة من مفتوحة إلى قيد المراجعة'},
   {key:'session.review',  label:'إدارة المراجعة',         hint:'تمّت المراجعة / إرجاع للمراجعة / إرجاع للعدّ'},
+  {key:'session.branchReview',label:'مراجعة الفرع للجرد',  hint:'مسؤول الفرع يراجع الجرد بترتيب العدّ قبل الاعتماد — لجلسات مواقعه المسندة إليه فقط (مع «عرض تقارير مستودعه فقط»)، وخلف علم «مراجعة الفرع»'},
   {key:'session.approve', label:'الاعتماد وقفل الجلسة',    hint:'اعتماد الجرد وقفله قفلاً كاملاً (التوقيع الواحد — الوضع الافتراضي)'},
   {key:'session.approve.finance', label:'الاعتماد المالي (سلسلة م١٤)', hint:'الخطوة المالية في سلسلة الاعتماد الثلاثية — تعمل عند تفعيل «سلسلة الاعتماد»'},
   {key:'session.approve.gm',      label:'الاعتماد العام (سلسلة م١٤)',  hint:'خطوة القفل النهائي في سلسلة الاعتماد الثلاثية — تعمل عند تفعيل «سلسلة الاعتماد»'},
@@ -1644,7 +1645,7 @@ function adminTabsAvailable(){ const t=[]; if(canManageSessions())t.push('sessio
 function route(){ routeProgFlash(); _route(); pageEnterAnimate(); }
 function routeProgFlash(){ const p=$('routeProg'); if(!p)return; p.classList.remove('on'); void p.offsetWidth; p.classList.add('on'); clearTimeout(p._t); p._t=setTimeout(()=>p.classList.remove('on'),760); }
 function pageEnterAnimate(){ const c=$('appContent'); if(!c)return; c.classList.remove('pgin'); void c.offsetWidth; c.classList.add('pgin'); }
-function _route(){ listOwn(null); _listRe=null; document.body.classList.remove('wide'); if(countsUnsub){countsUnsub();countsUnsub=null;}if(actUnsub){actUnsub();actUnsub=null;}if(repUnsub){repUnsub();repUnsub=null;}if(sessUnsub){sessUnsub();sessUnsub=null;}if(extraUnsub){extraUnsub();extraUnsub=null;}const c=$('appContent');
+function _route(){ listOwn(null); _listRe=null; _brAuto=null; document.body.classList.remove('wide'); if(countsUnsub){countsUnsub();countsUnsub=null;}if(actUnsub){actUnsub();actUnsub=null;}if(repUnsub){repUnsub();repUnsub=null;}if(sessUnsub){sessUnsub();sessUnsub=null;}if(extraUnsub){extraUnsub();extraUnsub=null;}const c=$('appContent');
   if(adminTab==='reports'&&canViewAnyReports()){ return renderReportsScreen(c); }
   if(adminTab==='branches'&&featuresBranchesOn()&&(can('branch.manage')||can('users.manage'))){ return renderBranchesScreen(c); }
   if(adminTab==='products'&&featuresProductCatalogOn()&&can('warehouse.manage')){ return renderProductsScreen(c); }
@@ -1678,6 +1679,7 @@ function deriveNotifs(list){
     if(s.createdAt && s.createdBy!==myProfile.uid && (mine||canViewSession(s)) && (Date.now()-tsMs(s.createdAt))<14*86400000){ const who=s.createdByName||'مستخدم';
       add(s,'created','create',who+' أنشأ جلسة جرد «'+n+'»','جلسة جديدة'+(loc?' • '+loc:''), s.createdAt,{actor:who,action:'أنشأ جلسة جرد',target:'«'+n+'»'}); }
     if(mine && s.started===true && stt==='open') add(s,'assigned','assign','كُلّفت بجرد «'+n+'»','مفتوحة وأنت ضمن المكلَّفين'+(loc?' • '+loc:''), s.startedAt||s.assignedAt);
+    if(stt==='review' && brCan(s)) add(s,'brreview','review','«'+n+'» بانتظار مراجعة الفرع','راجِعه بترتيب العدّ ثم أرسل المراجعة', s.closedAt);
     if(can('session.review') && stt==='review') add(s,'toreview','review','«'+n+'» أُقفلت للمراجعة','بانتظار مراجعتك ثم قرارك', s.closedAt);
     if(!approvalChainOn() && can('session.approve') && stt==='reviewed') add(s,'toapprove','approve','«'+n+'» بانتظار اعتمادك','تمّت المراجعة — جاهزة للاعتماد والقفل', s.reviewedAt);
     if(approvalChainOn() && can('session.approve.finance') && stt==='reviewed') add(s,'tofin','approve','«'+n+'» بانتظار اعتمادك المالي','وقّع الاعتماد المالي في السلسلة', s.reviewedAt);
@@ -1848,9 +1850,10 @@ function renderCounterHome(c){
 function renderViewerHome(c){
   c.innerHTML=myTasksBanner()+'<div class="card"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><div style="flex:1;min-width:180px"><h2 style="margin:0">تقارير الفروقات</h2><div class="muted">اختر جلسة لعرض تقرير فروقاتها (المعدود مقابل الدفتري).</div></div></div><div id="viewerSess" style="margin-top:14px"><p class="muted">جارٍ التحميل…</p></div></div>';
   const listen=()=>listOwn(onSnapshot(query(collection(db,'sessions'),orderBy('createdAt','desc')),(qs)=>{
-    const rows=[];qs.forEach(d=>{const s=d.data();if(!s.deleted&&(s.itemCount||0)>0&&canViewSession(s)){rows.push('<div class="sess"><div class="info"><div class="nm">'+esc(s.name)+'</div><div class="muted">'+esc(s.location||'')+' • الأصناف: '+fmt(s.itemCount)+' • '+(s.status==='open'?'مفتوحة':esc(s.status||''))+'</div></div><button class="btn sm" data-rep="'+d.id+'">📊 عرض التقرير</button></div>');}});
+    const rows=[];qs.forEach(d=>{const s=d.data();if(!s.deleted&&(s.itemCount||0)>0&&canViewSession(s)){rows.push('<div class="sess"><div class="info"><div class="nm">'+esc(s.name)+'</div><div class="muted">'+esc(s.location||'')+' • الأصناف: '+fmt(s.itemCount)+' • '+(s.status==='open'?'مفتوحة':esc(s.status||''))+'</div></div><button class="btn sm" data-rep="'+d.id+'">📊 عرض التقرير</button>'+(s.status==='review'&&brCan(s)?'<button class="btn sm" data-brv="'+d.id+'">🧭 مراجعة الفرع</button>':'')+'</div>');}});
     $('viewerSess').innerHTML=rows.length?rows.join(''):'<p class="muted">لا جلسات فيها بيانات بعد.</p>';
     $('viewerSess').querySelectorAll('[data-rep]').forEach(b=>b.onclick=()=>openVarianceReport(b.getAttribute('data-rep'),'home'));
+    $('viewerSess').querySelectorAll('[data-brv]').forEach(b=>b.onclick=()=>{ _brAuto=b.getAttribute('data-brv'); openSession(_brAuto); });
   },(err)=>{ listDied(err,'viewerSess',listen); $('viewerSess').innerHTML='<p class="status show err">تعذّر التحميل: '+errAr(err.code)+'</p>';})); listen();
 }
 
@@ -2356,6 +2359,14 @@ async function saveFeatDropbox(){
     st('dbxFeatStatus','ok',on?'فُعّل النسخ الاحتياطي إلى Dropbox — تظهر بطاقته في «مركز الإدارة» ✓':'أُوقف النسخ الاحتياطي إلى Dropbox ✓');
   }catch(err){ st('dbxFeatStatus','err','تعذّر الحفظ: '+errAr(err.code||err.message)); }
 }
+async function saveFeatBr(){
+  if(!can('perms.manage'))return;
+  const on=!!($('featBrToggle')&&$('featBrToggle').checked);
+  st('brFeatStatus','info','جارٍ الحفظ…',true);
+  try{ await setDoc(doc(db,'config','permissions'),{features:{branchReview:on},updatedBy:auth.currentUser.uid,updatedByName:myProfile.name||'',updatedAt:serverTimestamp()},{merge:true});
+    permConfig=permConfig||{roles:{},users:{}}; permConfig.features=permConfig.features||{}; permConfig.features.branchReview=on; st('brFeatStatus','ok',on?'فُعّلت مراجعة الفرع — صارت إلزاميةً قبل «تمت المراجعة» ✓ (لا تنسَ نشر قواعد الأمان)':'أُوقفت مراجعة الفرع ✓');
+  }catch(err){ st('brFeatStatus','err','تعذّر الحفظ: '+errAr(err.code||err.message)); }
+}
 async function saveFeatSummary(){
   if(!can('perms.manage'))return;
   const on=!!($('featSummaryToggle')&&$('featSummaryToggle').checked);
@@ -2447,7 +2458,9 @@ function renderAdminCenter(c){
     chk('featDropboxToggle',featuresDropboxOn(),'النسخ الاحتياطي التلقائي إلى Dropbox 🔒 (ر١١) — نسخة كاملة دورية إلى حساب Dropbox')+
     '<div style="margin:2px 0 12px"><button class="btn ghost sm" id="saveFeatDropbox">حفظ</button> <span class="status" id="dbxFeatStatus" style="display:inline"></span></div>'+
     chk('featSummaryToggle',featuresSessionSummaryOn(),'ملخّص الجلسة لحماية حصة القراءات 🔒 (إصلاح-٤) — يُكتب ملخّصٌ عند الإقفال/الاعتماد فتقرأه الإشعارات والفروع بلا إعادة حساب كامل (يتطلّب نشر قواعد الأمان)')+
-    '<div style="margin:2px 0 4px"><button class="btn ghost sm" id="saveFeatSummary">حفظ</button> <span class="status" id="sumFeatStatus" style="display:inline"></span></div></div>'+
+    '<div style="margin:2px 0 12px"><button class="btn ghost sm" id="saveFeatSummary">حفظ</button> <span class="status" id="sumFeatStatus" style="display:inline"></span></div>'+
+    chk('featBrToggle',featuresBranchReviewOn(),'مراجعة الفرع قبل الاعتماد 🔒 — مسؤول الفرع يراجع الجرد بترتيب العدّ ويرسل ملاحظاته، ولا «تمت المراجعة» قبلها (يتطلّب نشر قواعد الأمان)')+
+    '<div style="margin:2px 0 4px"><button class="btn ghost sm" id="saveFeatBr">حفظ</button> <span class="status" id="brFeatStatus" style="display:inline"></span></div></div>'+
     '<div class="card"><h2>النسخ الاحتياطي</h2><p class="muted">تصدير/استعادة إعدادات النظام (الإعدادات + الأعلام + الأدوار + المستودعات) كملفّ JSON مع مجموع تحقّقي — على جهة العميل، بلا تكلفة ولا خدمة خارجية.</p>'+
     '<div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn" id="acExport">⬇ تصدير نسخة احتياطية (JSON)</button></div>'+
     '<div class="field" style="margin-top:12px"><label>استعادة من نصّ JSON</label><textarea id="acRestoreJson" placeholder="ألصق محتوى ملف النسخة الاحتياطية هنا…" class="inp" style="width:100%;min-height:96px;font-family:monospace;direction:ltr"></textarea></div>'+
@@ -2480,6 +2493,7 @@ function renderAdminCenter(c){
   if($('saveFeatOffline'))$('saveFeatOffline').onclick=saveFeatOffline;
   if($('saveFeatDropbox'))$('saveFeatDropbox').onclick=saveFeatDropbox;
   if($('saveFeatSummary'))$('saveFeatSummary').onclick=saveFeatSummary;
+  if($('saveFeatBr'))$('saveFeatBr').onclick=saveFeatBr;
   if($('acExport'))$('acExport').onclick=acDownloadBackup;
   if($('acRestoreBtn'))$('acRestoreBtn').onclick=acDoRestore;
   if(featuresDropboxOn())dbxWireCard();
@@ -2794,7 +2808,7 @@ async function restoreSession(sid){ if(!can('trash.restore'))return false; try{ 
 async function purgeSession(sid){
   if(!can('trash.purge')){toastWarn(noPerm('trash.purge'));return false;}
   if(!(await confirmDialog({title:'حذف نهائي بلا رجعة',message:'هذا حذف نهائي للجلسة وكل سجلاتها لا يمكن التراجع عنه. اكتب «اعتماد» للتأكيد.',confirmLabel:'حذف نهائي',danger:true,sensitive:true}))) return false;
-  try{ for(const sub of ['snapshot','counts','activity','extraItems']){ const qs=await getDocs(collection(db,'sessions',sid,sub)); for(const d of qs.docs){ await deleteDoc(doc(db,'sessions',sid,sub,d.id)); } } await deleteDoc(doc(db,'sessions',sid)); return true; }
+  try{ for(const sub of ['snapshot','counts','activity','extraItems','branchReview']){ let qs; try{ qs=await getDocs(collection(db,'sessions',sid,sub)); }catch(e){ if(sub==='branchReview')continue; throw e; } for(const d of qs.docs){ await deleteDoc(doc(db,'sessions',sid,sub,d.id)); } } await deleteDoc(doc(db,'sessions',sid)); return true; }
   catch(err){ toastErr('تعذّر: '+errAr(err.code||err.message)); return false; }
 }
 let _sessSig=[];
@@ -3042,6 +3056,8 @@ function renderCountingShell(){ document.body.classList.add('wide');
   const badgeCls=(stt==='open'?'open':(stt==='approved'?'off':''));
   let govBtns='';
   if(stt==='open'&&can('session.close')) govBtns+='<button class="btn sm" id="closeBtn">🔒 إغلاق للمراجعة</button>';
+  if(stt==='review'&&brCan(curSess)) govBtns+='<button class="btn sm" id="brRevBtn">🧭 مراجعة الفرع</button>';
+  if(stt!=='open'&&featuresBranchReviewOn()&&can('session.review')) govBtns+='<button class="btn ghost sm" id="brNotesBtn">📝 ملاحظات الفرع</button>';
   if(stt==='review'&&can('session.review')) govBtns+='<button class="btn sm" id="reviewedBtn">✅ تمت المراجعة</button><button class="btn ghost sm" id="returnBtn">↩ إرجاع للعدّ</button>';
   if(stt==='reviewed'){
     if(approvalChainOn()){ if(can('session.approve.finance')) govBtns+='<button class="btn sm" id="finApproveBtn">🖊 اعتماد مالي</button>'; }
@@ -3081,6 +3097,9 @@ function renderCountingShell(){ document.body.classList.add('wide');
   if($('repBtn'))$('repBtn').onclick=()=>openVarianceReport(curSid,'count');
   if($('closeBtn'))$('closeBtn').onclick=closeSessionGate;
   if($('reviewedBtn'))$('reviewedBtn').onclick=doMarkReviewed;
+  if($('brRevBtn'))$('brRevBtn').onclick=()=>brOpen('rv');
+  if($('brNotesBtn'))$('brNotesBtn').onclick=()=>brOpen('notes');
+  if(_brAuto&&_brAuto===curSid){ _brAuto=null; if($('brRevBtn'))brOpen('rv'); }
   if($('approveBtn'))$('approveBtn').onclick=openApprovalUI;
   if($('finApproveBtn'))$('finApproveBtn').onclick=openFinanceApprovalUI;
   if($('gmApproveBtn'))$('gmApproveBtn').onclick=openGmApprovalUI;
@@ -3320,6 +3339,16 @@ function featuresBranchesOn(){ return !!(permConfig && permConfig.features && pe
 function featuresProductCatalogOn(){ return !!(permConfig && permConfig.features && permConfig.features.productCatalog); }
 function featuresOfflineOn(){ return !!(permConfig && permConfig.features && permConfig.features.offlineCount); }
 function featuresDropboxOn(){ return !!(permConfig && permConfig.features && permConfig.features.dropboxBackup); }
+function featuresBranchReviewOn(){ return !!(permConfig && permConfig.features && permConfig.features.branchReview); }
+const BR_META='__brmeta', BR_V='3';
+let _brP=null, _brAuto=null;
+function brCan(s){ return featuresBranchReviewOn()&&can('session.branchReview')&&!!s&&(isOwner()||myLocations().indexOf(s.location||'')>=0)&&canSeeSessionData(s); }
+function brLoad(){ return _brP||(_brP=new Promise((ok,no)=>{ const el=document.createElement('script'); el.src='branch-review.js?v='+BR_V; el.onload=ok; el.onerror=()=>{ _brP=null; el.remove(); no(new Error('تعذّر تحميل شاشة مراجعة الفرع — تحقّق من الاتصال ثم أعد المحاولة.')); }; document.head.appendChild(el); })); }
+function brOpen(mode){ const sid=curSid;
+  brLoad().then(()=>{ if(curSid!==sid)return;
+    window.IOMPBR.open({mode,db,doc,collection,query,where,getDocs,getDoc,setDoc,serverTimestamp,sid,curSid:()=>curSid,sess:()=>curSess,items:()=>curItems,counts:()=>curCounts,got:()=>_cntGot,snapMeta:(r,cb,er)=>_fsOnSnapshot(r,{includeMetadataChanges:true},cb,er),arNorm,
+      me:myProfile,uid:auth.currentUser.uid,esc,fmt,numv,tsMs,fmtDT:fmtDateTimeAr,toastOk,toastErr,errAr,confirmDialog,srcIc,entrySrc,entryN,safeId,back:renderCountingShell}); })
+  .catch(e=>toastErr(e.message)); }
 function featuresSessionSummaryOn(){ return !!(permConfig && permConfig.features && permConfig.features.sessionSummary); }
 function appSettings(){ return (permConfig && permConfig.settings) || {}; }
 const PRINT_DEFAULTS={ paperSize:'A4', orientation:'portrait', fontSize:'auto', density:'standard', showLogo:true, showPageNumbers:true, headerText:'', footerText:'', watermark:'' };
@@ -4697,6 +4726,10 @@ async function doCloseSession(){
 }
 async function doMarkReviewed(){
   if(!can('session.review'))return;
+  if(featuresBranchReviewOn()){ let m;
+    try{ const d=await getDoc(doc(db,'sessions',curSid,'branchReview',BR_META)); m=d.exists()?d.data():null; }
+    catch(err){ toastErr('تعذّر التحقّق من مراجعة الفرع: '+errAr(err.code||err.message)); return; }
+    if(!(m&&m.submitted===true&&tsMs(m.closedAt)===tsMs(curSess.closedAt))){ toastErr('لا يمكن تأكيد المراجعة قبل أن يرسل مسؤول الفرع مراجعته لهذا الإقفال — تابع حالتها من «📝 ملاحظات الفرع».'); return; } }
   if(!(await confirmDialog({title:'تأكيد المراجعة',message:'تأكيد أن المراجعة تمّت؟ ستصبح الجلسة جاهزة للاعتماد.',confirmLabel:'تأكيد المراجعة'}))) return;
   try{ await updateDoc(doc(db,'sessions',curSid),{status:'reviewed',reviewedBy:auth.currentUser.uid,reviewedByName:myProfile.name||'',reviewedAt:serverTimestamp()});
     logActivity('reviewed','','تمت المراجعة',null); curSess.status='reviewed'; renderCountingShell();

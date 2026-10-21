@@ -38,7 +38,7 @@ service cloud.firestore {
     // الافتراضات المدمجة — تطابق DEFAULT_CAPS في التطبيق (محسوبة خفيفة بدل بناء خريطة كبيرة)
     function defCap(role, cap) {
       return role == 'مدير' ? true
-        : role == 'مدير مخزون' ? !(['session.approve.finance','session.approve.gm','session.reopen','report.view.own','report.view.location','branch.manage','users.manage','perms.manage','trash.purge'].hasAny([cap]))
+        : role == 'مدير مخزون' ? !(['session.approve.finance','session.approve.gm','session.reopen','report.view.own','report.view.location','session.branchReview','branch.manage','users.manage','perms.manage','trash.purge'].hasAny([cap]))
         : role == 'عدّاد' ? (cap == 'count')
         : role == 'مطّلع' ? (cap == 'report.view' || cap == 'report.export' || cap == 'pw.change' || cap == 'pw.request')
         : false;
@@ -115,6 +115,21 @@ service cloud.firestore {
           && s.get('deleted', false) == false && s.get('assignedCounters', []).hasAny([uid()]);
     }
     function sess(sid) { return get(/databases/$(database)/documents/sessions/$(sid)).data; }
+    // مراجعة الفرع قبل الاعتماد (علم features.branchReview — افتراضيًا معطّل):
+    // brOn: العلم مفعّل · brMeta: مستند الإرسال · brSent: أُرسلت المراجعة لهذا الإقفال نفسه (closedAt مطابق)
+    function brOn() { return pExists() && pData().get('features', {}).get('branchReview', false) == true; }
+    function brMeta(sid) { return /databases/$(database)/documents/sessions/$(sid)/branchReview/__brmeta; }
+    function brSent(sid) {
+      return exists(brMeta(sid)) && get(brMeta(sid)).data.get('submitted', false) == true
+          && get(brMeta(sid)).data.get('closedAt', null) == resource.data.get('closedAt', null);
+    }
+    // الكتابة: الجلسة قيد المراجعة + العلم + صلاحية «مراجعة الفرع» + موقع الجلسة من مواقعه (أو المالك) + الفاعل نفسه
+    function brWrite(s) {
+      return s.get('status','open') == 'review' && s.get('deleted', false) == false
+          && request.resource.data.get('by','') == uid()
+          && brOn() && can('session.branchReview')
+          && ( me().get('email','') == OWNER() || myLocations().hasAny([ s.get('location','') ]) );
+    }
 
     // ---------- الإعدادات والصلاحيات ----------
     match /config/permissions {
@@ -188,7 +203,9 @@ service cloud.firestore {
         // إدارة المراجعة: تمّت / إرجاع للمراجعة / إرجاع للعدّ
         || ( ( (stF()=='review' && (stT()=='reviewed'||stT()=='open')) || (stF()=='reviewed' && stT()=='review') )
              && chk(['status','reviewedBy','reviewedByName','reviewedAt'])
-             && can('session.review') )
+             && can('session.review')
+             // مراجعة الفرع إلزامية عند تفعيل علمها: «تمت المراجعة» من «قيد المراجعة» فقط بعد إرسالها لهذا الإقفال
+             && ( stT() != 'reviewed' || stF() != 'review' || !brOn() || brSent(sid) ) )
         // الاعتماد وقفل الجلسة (التوقيع الواحد — الوضع الافتراضي، يبقى كما هو)
         || ( stF()=='reviewed' && stT()=='approved'
              && chk(['status','approvedBy','approvedByName','approvedByTitle','approvedChairman','approvedAt'])
@@ -246,6 +263,19 @@ service cloud.firestore {
         allow read: if readData(sess(sid));
         allow create, update: if countable(sess(sid));
         allow delete: if countable(sess(sid)) || ( sess(sid).get('deleted', false) == true && can('trash.purge') );
+      }
+      // مراجعة الفرع — ملاحظاتٌ فقط (لا تمسّ العدّات): مستند لكل عدّاد p_<uid> {u,m,by,byName,at} + مستند الإرسال __brmeta
+      match /branchReview/{rid} {
+        allow read: if readData(sess(sid));
+        allow create, update: if brWrite(sess(sid)) && (
+          rid == '__brmeta'
+            ? ( request.resource.data.keys().hasOnly(['submitted','by','byName','at','closedAt','steps','ok','diff','notes'])
+                && request.resource.data.get('submitted', false) == true
+                && request.resource.data.get('closedAt', null) == sess(sid).get('closedAt', null) )
+            : ( request.resource.data.keys().hasOnly(['u','m','by','byName','at'])
+                && rid == 'p_' + request.resource.data.get('u', '')                          // مستندٌ واحد لكل عدّاد: p_<uid العدّاد>
+                && request.resource.data.get('m', {}) is map && request.resource.data.get('m', {}).size() <= 5000 ) );
+        allow delete: if sess(sid).get('deleted', false) == true && can('trash.purge');
       }
       // سجل الحركة — قراءة بالنطاق، إضافة فقط بواسطة الفاعل، لا تعديل؛ الحذف للحذف النهائي من السلة فقط
       match /activity/{aid} {

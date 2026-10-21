@@ -86,13 +86,17 @@ function getDocs(ref){ if(__qOut) return __QE(); if(__failPaths[__refPath(ref)])
   if(ref&&ref.__query&&Array.isArray(ref.cs)){ ref.cs.forEach(c=>{ if(c&&c.__where){ docs=docs.filter(d=>{ const v=(d.data()||{})[c.__where]; if(c.op==='==')return v===c.v; if(c.op==='in')return Array.isArray(c.v)&&c.v.indexOf(v)>=0; if(c.op==='!=')return v!==c.v; return true; }); } }); }
   return Promise.resolve({forEach:cb=>docs.forEach(cb), docs, size:docs.length, empty:docs.length===0}); }
 function __deepMerge(t,s){ for(const k in s){ const v=s[k]; if(v&&typeof v==='object'&&!Array.isArray(v)&&!v.__ts){ if(!t[k]||typeof t[k]!=='object')t[k]={}; __deepMerge(t[k],v);} else t[k]=v; } return t; }
-function setDoc(ref, data, opts){ const path=ref.path; if(opts&&opts.merge){ const cur=__store[path]||{}; __store[path]=__deepMerge(__clone(cur), __clone(data)); } else { __store[path]=__clone(data); } __afterWrite(path); return Promise.resolve(); }
+const __failW={}; window.__failWrite=(p,b)=>{ if(b)__failW[p]=b; else delete __failW[p]; }; // مراجعة الفرع: محاكاة تعذّر الكتابة على مسارٍ بعينه
+function setDoc(ref, data, opts){ const path=ref.path; if(__failW[path]) return Promise.reject(__failW[path]==='perm'?{code:'permission-denied',message:'denied'}:{code:'unavailable',message:'network'}); if(opts&&opts.merge){ const cur=__store[path]||{}; __store[path]=__deepMerge(__clone(cur), __clone(data)); } else { __store[path]=__clone(data); } __afterWrite(path); return Promise.resolve(); }
 function updateDoc(ref, data){ const path=ref.path; if(__store[path]==null) return Promise.reject({code:'not-found'}); const cur=__store[path];
   for(const key in data){ const val=data[key]; if(key.indexOf('.')>=0){ const parts=key.split('.'); let o=cur; for(let i=0;i<parts.length-1;i++){ if(!o[parts[i]]||typeof o[parts[i]]!=='object')o[parts[i]]={}; o=o[parts[i]]; } o[parts[parts.length-1]]=__clone(val); } else { cur[key]=__clone(val); } }
   __afterWrite(path); return Promise.resolve(); }
 function addDoc(colRef, data){ const id='d'+(__uidSeq++); const path=colRef.path+'/'+id; __store[path]=__clone(data); __afterWrite(path); return Promise.resolve({id, path}); }
 function deleteDoc(ref){ const path=ref.path; __store[path]=null; delete __store[path]; __afterWrite(path); return Promise.resolve(); }
-function onSnapshot(ref, cb, errCb){ const isDoc=!!ref.__doc; const path=__refPath(ref); const kind=isDoc?'doc':'col'; const l={kind,path,cb,err:errCb};
+let __fromCache=false; const __metaL=[]; // مراجعة الفرع: لقطات «من الكاش» بلا تأكيد خادم (includeMetadataChanges) — __cacheOnly(false) يبثّ تأكيد الخادم كما يفعل SDK
+window.__cacheOnly=(b)=>{ __fromCache=!!b; if(!b)__metaL.forEach(m=>{ if(m.on)setTimeout(()=>m.cb(m.ref.__doc?__docSnap(__refPath(m.ref)):__colSnap(__refPath(m.ref))),0); }); };
+function onSnapshot(ref, cb, errCb, e2){ let __mm=null; if(cb&&typeof cb==='object'){ const o=cb; cb=errCb; errCb=e2; if(o.includeMetadataChanges){ const inner=cb; cb=(snap)=>{ try{ snap.metadata={fromCache:__fromCache,hasPendingWrites:false}; }catch(e){} inner(snap); }; __mm={ref,cb,on:true}; __metaL.push(__mm); } }
+  if(__mm){ const un=onSnapshot(ref,cb,errCb); return ()=>{ __mm.on=false; un(); }; } const isDoc=!!ref.__doc; const path=__refPath(ref); const kind=isDoc?'doc':'col'; const l={kind,path,cb,err:errCb};
   if(__qOut){ setTimeout(()=>{ try{ if(!__noCache)cb(isDoc?__docSnap(path):__colSnap(path)); }catch(e){} if(errCb)errCb(__QERR()); },0); return ()=>{}; } // نفاد الحصّة: لقطة الكاش ثم خطأ، والمستمع ميت
   __listeners.push(l);
   setTimeout(()=>{ try{ cb(isDoc?__docSnap(path):__colSnap(path)); }catch(e){ if(errCb)errCb(e); } },0);

@@ -3,7 +3,7 @@
 //   firebase emulators:exec --only firestore "node firestore-rules.test.mjs"
 // (لا تعمل في بيئة السحابة هنا لأن تنزيل محرّك المحاكي محجوب — شغّلها على جهازك.)
 import { initializeTestEnvironment, assertSucceeds, assertFails } from '@firebase/rules-unit-testing';
-import { doc, setDoc, updateDoc, getDoc, deleteDoc, getDocs, collection } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, getDoc, deleteDoc, getDocs, collection, Timestamp } from 'firebase/firestore';
 import { readFileSync } from 'node:fs';
 
 const testEnv = await initializeTestEnvironment({
@@ -260,6 +260,43 @@ await testEnv.withSecurityRulesDisabled(async (ctx) => {
   await setDoc(doc(d, 'config/permissions'), { viewersAfterClose: false }, { merge: true });
 });
 await T('إطفاء الإعداد يعيد السلوك: المطّلع يقرأ المفتوحة', assertSucceeds(getDocs(collection(db('u_vw'), 'sessions/s_gate/counts'))));
+
+// ---- مراجعة الفرع قبل الاعتماد (علم features.branchReview) — ملاحظاتٌ فقط + بوابة «تمت المراجعة» ----
+const TC = Timestamp.fromMillis(1760000000000), TOLD = Timestamp.fromMillis(1750000000000);
+await testEnv.withSecurityRulesDisabled(async (ctx) => {
+  const d = ctx.firestore();
+  await setDoc(doc(d, 'config/permissions'), { users: { u_brv: { 'session.branchReview': true }, u_brx: { 'session.branchReview': true } }, userLocations: { u_brv: ['فرع أ'], u_brx: ['فرع ج'] } }, { merge: true });
+  await setDoc(doc(d, 'users/u_brv'), { email: 'brv@x.com', role: 'مطّلع', active: true });
+  await setDoc(doc(d, 'users/u_brx'), { email: 'brx@x.com', role: 'مطّلع', active: true });
+  for (const id of ['s_br','s_br2','s_br3','s_br4']) await setDoc(doc(d, 'sessions/'+id), { name:id, status:'review', started:true, assignedCounters:['u_ct'], location:'فرع أ', createdBy:'u_owner', closedAt: TC });
+  await setDoc(doc(d, 'sessions/s_brO'), { name:'مفتوحة', status:'open', started:true, assignedCounters:['u_ct'], location:'فرع أ', createdBy:'u_owner' });
+  await setDoc(doc(d, 'sessions/s_br3/branchReview/__brmeta'), { submitted:true, by:'u_brv', byName:'ف', at:TOLD, closedAt: TOLD, steps:1, ok:1, diff:0, notes:0 }); // إرسالٌ قديم قبل إعادة الإقفال
+});
+const mark = (uid, sid, extra, rid) => setDoc(doc(db(uid), 'sessions/'+sid+'/branchReview/'+(rid||'p_u_ct')), Object.assign({ u:'u_ct', m:{ u_ct_e1:{ c:'A', v:'diff', a:4, nt:'ملاحظة', cq:5, at:1 } }, by:uid, byName:'ف', at:TC }, extra||{}), { merge:true });
+const meta = (uid, sid, cl) => setDoc(doc(db(uid), 'sessions/'+sid+'/branchReview/__brmeta'), { submitted:true, by:uid, byName:'ف', at:TC, closedAt:cl, steps:1, ok:0, diff:1, notes:1 });
+const markRev = (uid, sid) => updateDoc(doc(db(uid), 'sessions/'+sid), { status:'reviewed', reviewedBy:uid, reviewedByName:'م', reviewedAt:TC });
+await T('مراجعة الفرع: العلم مطفأ ⇒ مسؤول الفرع لا يكتب', assertFails(mark('u_brv','s_br')));
+await T('مراجعة الفرع: العلم مطفأ ⇒ «تمت المراجعة» بلا إرسال تبقى كما كانت', assertSucceeds(markRev('u_owner','s_br4')));
+await testEnv.withSecurityRulesDisabled(async (ctx) => { await setDoc(doc(ctx.firestore(), 'config/permissions'), { features: { branchReview: true } }, { merge: true }); });
+await T('مراجعة الفرع: مسؤول فرع الجلسة يؤشّر صنفًا', assertSucceeds(mark('u_brv','s_br')));
+await T('مراجعة الفرع: مسؤول الفرع يقرأ المراجعة', assertSucceeds(getDocs(collection(db('u_brv'), 'sessions/s_br/branchReview'))));
+await T('مراجعة الفرع: لا يكتب باسم غيره', assertFails(mark('u_brv','s_br',{ by:'u_ct' })));
+await T('مراجعة الفرع: مسؤول فرعٍ آخر يُمنع', assertFails(mark('u_brx','s_br')));
+await T('مراجعة الفرع: المطّلع بلا الصلاحية يُمنع', assertFails(mark('u_vw','s_br')));
+await T('مراجعة الفرع: العدّاد يُمنع', assertFails(mark('u_ct','s_br')));
+await T('مراجعة الفرع: الجلسة المفتوحة (أثناء العدّ) ممنوعة', assertFails(mark('u_brv','s_brO')));
+await T('مراجعة الفرع: حقل خارج المخطّط يُرفض', assertFails(mark('u_brv','s_br',{ qty:99 })));
+await T('مراجعة الفرع: اسم المستند يجب أن يطابق عدّاده (p_<uid>)', assertFails(mark('u_brv','s_br',null,'p_u_other')));
+await T('مراجعة الفرع: لا تمسّ العدّات (مسؤول الفرع لا يكتب counts)', assertFails(setDoc(doc(db('u_brv'), 'sessions/s_br/counts/c9'), { code:'A', qty:1 })));
+await T('مراجعة الفرع: لا يحذف مسؤول الفرع مراجعته', assertFails(deleteDoc(doc(db('u_brv'), 'sessions/s_br/branchReview/p_u_ct'))));
+await T('بوابة الإلزام: «تمت المراجعة» قبل الإرسال مرفوضة', assertFails(markRev('u_owner','s_br')));
+await T('الإرسال: closedAt مختلف عن الجلسة مرفوض', assertFails(meta('u_brv','s_br',TOLD)));
+await T('الإرسال: مسؤول الفرع يرسل للإقفال الحالي', assertSucceeds(meta('u_brv','s_br',TC)));
+await T('بوابة الإلزام: بعد الإرسال «تمت المراجعة» مسموحة', assertSucceeds(markRev('u_owner','s_br')));
+await T('بوابة الإلزام: إرسالٌ قديم قبل إعادة الإقفال لا يكفي', assertFails(markRev('u_owner','s_br3')));
+await T('بوابة الإلزام: «إرجاع للعدّ» لا تتطلّب مراجعة الفرع', assertSucceeds(updateDoc(doc(db('u_owner'), 'sessions/s_br2'), { status:'open' })));
+await T('مراجعة الفرع: بعد «تمت المراجعة» لا كتابة', assertFails(mark('u_brv','s_br')));
+await testEnv.withSecurityRulesDisabled(async (ctx) => { await setDoc(doc(ctx.firestore(), 'config/permissions'), { features: { branchReview: false } }, { merge: true }); });
 
 await testEnv.cleanup();
 console.log(`\nRECON ${pass}/${pass + fail} passed`);

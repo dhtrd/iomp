@@ -2,7 +2,7 @@
 
 > Written in **English for precision**. The product is **Arabic‑first (RTL)**.
 > **ABSOLUTE OUTPUT RULE:** every artifact for the client — UI strings, reports, printed documents, install/handover docs, commit/PR text meant for the client, error messages, and all chat replies — **MUST be in Arabic (RTL)**. Only internal reasoning and code identifiers may be non‑Arabic. Code identifiers, Firestore field names and permission keys stay exactly as defined below (some role keys are literally Arabic strings — keep them Arabic).
-> **Last updated:** 2026‑10‑21 (ج٢ source icons + wide count/report screens; global listener re‑attach after quota recovery).
+> **Last updated:** 2026‑10‑21 (branch review before approval behind flag `branchReview`; ج٢ source icons + wide screens; global listener re‑attach).
 
 ---
 
@@ -20,7 +20,7 @@ You are a senior engineer continuing development on **IOMP**, a production inven
 4. **Every delivery = only the changed files + an Arabic install/handover doc (`وثيقة تركيب`)** + update the **test count** in `README.md` and `.github/workflows/ci.yml`.
 5. **NEVER put secrets in chat/replies.** Never echo `firebaseConfig` fields or the `OWNER_EMAIL` value.
 6. **Preserve 100%:** existing logic, identifiers, RTL layout, printing. **CI is the sole judge of Firestore rules.** Measure the rules ceiling on any `firestore.rules` change.
-7. **Deploy size ≤ 200,000 bytes gzipped** (`gzip -c index.html | wc -c`) — currently **198007**; margin ≈ 2 KB — guard it.
+7. **Deploy size ≤ 200,000 bytes gzipped** (`gzip -c index.html | wc -c`) — currently **199,230**; margin ≈ 0.8 KB — guard it. New large UI goes into a lazily loaded file (precedent: `branch-review.js`).
 8. **`firestore.rules` is not touched except by explicit decision**, validated only by CI/emulator.
 9. **Before trusting an adversarial edge case, get an independent review** of any change to the count/queue/sync paths (the 2026‑10 change needed three review rounds; see §12).
 
@@ -30,7 +30,7 @@ Single‑file web app, no framework (inline CSS + vanilla JS).
 - **`index.source.html`** = documented source of truth. **Edit ONLY here.**
 - **`node build_release.js`** → generates **`index.html`** (comments stripped via `acorn`) and proves byte‑for‑byte code identity. Expected: `التحقّق : الشيفرة متطابقةٌ حرفًا بحرف …✓`. **Never add a `// comment` at the end of a fragment that is followed by more code on the same line** (it silently comments out the rest — a real 2026‑10 incident caught only by the parser).
 - **`node build_harness.js`** → `harness.html` (instrumented, gitignored).
-- **`node run_all_tests.mjs`** → must finish **`TOTAL: 1627/1627 — ALL GREEN ✓`** (60 `test_*.mjs`, sequential, fails on first red file).
+- **`node run_all_tests.mjs`** → must finish **`TOTAL: 1680/1680 — ALL GREEN ✓`** (61 `test_*.mjs`, sequential, fails on first red file).
 
 ```bash
 npm install && npm install --no-save acorn
@@ -47,9 +47,9 @@ gzip -c index.html | wc -c    # must stay < 200000
 
 | Item | Value |
 |---|---|
-| Tests | **`TOTAL: 1627/1627 — ALL GREEN ✓`** (60 files). Note: README previously said 1540 while the real pre‑change total was 1526 — documentation drift, fixed. |
-| Deploy size | **198007 bytes gzipped** — ceiling **200,000** |
-| `firestore.rules` | **28,833 bytes** — unchanged |
+| Tests | **`TOTAL: 1680/1680 — ALL GREEN ✓`** (61 files) · rules emulator **141/141**. Note: README previously said 1540 while the real pre‑change total was 1526 — documentation drift, fixed. |
+| Deploy size | **199,230 bytes gzipped** (`index.html` only; `branch-review.js` is separate) — ceiling **200,000** |
+| `firestore.rules` | **31,499 bytes** — `branchReview` subcollection + mandatory gate (2026‑10‑21) |
 | Hosting | GitHub Pages via CI · Firebase **Spark (free)** |
 
 ## 4 · TECHNOLOGY STACK
@@ -58,7 +58,7 @@ Vanilla JS + inline CSS; RTL. **Firebase 10.12.5** (`app`/`auth`/`firestore`, fr
 
 ## 5 · ROLES & PERMISSIONS
 
-Built‑in roles (Arabic keys, keep exactly): **`مدير`** · **`مدير مخزون`** · **`عدّاد`** · **`مطّلع`**; custom roles via `customRoles`. `can(cap)`: owner ⇒ all; else per‑user override ⇐ role setting ⇐ `DEFAULT_CAPS`; requires `active`. `مدير` always holds `perms.manage` + `users.manage`. 33 capability keys (`CAPS`) incl. `count`, `session.*`, `report.*`, `reason.*` (branch/detailed/committee/mgmt/varianceSummary/handover/custody/upload), `warehouse.manage`, `stock.move`, `branch.manage`, `users.manage`, `perms.manage`, `trash.*`, `pw.*`. `عدّاد` = `count` only; `مطّلع` = view/export/pw + `reason.branch`, no finance (`FIN_COLS` hidden). Server enforcement mirrors `can()` in `firestore.rules`; UI is not a security boundary.
+Built‑in roles (Arabic keys, keep exactly): **`مدير`** · **`مدير مخزون`** · **`عدّاد`** · **`مطّلع`**; custom roles via `customRoles`. `can(cap)`: owner ⇒ all; else per‑user override ⇐ role setting ⇐ `DEFAULT_CAPS`; requires `active`. `مدير` always holds `perms.manage` + `users.manage`. 34 capability keys (`CAPS`) incl. `count`, `session.*` (incl. `session.branchReview`), `report.*`, `reason.*` (branch/detailed/committee/mgmt/varianceSummary/handover/custody/upload), `warehouse.manage`, `stock.move`, `branch.manage`, `users.manage`, `perms.manage`, `trash.*`, `pw.*`. `عدّاد` = `count` only; `مطّلع` = view/export/pw + `reason.branch`, no finance (`FIN_COLS` hidden). Server enforcement mirrors `can()` in `firestore.rules`; UI is not a security boundary.
 
 ## 6 · SCREENS
 
@@ -79,6 +79,8 @@ Scan engine: cadence capture (`SCAN_CADENCE_MS=40`, `SCAN_IDLE_MS=60`, `SCAN_MIN
 
 `open → review → reviewed → [fin_approved] → approved`; `started` flag separates prep from counting. Single‑signature or three‑step chain (م14, `approvalChainOn`). Signatures `SIG-` (SHA‑256 / FNV fallback).
 
+**Branch review before approval (2026‑10‑21, owner‑approved spec «ورقة-اتفاق-مراجعة-الفرع-قبل-الاعتماد», flag `features.branchReview`, default OFF):** UI lives in **`branch-review.js`** (lazy `brLoad()`/`brOpen(mode)`, `?v=BR_V` — bump `BR_V` on every change to the file; deployed by CI next to `index.html`). Reviewer = `brCan(s)`: flag + cap `session.branchReview` (34th cap; مدير default true, others false — rules `defCap` excludes it for مدير مخزون) + session location in `userLocations` (owner bypasses) + `canSeeSessionData` (so also grant `report.view.location`). Steps = each counter's entries sorted by `at`, consecutive same code merged; same code elsewhere = another step («الموضع i من n», time order). **Notes only — never writes counts.** Storage: `sessions/{sid}/branchReview/p_<counterUid>` `{u,m:{<uid>_<firstEntryId>:{c,v:'ok'|'diff',a,nt≤200,cq,at}},by,byName,at}` (batched: 20 marks / 6 s / submit / leave / hidden; unsaved count shown; transient failure ⇒ retry, permanent/left review ⇒ one toast + stop) and `__brmeta` `{submitted,by,byName,at,closedAt,steps,ok,diff,notes}`. A mark is valid only while its step qty equals `cq`. Gate: `doMarkReviewed` and the rules (`brSent`) require `__brmeta.closedAt == session.closedAt` when the flag is ON (re‑close ⇒ resubmit). Submit requires a server‑confirmed counts snapshot (`ctx.snapMeta` = raw `_fsOnSnapshot` with `includeMetadataChanges`, shares the watch target). Manager sees «📝 ملاحظات الفرع» (`session.review`). Purge skips `branchReview` if unreadable. Not in Dropbox backup.
+
 ## 9 · REPORTS & EXPORT
 
 `computeVariance(items,counts)` — per item `book/counted/cost/diff/status/varValue/bookValue/countedValue/who/entries` **plus additive `scanQty`, `manQty`, `unkQty`** (`unkQty = counted − scan − manual`, so the three always sum to `counted`). No existing field changed. `summarize()`, `REPX_*` unified reports. Export: `excelSheetFromCols` (supports a `'src'` placeholder ⇒ `srcCols(rows)` = بالقارئ/يدوي + «غير مصنّف» only when legacy data exists), `exportDetailedAoa` (source columns **appended at the end**, with totals and summary rows), `EXPORT_REASONS.branch` ends with `'src'`. `whoDetail` marks manual parts `✍n`. Print: `PRINT_COLDEF` has `scanQty/manQty/unkQty`; `DOC_COL_KEYS` lists them last — **opt‑in only; default print layout unchanged**.
@@ -89,7 +91,7 @@ Scan engine: cadence capture (`SCAN_CADENCE_MS=40`, `SCAN_IDLE_MS=60`, `SCAN_MIN
 
 ## 11 · FEATURE FLAGS (`config/permissions.features`, default OFF unless noted)
 
-`suppliers`, `warehouseLedger`, `branches`, `productCatalog`, `masterCatalog` (**ON**), `offlineCount`, `dropboxBackup`, `sessionSummary`, plus `approvalChain`, `viewersAfterClose`. New features start behind an OFF flag.
+`suppliers`, `warehouseLedger`, `branches`, `productCatalog`, `masterCatalog` (**ON**), `offlineCount`, `dropboxBackup`, `sessionSummary`, plus `approvalChain`, `viewersAfterClose`, `branchReview`. New features start behind an OFF flag.
 
 ## 12 · OFFLINE, QUOTA EXHAUSTION & SYNC (behind `featuresOfflineOn()` = `offlineCount`)
 
@@ -112,7 +114,7 @@ Unchanged from the previous spec: product catalog م15 (`products`, variants, `P
 
 ## 18 · TESTING & MEASUREMENT
 
-60 test files → `run_all_tests.mjs` (1627). `test_rowdiff.mjs` (5: one remote update replaces exactly one card; 200 consecutive random ops (remote, scans, search, notes, removeEntry, reset, duplicate code) compared with `__rclExpect()` without resetting the cache; duplicate code shows the same total on both cards; focus/value kept; membership change ⇒ full render); hooks `__rclFull`, `__rclDiff`, `__cntRebuild`, `__rclExpect`. `test_srcicons.mjs` (20: ج٢ source icons on count chips + report «المعدود»/«من أضاف», wide layout 1440/1024/768/390, print & Excel unchanged, other screens keep 900px). `test_listen_reattach.mjs` (12: perm/list/dashboard re‑attach, no re‑render storm, form input kept, no duplicate/leaked `sessions` listener, flag‑off path); hooks `__permCfg`, `__lisN(path)`. New in 2026‑10: `test_quota_exhaust.mjs` (40: boot/open from cache, queue reflection after reload, auto sync, degraded mode, ordering vs queued reset, lock under concurrent scanning, per‑item stuck isolation, audit log after sync, other‑user ops), `test_srcmark.mjs` (24: real keyboard timing scanner vs hand, phone keyboard, camera, offline, exports, legacy). Harness additions in `build_harness.js`: `__quotaOut(b)` (reads/transactions/listeners reject `resource-exhausted`, listeners die), `__cacheMiss(b)`, `getDocFromCache`/`getDocsFromCache` stubs, `__txCalls`, `__failRead` also fails transactions on that path, hooks `__me`, `__cntEntries`, `__qtyOf`, `__autoTick`, `__retryMs`, `__varRows`, `__qDownClear`, `__offChip`. Measurement scripts are read‑only — never modify.
+61 test files → `run_all_tests.mjs` (1680). `test_branchreview.mjs` (53: per‑counter path order, multi‑location steps, src/added/edited badges, search incl. arNorm, batched per‑counter saves + visible unsaved/failed state, submit gate & stale meta after re‑close, notes screen, flag OFF = unchanged, other branch denied, cache‑only counts block submit, permanent denial stops retries, 390px); harness hooks `__failWrite(path,true|'perm')`, `__cacheOnly(b)` (includeMetadataChanges listeners). `test_rowdiff.mjs` (5: one remote update replaces exactly one card; 200 consecutive random ops (remote, scans, search, notes, removeEntry, reset, duplicate code) compared with `__rclExpect()` without resetting the cache; duplicate code shows the same total on both cards; focus/value kept; membership change ⇒ full render); hooks `__rclFull`, `__rclDiff`, `__cntRebuild`, `__rclExpect`. `test_srcicons.mjs` (20: ج٢ source icons on count chips + report «المعدود»/«من أضاف», wide layout 1440/1024/768/390, print & Excel unchanged, other screens keep 900px). `test_listen_reattach.mjs` (12: perm/list/dashboard re‑attach, no re‑render storm, form input kept, no duplicate/leaked `sessions` listener, flag‑off path); hooks `__permCfg`, `__lisN(path)`. New in 2026‑10: `test_quota_exhaust.mjs` (40: boot/open from cache, queue reflection after reload, auto sync, degraded mode, ordering vs queued reset, lock under concurrent scanning, per‑item stuck isolation, audit log after sync, other‑user ops), `test_srcmark.mjs` (24: real keyboard timing scanner vs hand, phone keyboard, camera, offline, exports, legacy). Harness additions in `build_harness.js`: `__quotaOut(b)` (reads/transactions/listeners reject `resource-exhausted`, listeners die), `__cacheMiss(b)`, `getDocFromCache`/`getDocsFromCache` stubs, `__txCalls`, `__failRead` also fails transactions on that path, hooks `__me`, `__cntEntries`, `__qtyOf`, `__autoTick`, `__retryMs`, `__varRows`, `__qDownClear`, `__offChip`. Measurement scripts are read‑only — never modify.
 
 ## 19 · KNOWN PENDING WORK
 
