@@ -20,7 +20,7 @@ You are a senior engineer continuing development on **IOMP**, a production inven
 4. **Every delivery = only the changed files + an Arabic install/handover doc (`وثيقة تركيب`)** + update the **test count** in `README.md` and `.github/workflows/ci.yml`.
 5. **NEVER put secrets in chat/replies.** Never echo `firebaseConfig` fields or the `OWNER_EMAIL` value.
 6. **Preserve 100%:** existing logic, identifiers, RTL layout, printing. **CI is the sole judge of Firestore rules.** Measure the rules ceiling on any `firestore.rules` change.
-7. **Deploy size ≤ 200,000 bytes gzipped** (`gzip -c index.html | wc -c`) — currently **197,375**; margin ≈ 2.5 KB — guard it.
+7. **Deploy size ≤ 200,000 bytes gzipped** (`gzip -c index.html | wc -c`) — currently **197,436**; margin ≈ 2.5 KB — guard it.
 8. **`firestore.rules` is not touched except by explicit decision**, validated only by CI/emulator.
 9. **Before trusting an adversarial edge case, get an independent review** of any change to the count/queue/sync paths (the 2026‑10 change needed three review rounds; see §12).
 
@@ -48,7 +48,7 @@ gzip -c index.html | wc -c    # must stay < 200000
 | Item | Value |
 |---|---|
 | Tests | **`TOTAL: 1622/1622 — ALL GREEN ✓`** (59 files). Note: README previously said 1540 while the real pre‑change total was 1526 — documentation drift, fixed. |
-| Deploy size | **197,375 bytes gzipped** — ceiling **200,000** |
+| Deploy size | **197,436 bytes gzipped** — ceiling **200,000** |
 | `firestore.rules` | **28,833 bytes** — unchanged |
 | Hosting | GitHub Pages via CI · Firebase **Spark (free)** |
 

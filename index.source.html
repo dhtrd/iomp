@@ -136,7 +136,7 @@ body{font-family:'IBM Plex Sans Arabic','Segoe UI',Tahoma,Arial,sans-serif;backg
 #appView[data-nav="collapsed"] .topbar{padding-inline-start:60px} /* فسحة الزر المثبّت حين تكون القائمة مطوية */
 .container{max-width:900px;margin:0 auto;padding:20px 16px 60px;width:100%}
 /* ج٢ (طلب المالك): أيقونة مصدر العدّ بجانب الرقم + شاشتا العدّ والتقرير بعرض الشاشة (عمودان ≥ ١٠٢٤px) */
-.sic{width:15px;height:15px;vertical-align:-3px;flex:none}.sic.s{color:var(--navy700)}.sic.m{color:#B45309}
+.sic{width:15px;height:15px;vertical-align:-3px;flex:none}.sn,.sw{display:inline-flex;align-items:center;gap:3px;white-space:nowrap}.sw{flex-wrap:wrap}.sic.s{color:var(--navy700)}.sic.m{color:#B45309}
 @media(min-width:1024px){body.wide #appContent{max-width:none;padding-inline:24px}body.wide #clist{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:12px;align-items:start}body.wide #clist>p{grid-column:1/-1}}
 @media(max-width:820px){
   .side{position:fixed;inset-inline-start:0;top:0;height:100%;z-index:50;transform:translateX(100%);width:252px!important;padding-inline:12px!important;box-shadow:0 20px 48px -12px rgba(26,31,54,.3)}
@@ -5445,7 +5445,7 @@ function repAgg(entries){
   return Object.keys(m).map(n=>({name:n,q:m[n].q,parts:m[n].parts,qs:m[n].qs,ss:m[n].ss})).sort((a,b)=>b.q-a.q);
 }
 // نص تفصيل العدّات لفاعلٍ واحد: «الاسم: الإجمالي (ق١ + ق٢ …)» — يظهر التفصيل فقط عند تعدد العدّات
-function whoDetail(w,html,ic){ if(ic&&html&&w.ss)return esc(w.name)+': '+fmt(w.q)+(w.ss.length>1?' <span class="muted">('+w.qs.map((q,i)=>srcIc(w.ss[i])+fmt(q)).join(' + ')+')</span>':srcIc(w.ss[0])); // ج٢: شاشة التقرير فقط — الطباعة والتصدير بلا تغيير
+function whoDetail(w,html,ic){ if(ic&&html&&w.ss)return esc(w.name)+': '+(w.ss.length>1?fmt(w.q)+' <span class="muted sw">(<span>'+w.qs.map((q,i)=>'<span class="sn">'+srcIc(w.ss[i])+fmt(q)+'</span>').join('</span>+<span>')+'</span>)</span>':'<span class="sn">'+fmt(w.q)+srcIc(w.ss[0])+'</span>'); // ج٢: شاشة التقرير فقط — الطباعة والتصدير بلا تغيير
    const parts=(w.parts&&(w.parts.length>1||typeof w.parts[0]==='string'))?(' ('+w.parts.map(p=>typeof p==='string'?p:fmt(p)).join(' + ')+')'):'';
   return html?(esc(w.name)+': '+fmt(w.q)+(parts?' <span class="muted">'+parts+'</span>':'')):(w.name+': '+fmt(w.q)+parts); }
 // محرك حساب الفروقات: لكل صنف حالة وفرق وقيمة بالتكلفة.
@@ -5705,7 +5705,7 @@ function renderReportRows(){
     return '<tr><td class="num" style="direction:ltr;text-align:right"><span class="tag">'+esc(r.code)+'</span></td>'+
       '<td>'+esc(r.name)+(r.manual?' <span class="tag" style="background:#FEF3C7;color:#92400E">'+(r.src==='catalog'&&catOpt('catalogAdd.badge')!==false?'كتالوج':'يدوي')+'</span>':'')+'</td><td class="muted">'+esc(r.category||'—')+'</td>'+
       '<td class="num">'+(r.book!=null?fmt(r.book):'—')+'</td>'+
-      '<td class="num">'+(r.isCounted?fmt(r.counted)+(r.scanQty?srcIc('s'):'')+(r.manQty?srcIc('m'):''):'—')+'</td>'+
+      '<td class="num">'+(r.isCounted?'<span class="sn">'+fmt(r.counted)+(r.scanQty?srcIc('s'):'')+(r.manQty?srcIc('m'):'')+'</span>':'—')+'</td>'+
       '<td class="num">'+diffCell+'</td>'+
       '<td><span class="st '+r.status+'">'+STLABEL[r.status]+'</span>'+((r.book!=null&&r.book<0)?' <span class="tag" style="font-size:10px" title="رُفع في ملف الجرد برصيد دفتري سالب — يُحسب ضمن الزيادات">دفتري سالب</span>':'')+((r.status==='uncounted'&&r.book!=null&&r.book>0)?' <span class="tag" style="font-size:10px" title="لم يُعدّ بعد — سيُعامل صفرًا ويُحسب ضمن العجز">يُحسب عجزًا</span>':'')+'</td>'+
       (fin?'<td class="num">'+(r.cost!=null?fmt(r.cost):'—')+'</td>'+
