@@ -9,7 +9,8 @@
      • «تصفير صنف»: يُصفَّر ما عُدّ قبله، وتبقى الكميات الأحدث منه (عدّ زميلٍ بعده) وتظهر في التقرير.
        (كان التصميم يتخطّى التصفير كلّه — المراجعة المستقلّة: ذلك يُبقي العدّ القديم فوق العدّ الجديد ⇒ زيادة.)
      • حذفٌ قديم بلا معرّف لا يُطبَّق بفهرس جهازٍ آخر — يظهر في التقرير.
-     • تنبيه أمنيّ: البصمة تثبت سلامة الملف لا مصدره؛ القواعد لا تتحقّق من «by» داخل سطور العدّ (قائمٌ قبل هذه الطبقة).
+     • استيراد ملف عدّادٍ آخر يتطلّب صلاحية «استيراد عدّ الآخرين» (count.importOthers)، وقواعد الأمان (ownAppend) ترفض
+       إضافة سطر عدٍّ باسم غير كاتبه بدونها (قرار المالك ٢٠٢٦-١٠-٢٤).
      • الملف لا يُستورد مرّتين (سطر qimport ببصمته) — حمايةٌ للمستخدم فوق الضمان الذرّيّ. */
 (function(){
 'use strict';
@@ -78,6 +79,7 @@ async function importText(txt){
   F.ops.forEach(o=>{ if(o&&!o.uid)o.uid=F.by.uid; });
   if(F.ops.some(o=>!o||o.uid!==F.by.uid||!o.deviceId||typeof o.seq!=='number'||typeof o.at!=='number')){ C.toastErr('الملف يحتوي عمليات لا تخصّ مُصدِّره أو ناقصة — لم يُستورد شيء.'); return {ok:false,err:'ops'}; }
   const AS={uid:F.by.uid,name:F.by.name||''};
+  if(AS.uid!==C.uid&&!C.canOthers){ C.toastErr('هذا ملف عدّاد آخر («'+(AS.name||AS.uid)+'») — استيراده يتطلّب صلاحية «استيراد عدّ الآخرين». اطلبها من المدير أو ليستورده صاحبه بحسابه.'); return {ok:false,err:'cap'}; } // قواعد الأمان ترفض الإضافة باسم الغير بدونها
   const bySid={}; F.ops.forEach(o=>{ if(o.sid)(bySid[o.sid]=bySid[o.sid]||[]).push(o); });
   const sids=Object.keys(bySid); if(!sids.length){ C.toastWarn('الملف لا يحتوي عمليات.'); return {ok:false,err:'empty'}; }
   const plan=[], blocked=[];

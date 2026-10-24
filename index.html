@@ -1287,6 +1287,7 @@ const ROLES = ["مدير", "مدير مخزون", "عدّاد", "مطّلع"];
 const STLABEL = {deficit:"عجز",surplus:"زيادة",match:"مطابق",uncounted:"غير معدود",nobook:"بلا رصيد دفتري",extra:"زيادة خارج الدفتر"};
 const CAPS = [
   {key:'count',           label:'العدّ والجرد',           hint:'إضافة/حذف/تصفير كميات الأصناف'},
+  {key:'count.importOthers',label:'استيراد عدّ الآخرين',  hint:'استيراد ملف طابور عدّادٍ آخر وتسجيل كمياته باسمه (مخرج طوارئ الجهاز التالف) — قواعد الأمان تمنع غيره من إضافة كمية باسم زميل'},
   {key:'session.create',  label:'إنشاء جلسة ورفع الملف',   hint:'إنشاء جلسة جرد ورفع ملف الأصناف'},
   {key:'session.assign',  label:'تكليف العدّادين وبدء الجرد', hint:'إسناد العدّادين وقفل الطاقم ببدء الجرد'},
   {key:'session.close',   label:'إغلاق الجلسة للمراجعة',   hint:'رفع الجلسة من مفتوحة إلى قيد المراجعة'},
@@ -1324,9 +1325,9 @@ const CAP_KEYS = CAPS.map(c=>c.key);
 const ALL_CAPS = v=>{const o={};CAP_KEYS.forEach(k=>o[k]=v);return o;};
 const DEFAULT_CAPS = {
   'مدير':       ALL_CAPS(true),
-  'مدير مخزون': {count:true,'session.create':true,'session.assign':true,'session.close':true,'session.review':true,'session.approve':true,'session.reopen':false,'session.delete':true,'report.view':true,'report.view.own':false,'report.view.location':false,'report.export':true,'report.finance':true,'reason.branch':true,'reason.detailed':true,'reason.committee':true,'reason.mgmt':true,'reason.varianceSummary':true,'reason.handover':true,'reason.custody':true,'reason.upload':true,'warehouse.manage':true,'stock.move':true,'branch.manage':false,'users.manage':false,'perms.manage':false,'trash.restore':true,'trash.purge':false,'pw.change':true,'pw.request':true},
-  'عدّاد':      {count:true,'session.create':false,'session.assign':false,'session.close':false,'session.review':false,'session.approve':false,'session.reopen':false,'session.delete':false,'report.view':false,'report.view.own':false,'report.view.location':false,'report.export':false,'report.finance':false,'reason.branch':true,'reason.detailed':true,'reason.committee':true,'reason.mgmt':true,'reason.varianceSummary':true,'reason.handover':true,'reason.custody':true,'reason.upload':true,'warehouse.manage':false,'stock.move':false,'branch.manage':false,'users.manage':false,'perms.manage':false,'trash.restore':false,'trash.purge':false,'pw.change':false,'pw.request':false},
-  'مطّلع':      {count:false,'session.create':false,'session.assign':false,'session.close':false,'session.review':false,'session.approve':false,'session.reopen':false,'session.delete':false,'report.view':true,'report.view.own':false,'report.view.location':false,'report.export':true,'report.finance':false,'reason.branch':true,'reason.detailed':false,'reason.committee':false,'reason.mgmt':false,'reason.varianceSummary':false,'reason.handover':false,'reason.custody':false,'reason.upload':false,'warehouse.manage':false,'stock.move':false,'branch.manage':false,'users.manage':false,'perms.manage':false,'trash.restore':false,'trash.purge':false,'pw.change':true,'pw.request':true}
+  'مدير مخزون': {count:true,'count.importOthers':false,'session.create':true,'session.assign':true,'session.close':true,'session.review':true,'session.approve':true,'session.reopen':false,'session.delete':true,'report.view':true,'report.view.own':false,'report.view.location':false,'report.export':true,'report.finance':true,'reason.branch':true,'reason.detailed':true,'reason.committee':true,'reason.mgmt':true,'reason.varianceSummary':true,'reason.handover':true,'reason.custody':true,'reason.upload':true,'warehouse.manage':true,'stock.move':true,'branch.manage':false,'users.manage':false,'perms.manage':false,'trash.restore':true,'trash.purge':false,'pw.change':true,'pw.request':true},
+  'عدّاد':      {count:true,'count.importOthers':false,'session.create':false,'session.assign':false,'session.close':false,'session.review':false,'session.approve':false,'session.reopen':false,'session.delete':false,'report.view':false,'report.view.own':false,'report.view.location':false,'report.export':false,'report.finance':false,'reason.branch':true,'reason.detailed':true,'reason.committee':true,'reason.mgmt':true,'reason.varianceSummary':true,'reason.handover':true,'reason.custody':true,'reason.upload':true,'warehouse.manage':false,'stock.move':false,'branch.manage':false,'users.manage':false,'perms.manage':false,'trash.restore':false,'trash.purge':false,'pw.change':false,'pw.request':false},
+  'مطّلع':      {count:false,'count.importOthers':false,'session.create':false,'session.assign':false,'session.close':false,'session.review':false,'session.approve':false,'session.reopen':false,'session.delete':false,'report.view':true,'report.view.own':false,'report.view.location':false,'report.export':true,'report.finance':false,'reason.branch':true,'reason.detailed':false,'reason.committee':false,'reason.mgmt':false,'reason.varianceSummary':false,'reason.handover':false,'reason.custody':false,'reason.upload':false,'warehouse.manage':false,'stock.move':false,'branch.manage':false,'users.manage':false,'perms.manage':false,'trash.restore':false,'trash.purge':false,'pw.change':true,'pw.request':true}
 };
 const _hasCap=(m,k)=>m&&Object.prototype.hasOwnProperty.call(m,k)&&m[k]!=null;
 function isOwner(){ return !!(myProfile && myProfile.email===OWNER_EMAIL); }
@@ -3364,7 +3365,7 @@ function featuresBranchReviewOn(){ return !!(permConfig && permConfig.features &
 const BR_META='__brmeta', BR_V='4';
 let _brP=null, _brAuto=null;
 function brCan(s){ return featuresBranchReviewOn()&&can('session.branchReview')&&!!s&&(isOwner()||myLocations().indexOf(s.location||'')>=0)&&canSeeSessionData(s); }
-const QIO_V='2'; let _qioP=null, _persist=null, _bip=null;
+const QIO_V='3'; let _qioP=null, _persist=null, _bip=null;
 try{ window.addEventListener('beforeinstallprompt',e=>{ e.preventDefault(); _bip=e; }); }catch(e){}
 function appInstalled(){ try{ return !!((window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||navigator.standalone===true); }catch(e){ return false; } }
 function isIOS(){ const u=navigator.userAgent||''; return /iPhone|iPad|iPod/.test(u)||(/Macintosh/.test(u)&&navigator.maxTouchPoints>1); }
@@ -3377,7 +3378,7 @@ function safeNoteRender(){ const el=$('safeNote'); if(!el)return; const w=[];
 function qioLoad(){ return _qioP||(_qioP=new Promise((ok,no)=>{ const el=document.createElement('script'); el.src='queue-io.js?v='+QIO_V; el.onload=ok; el.onerror=()=>{ _qioP=null; el.remove(); no(new Error('تعذّر تحميل شاشة حماية العدّ — تحقّق من الاتصال ثم أعد المحاولة.')); }; document.head.appendChild(el); })); }
 function qioOpen(){ qioLoad().then(()=>window.IOMPQ.open({
     queue:()=>oqLocked(offlineQueueGet), own:oqOwn, me:myProfile, uid:auth.currentUser.uid, deviceId:offlineDeviceId(),
-    db,doc,collection,query,where,getDocs,getDoc,addDoc,serverTimestamp, qApply, QSKIP,
+    db,doc,collection,query,where,getDocs,getDoc,addDoc,serverTimestamp, qApply, QSKIP, canOthers:can('count.importOthers'),
     persist:()=>_persist, installed:appInstalled(), ios:isIOS(), bip:()=>_bip, mirrorOk:()=>offlineStore.mirrorOk(), backend:offlineStore.backend(),
     esc,fmt,fmtDT:fmtDateTimeAr,toastOk,toastErr,toastWarn,errAr,confirmDialog,acChecksum}))
   .catch(e=>toastErr(e.message)); }
