@@ -3372,11 +3372,10 @@ function safeNoteRender(){ const el=$('safeNote'); if(!el)return; const w=[];
   w.push('لا تعدّ في نافذة التصفّح الخاص/المتخفّي — ما لم يُرسل يُمسح عند إغلاقها.');
   el.innerHTML=w.map(x=>'<div>'+esc(x)+'</div>').join(''); }
 function qioLoad(){ return _qioP||(_qioP=new Promise((ok,no)=>{ const el=document.createElement('script'); el.src='queue-io.js?v='+QIO_V; el.onload=ok; el.onerror=()=>{ _qioP=null; el.remove(); no(new Error('تعذّر تحميل شاشة حماية العدّ — تحقّق من الاتصال ثم أعد المحاولة.')); }; document.head.appendChild(el); })); }
-function qioOpen(){ qioLoad().then(()=>window.IOMPQ.open({db,doc,collection,query,where,getDocs,getDoc,addDoc,serverTimestamp,
-    queue:()=>oqLocked(offlineQueueGet), own:oqOwn, me:myProfile, uid:auth.currentUser.uid, deviceId:offlineDeviceId(), sid:curSid, sessName:(curSess&&curSess.name)||'',
-    countWriteAdd,countWriteDec,countWriteRemove,countWriteReset,noteWriteAdd,extraWriteAdd,safeId,
+function qioOpen(){ qioLoad().then(()=>window.IOMPQ.open({
+    queue:()=>oqLocked(offlineQueueGet), own:oqOwn,
     persist:()=>_persist, installed:appInstalled(), ios:isIOS(), bip:()=>_bip, mirrorOk:()=>offlineStore.mirrorOk(), backend:offlineStore.backend(),
-    esc,fmt,fmtDT:fmtDateTimeAr,toastOk,toastErr,toastWarn,errAr,confirmDialog,acChecksum}))
+    esc,fmt}))
   .catch(e=>toastErr(e.message)); }
 function brLoad(){ return _brP||(_brP=new Promise((ok,no)=>{ const el=document.createElement('script'); el.src='branch-review.js?v='+BR_V; el.onload=ok; el.onerror=()=>{ _brP=null; el.remove(); no(new Error('تعذّر تحميل شاشة مراجعة الفرع — تحقّق من الاتصال ثم أعد المحاولة.')); }; document.head.appendChild(el); })); }
 function brOpen(mode){ const sid=curSid;
@@ -4201,16 +4200,16 @@ async function offlineEnqueueAndReflect(op){ const entry=await offlineEnqueue(op
   if(!netOnline())toastWarn('دون اتصال — حُفظ محليًّا وسيُزامَن تلقائيًّا ('+fmt(_offlineQueueLen)+' بانتظار المزامنة)');
   else if(Date.now()-_qNoteAt>30000){ _qNoteAt=Date.now(); toastWarn('تعذّر الوصول للخادم مؤقّتًا — يُحفظ العدّ على جهازك ويُزامَن تلقائيًّا ('+fmt(_offlineQueueLen)+' بانتظار المزامنة)'); }
   return entry; }
-async function countWriteAdd(sid,code,d,at,eid,run,sk,as){ const ref=doc(db,'sessions',sid,'counts',safeId(code)); let _ri=-1; const W=as||{uid:auth.currentUser.uid,name:myProfile.name||''};
+async function countWriteAdd(sid,code,d,at,eid,run,sk){ const ref=doc(db,'sessions',sid,'counts',safeId(code)); let _ri=-1;
   await runTransaction(db,async(tx)=>{const s=await tx.get(ref);const cur=s.exists()?s.data():{code:code,qty:0,entries:[]};
     const src=(cur.entries||[]); _ri=-1;
     if(run){ const i=runIndex(src,run);
       if(i>=0){ const e=src[i];
         if(e.lastEid===eid){ _ri=i; return; }
         if(e.by===run.by){ const en=src.slice(); en[i]=Object.assign({},e,{q:(e.q||0)+d,n:entryN(e)+1,endAt:(at||Date.now()),lastEid:eid});
-          tx.set(ref,{code:code,qty:(cur.qty||0)+d,entries:en,lastByName:W.name,lastAt:serverTimestamp()}); _ri=i; return; } } }
+          tx.set(ref,{code:code,qty:(cur.qty||0)+d,entries:en,lastByName:myProfile.name||'',lastAt:serverTimestamp()}); _ri=i; return; } } }
     if(eid!=null){ const j=src.findIndex(e=>e&&e.id===eid); if(j>=0){ _ri=j; return; } }
-    const ne={id:eid||entryId(),q:d,by:W.uid,byName:W.name,at:(at||Date.now())}; if(sk)ne.src=sk; const entries=src.concat([ne]);_ri=entries.length-1;tx.set(ref,{code:code,qty:(cur.qty||0)+d,entries:entries,lastByName:W.name,lastAt:serverTimestamp()});});
+    const ne={id:eid||entryId(),q:d,by:auth.currentUser.uid,byName:myProfile.name||'',at:(at||Date.now())}; if(sk)ne.src=sk; const entries=src.concat([ne]);_ri=entries.length-1;tx.set(ref,{code:code,qty:(cur.qty||0)+d,entries:entries,lastByName:myProfile.name||'',lastAt:serverTimestamp()});});
   return _ri; }
 async function countWriteDec(sid,code,eid){ const ref=doc(db,'sessions',sid,'counts',safeId(code)); let per=null;
   await runTransaction(db,async(tx)=>{const s=await tx.get(ref);if(!s.exists())return;const cur=s.data();const src=(cur.entries||[]);
@@ -4233,11 +4232,7 @@ async function offlineLogSync(sid,n){ if(!sid)return; try{ await addDoc(collecti
 function offlineFlush(manual){ if(!featuresOfflineOn())return Promise.resolve({ok:true,flushed:0});
   if(navigator.locks&&navigator.locks.request)return navigator.locks.request('iomp-oq-flush',{ifAvailable:true},lk=>lk?offlineFlush0(manual):{ok:false,busy:true});
   return offlineFlush0(manual); }
-let _qimpCache={};
-async function qimpMax(sid,uid){ const ck=sid+'|'+uid; if(_qimpCache[ck]!=null)return _qimpCache[ck]; let m=0;
-  const qs=await getDocs(query(collection(db,'sessions',sid,'activity'),where('type','==','qimport'),where('deviceId','==',offlineDeviceId())));
-  qs.forEach(d=>{ const a=d.data(); if(a&&a.forUid===uid&&Number(a.maxSeq)>m)m=Number(a.maxSeq); }); return _qimpCache[ck]=m; }
-async function offlineFlush0(manual){ const quiet=(manual==='auto'); if(quiet)manual=false; _qimpCache={}; let qimpSkip=0;
+async function offlineFlush0(manual){ const quiet=(manual==='auto'); if(quiet)manual=false;
   if(_offlineSyncing)return {ok:false,busy:true};
   _offlineSyncing=true; offlineUpdateChip();
   let flushed=0; const flushedBySid={}; let failed=false, lastErr=null; const rejected=[];
@@ -4247,8 +4242,7 @@ async function offlineFlush0(manual){ const quiet=(manual==='auto'); if(quiet)ma
     for(let pass=0;pass<50&&q.length&&!failed;pass++){ q=q.slice().sort((a,b)=>a.seq-b.seq);
     const skip=new Set(); let bad=0;
     for(const op of q){ if(!auth.currentUser||!myProfile){ failed=true; break; } const ck=op.sid+'|'+String(op.code); if(skip.has(ck))continue;
-      const ev=_cntEvt; try{ if(op.seq<=await qimpMax(op.sid,op.uid||auth.currentUser.uid)){ await oqDrop(op); qimpSkip++; continue; }
-        const rv=await offlineApplyRemote(op);
+      const ev=_cntEvt; try{ const rv=await offlineApplyRemote(op);
         await oqDrop(op); bad=0;
         if(op.log)addDoc(collection(db,'sessions',op.sid,'activity'),{type:op.log.t,code:String(op.code),name:op.log.n||'',qty:(op.op==='add'?op.val:(op.op==='reset'?(op.log.q==null?null:op.log.q):(rv==null?null:rv))),by:auth.currentUser.uid,byName:myProfile.name||'',at:serverTimestamp(),countedAt:op.at}).catch(()=>{});
         if(op.sid===curSid&&_cntEvt!==ev&&$('clist')){ cntRebuild(); renderCountListLive(); }
@@ -4263,7 +4257,6 @@ async function offlineFlush0(manual){ const quiet=(manual==='auto'); if(quiet)ma
     if(!failed)q=(await oqLocked(offlineQueueGet)).filter(oqOwn); }
   } finally { _offlineSyncing=false; await offlineRefreshLen(); }
   for(const sid in flushedBySid) await offlineLogSync(sid,flushedBySid[sid]);
-  if(qimpSkip)toastWarn(fmt(qimpSkip)+' عملية في طابور هذا الجهاز سبق استيرادها من ملفٍّ على جهازٍ آخر — أُزيلت دون إرسالها مرّةً ثانية.');
   if(rejected.length){ try{ const prev=(await offlineStore.get(OFFLINE_REJECTED_KEY))||[]; await offlineStore.set(OFFLINE_REJECTED_KEY, prev.concat(rejected)); }catch(_){} toastErr('رُفضت '+fmt(rejected.length)+' عملية عدّ (قد تكون الجلسة أُقفلت أثناء الانقطاع) — سُجّلت في «العمليات المرفوضة» ولم تعُد تحجب الطابور.'); }
   const own=(_oq||[]).filter(oqOwn).length;
   if(!failed&&!own){ _qDown=0; _flushFailN=0; if(_cntDead)cntReattach(); globalReattach(); }
@@ -4393,9 +4386,9 @@ async function decEntry(code,eid){ if(!assertOpen())return;
   try{ const q=await countWriteDec(curSid,code,eid);
     if(q!=null)logActivity('remove',code,itemName(code)+(reason?' — سبب التسوية: '+reason:''),q);
   }catch(err){ if(offDown(err)){ await offlinePath(); return; } toastErr('تعذّر الحذف: '+errAr(err.code||err.message)); } }
-async function noteWriteAdd(sid,code,text,at,nid,as){ const ref=doc(db,'sessions',sid,'itemNotes',safeId(code)); const W=as||{uid:auth.currentUser.uid,name:myProfile.name||''};
+async function noteWriteAdd(sid,code,text,at,nid){ const ref=doc(db,'sessions',sid,'itemNotes',safeId(code));
   await runTransaction(db,async(tx)=>{ const s=await tx.get(ref); const cur=s.exists()?s.data():{code:code,notes:[]};
-    const notes=(cur.notes||[]).concat([{id:nid||entryId(),text:String(text||''),by:W.uid,byName:W.name,at:(at||Date.now())}]); if(nid&&(cur.notes||[]).some(n=>n&&n.id===nid))return;
+    const notes=(cur.notes||[]).concat([{id:nid||entryId(),text:String(text||''),by:auth.currentUser.uid,byName:myProfile.name||'',at:(at||Date.now())}]);
     tx.set(ref,{code:code,notes:notes}); }); }
 async function noteWriteRemove(sid,code,nid){ const ref=doc(db,'sessions',sid,'itemNotes',safeId(code));
   await runTransaction(db,async(tx)=>{ const s=await tx.get(ref); if(!s.exists())return; const cur=s.data();

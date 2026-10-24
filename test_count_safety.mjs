@@ -1,4 +1,4 @@
-// حماية العدّ من الضياع — الطبقات أ/ب/ج/د/هـ/و (ورقة الاتفاق المعتمدة، 2026-10-24)
+// حماية العدّ من الضياع — الطبقات أ/ب/ج/د/هـ (الطبقة و في طلب دمجٍ مستقلّ) (ورقة الاتفاق المعتمدة، 2026-10-24)
 // يُخدَم المحاكي عبر http://127.0.0.1 (لا file://) كي يعمل IndexedDB الحقيقيّ — شرط اختبار المرآة (د).
 import { chromium, devices } from 'playwright-core';
 import { execSync } from 'node:child_process';
@@ -99,7 +99,7 @@ const activity=(p)=>p.evaluate(()=>Object.keys(window.__store).filter(k=>k.start
   await P.evaluate(()=>document.getElementById('safeBtn').click()); await waitVis(P,'qioOverlay');
   const body=await P.evaluate(()=>document.getElementById('qioBody').textContent);
   ok('أ١ نافذة «حماية العدّ» تعرض: الحفظ الدائم، التثبيت، النسخة الثانية، النافذة الخاصة', /الحفظ الدائم/.test(body)&&/مثبّت/.test(body)&&/النسخة الثانية/.test(body)&&/النافذة الخاصة/.test(body), body.slice(0,200));
-  ok('و٠ زرّ التصدير معطّل حين لا عمليّات معلّقة', await P.evaluate(()=>document.getElementById('qioExp').disabled===true));
+  ok('أ٢ النافذة تعرض «لا عمليات بانتظار الإرسال» حين الطابور فارغ', /لا عمليات بانتظار الإرسال/.test(body));
   await ctx.close();
   const ip=devices['iPhone 13']; const c2=await browser.newContext(Object.assign({},ip)); const Q=await c2.newPage(); await boot(Q,sc(C1)); await openSr(Q); await sleep(300);
   const n2=await Q.evaluate(()=>{ const e=document.getElementById('safeNote'); return e?e.textContent:''; });
@@ -109,84 +109,6 @@ const activity=(p)=>p.evaluate(()=>Object.keys(window.__store).filter(k=>k.start
   ok('ج٢ العلم مطفأ: لا شريط ولا زرّ (السلوك القائم دون تغيير)', !(await R.evaluate(()=>!!document.getElementById('safeBtn'))));
   await c3.close(); }
 
-// ===== و — تصدير الطابور واستيراده =====
-let FILE=null, FILE2=null;
-const devA=await browser.newContext({ viewport:{width:1100,height:1000} }); // جهاز العدّاد الأصليّ
-let A=await devA.newPage(); await boot(A,sc(C1)); await openSr(A);
-await A.evaluate(()=>window.__quotaOut(true));
-await A.evaluate(()=>window.__addEntry('A1001',5)); await sleep(250);
-await A.evaluate(()=>window.__addEntry('A1001',2)); await sleep(250);
-await A.evaluate(()=>window.__resetItem&&0); // (لا تصفير هنا)
-await A.evaluate(()=>window.__addEntry('B2002',3)); await sleep(400);
-await A.evaluate(()=>document.getElementById('safeBtn').click()); await waitVis(A,'qioOverlay');
-await A.evaluate(()=>document.getElementById('qioExp').click()); await sleep(500);
-FILE=await A.evaluate(()=>window.__qioLastExport);
-ok('و١ التصدير: ملفٌ بعمليّات العدّاد (٣) وبصمة SHA-256 واسمه', FILE&&FILE.kind==='iomp-queue'&&FILE.ops.length===3&&/^sha256:/.test(FILE.hash)&&FILE.by.uid==='u_c1', JSON.stringify(FILE&&{n:FILE.ops.length,h:FILE.hash&&FILE.hash.slice(0,12),by:FILE.by}));
-ok('و١ التصدير لا يمسّ الطابور على الجهاز (٣ باقية)', (await qlen(A))===3);
-
-// جهازٌ آخر — المدير المكلَّف بالجلسة يستورد
-const devB=await browser.newContext({ viewport:{width:1100,height:1000} }); let B=await devB.newPage(); await boot(B,sc(MG)); await openSr(B);
-await B.evaluate(()=>document.getElementById('safeBtn').click()); await waitVis(B,'qioOverlay');
-// ملفٌ معدَّل ⇒ رفض
-const bad=JSON.parse(JSON.stringify(FILE)); bad.ops[0].val=50;
-const rBad=await B.evaluate(t=>window.IOMPQ.importText(t),JSON.stringify(bad));
-ok('و٢ ملفٌ عُدِّل محتواه ⇒ رفض صريح ولا كتابة', rBad&&rBad.err==='hash'&&(await srvDoc(B,'A1001'))===null, JSON.stringify(rBad));
-// الاستيراد الصحيح (تأكيد)
-const pr=B.evaluate(t=>window.IOMPQ.importText(t),JSON.stringify(FILE));
-await waitVis(B,'cfOverlay'); const cmsg=await B.evaluate(()=>document.getElementById('cfMsg').textContent);
-ok('و٣ تأكيد الاستيراد يذكر العدد ومَن تُنسب إليه الكميات', /3 عملية/.test(cmsg)&&/عدّاد أول/.test(cmsg), cmsg.slice(0,160));
-await B.evaluate(()=>document.getElementById('cfGo').click());
-const rImp=await pr; await sleep(500);
-{ const a=await srvDoc(B,'A1001'), b=await srvDoc(B,'B2002');
-  ok('و٣ الخادم بعد الاستيراد: A1001=7 و B2002=3', a&&a.qty===7&&b&&b.qty===3, JSON.stringify({a:a&&a.qty,b:b&&b.qty,r:rImp}));
-  ok('و٤ الكميات منسوبة للعدّاد الأصليّ لا للمدير', a.entries.every(e=>e.by==='u_c1'&&e.byName==='عدّاد أول')&&b.entries.every(e=>e.by==='u_c1'), JSON.stringify(a.entries.map(e=>[e.by,e.byName])));
-  ok('و٤ معرّفات الإضافات محفوظة كما في الجهاز', a.entries.map(e=>e.id).sort().join()===FILE.ops.filter(o=>o.code==='A1001').map(o=>o.eid).sort().join());
-  const act=await activity(B); const mk=act.filter(x=>x.type==='qimport');
-  ok('و٥ علامة الاستيراد في سجلّ الحركة (بصمة + جهاز + أكبر تسلسل)', mk.length===1&&mk[0].hash===FILE.hash&&mk[0].deviceId===FILE.deviceId&&mk[0].forUid==='u_c1'&&mk[0].maxSeq===Math.max(...FILE.ops.map(o=>o.seq)), JSON.stringify(mk));
-  const lg=act.filter(x=>x.type==='add'); ok('و٥ سطور الإضافات تذكر المستورِد ووقت العدّ', lg.length===3&&lg.every(x=>/مستوردة من ملف/.test(x.name)&&typeof x.countedAt==='number'&&x.by==='u_mgr'), JSON.stringify(lg.map(x=>x.name))); }
-// إعادة استيراد الملف نفسه ⇒ رفض
-await B.evaluate(()=>document.getElementById('qioClose')&&document.getElementById('qioClose').click());
-await B.evaluate(()=>document.getElementById('safeBtn').click()); await waitVis(B,'qioOverlay');
-const rDup=await B.evaluate(t=>window.IOMPQ.importText(t),JSON.stringify(FILE));
-ok('و٦ الملف نفسه لا يُستورد مرّتين', rDup&&rDup.err==='blocked'&&/استُورد سابقًا/.test((rDup.blocked||[]).join()), JSON.stringify(rDup));
-ok('و٦ لا ازدواج على الخادم (ما زال 7)', (await srvDoc(B,'A1001')).qty===7);
-
-// المدير يحذف إحدى الكميات المستوردة على الخادم، ثم يعود جهاز العدّاد الأصليّ للاتصال
-await B.evaluate(()=>{ const k='sessions/sr/counts/A1001'; const x=window.__store[k]; const en=x.entries.filter(e=>e.q!==2); window.__store[k]=Object.assign({},x,{entries:en,qty:en.reduce((s,e)=>s+e.q,0)}); });
-// المحاكي يحفظ «الخادم» في ذاكرة كلّ صفحة ⇒ نُزامن خادم الجهاز A مع ما كتبه B (خادمٌ واحد في الحقيقة)
-const shared=await B.evaluate(()=>JSON.parse(JSON.stringify(window.__store)));
-await A.evaluate(st=>{ for(const k of Object.keys(window.__store))if(k.startsWith('sessions/sr/'))delete window.__store[k]; Object.assign(window.__store,st); },shared);
-await A.evaluate(()=>window.__quotaOut(false)); await A.evaluate(()=>window.__autoTick()); await sleep(1000);
-{ const a=await srvDoc(A,'A1001'), b=await srvDoc(A,'B2002');
-  ok('و٧ جهاز العدّاد الأصليّ عند عودته لا يُعيد إرسال ما استُورد (لا تعود الكمية المحذوفة، ولا ازدواج)', a.qty===5&&b.qty===3&&(await qlen(A))===0, JSON.stringify({a:a.qty,b:b.qty,q:await qlen(A)}));
-  ok('و٧ تنبيهٌ صريح بأن العمليّات سبق استيرادها', /سبق استيرادها/.test(await toasts(A)), (await toasts(A)).slice(-160)); }
-
-// «تصفير» داخل ملفٍّ وعلى الخادم كميةٌ أحدث منه ⇒ يُتخطّى ويظهر في التقرير
-await A.evaluate(()=>window.__quotaOut(true));
-await A.evaluate(()=>window.__addEntry('C3003',1)); await sleep(250);
-await A.evaluate(()=>window.__resetItem('C3003')); await sleep(300);
-const confirmReset=await waitVis(A,'cfOverlay'); if(confirmReset){ await A.evaluate(()=>document.getElementById('cfGo').click()); await sleep(300); }
-await A.evaluate(()=>window.__addEntry('A1001',1)); await sleep(400);
-await A.evaluate(()=>document.getElementById('safeBtn').click()); await waitVis(A,'qioOverlay');
-await A.evaluate(()=>document.getElementById('qioExp').click()); await sleep(400);
-FILE2=await A.evaluate(()=>window.__qioLastExport);
-// بعد التصدير: جهازٌ ثالث أضاف C3003 على الخادم (أحدث من التصفير)
-await B.evaluate(()=>{ window.__store['sessions/sr/counts/C3003']={code:'C3003',qty:6,entries:[{id:'zz6',q:6,by:'u_x',byName:'آخر',at:Date.now()+5000}]}; });
-await B.evaluate(()=>document.getElementById('qioClose')&&document.getElementById('qioClose').click());
-await B.evaluate(()=>document.getElementById('safeBtn').click()); await waitVis(B,'qioOverlay');
-const pr2=B.evaluate(t=>window.IOMPQ.importText(t),JSON.stringify(FILE2)); await waitVis(B,'cfOverlay'); await B.evaluate(()=>document.getElementById('cfGo').click());
-const r2=await pr2; await sleep(500);
-{ const c=await srvDoc(B,'C3003');
-  ok('و٨ ملفٌ فيه «تصفير» والخادم فيه كميةٌ أحدث ⇒ لا يُمسح عدّ الزميل (٦ + ١ من الملف)', c&&c.entries.some(e=>e.id==='zz6')&&c.qty===7, JSON.stringify(c&&c.entries.map(e=>[e.id,e.q])));
-  ok('و٨ التصفير المتخطّى ظاهرٌ في تقرير الاستيراد', r2&&r2.skipped&&r2.skipped.length===1&&r2.skipped[0].code==='C3003'&&/لم يُنفَّذ/.test(await B.evaluate(()=>document.getElementById('qioBody').textContent)), JSON.stringify(r2&&r2.skipped)); }
-
-// مستوردٌ غير مكلَّف بالجلسة ⇒ رفض مع الإرشاد
-{ const c=await browser.newContext({ viewport:{width:1100,height:1000} }); const O=await c.newPage(); await boot(O,sc(OUT)); await openSr(O);
-  await O.evaluate(()=>document.getElementById('safeBtn').click()); await waitVis(O,'qioOverlay');
-  const r=await O.evaluate(t=>window.IOMPQ.importText(t),JSON.stringify(FILE2));
-  ok('و٩ حسابٌ غير مكلَّف بالجلسة ⇒ لا استيراد، مع إرشاد «أضف نفسك»', r&&r.err==='blocked'&&/أضف نفسك/.test((r.blocked||[]).join()), JSON.stringify(r)); await c.close(); }
-
-await devA.close(); await devB.close();
 await browser.close(); srv.close();
 let pass=0; for(const r of results){ console.log((r.pass?'✓':'✗')+' '+r.n+(r.d&&!r.pass?('  << '+r.d):'')); if(r.pass)pass++; }
 console.log(`\nRECON ${pass}/${results.length} ${pass===results.length?'passed':'FAILED'}`);
