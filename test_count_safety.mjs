@@ -74,19 +74,23 @@ const activity=(p)=>p.evaluate(()=>Object.keys(window.__store).filter(k=>k.start
 { const ctx=await browser.newContext({ viewport:{width:1100,height:1000} });
   let P=await ctx.newPage(); await boot(P,sc(C1)); await openSr(P);
   ok('د٠ IndexedDB الحقيقيّ مستعمَل (http)', (await P.evaluate(()=>window.__offline.backend?window.__offline.backend():'?'))!=='ls'||true);
-  await P.evaluate(()=>window.__quotaOut(true)); await P.evaluate(()=>window.__addEntry('A1001',4)); await sleep(300); await P.evaluate(()=>window.__addEntry('B2002',1)); await sleep(400);
+  await P.evaluate(()=>window.__quotaOut(true)); await P.evaluate(()=>window.__addEntry('A1001',4)); await sleep(300); await P.evaluate(()=>window.__addEntry('B2002',1)); await sleep(1200); // المرآة تُكتب بعد هدوءٍ قصير (٨٠٠ms)
   const mir=await P.evaluate(()=>{ try{ return JSON.parse(localStorage.getItem('iomp-oq-mirror')||'null'); }catch(e){ return 'ERR'; } });
+  await P.evaluate(()=>window.__addEntry('C3003',1)); const gone=await P.evaluate(()=>localStorage.getItem('iomp-oq-mirror')===null); await sleep(1200);
+  const mir3=await P.evaluate(()=>JSON.parse(localStorage.getItem('iomp-oq-mirror')||'null'));
+  ok('د٦ المرآة لا تكون أقدم من الطابور أبدًا: تُزال فور الكتابة ثم تُكتب أحدث قيمة', gone&&Array.isArray(mir3)&&mir3.length===3, JSON.stringify({gone,n:mir3&&mir3.length}));
   ok('د١ كلّ كتابةٍ للطابور تُكتب في النسخة الثانية أيضًا (٢ عملية)', Array.isArray(mir)&&mir.length===2, JSON.stringify(mir&&mir.length));
   // فقد المفتاح من IndexedDB (تلف/مسحٌ جزئيّ)
   const del=await P.evaluate(()=>new Promise(res=>{ const rq=indexedDB.open('iomp-offline'); rq.onsuccess=()=>{ const db=rq.result; const tx=db.transaction('kv','readwrite'); tx.objectStore('kv').delete('iomp-offline-queue'); tx.oncomplete=()=>{ db.close(); res('ok'); }; tx.onerror=()=>res('err'); }; rq.onerror=()=>res('open-err'); }));
   await P.close(); P=await ctx.newPage(); await boot(P,sc(C1,null,{quotaOut:true})); await openSr(P); await sleep(400);
-  ok('د٢ بعد فقد المفتاح من IndexedDB: الطابور مستعاد (٢) والكميات ظاهرة', del==='ok'&&(await qlen(P))===2&&(await qty(P,'A1001'))===4&&(await qty(P,'B2002'))===1, 'del='+del+' q='+(await qlen(P))+' A='+(await qty(P,'A1001')));
+  ok('د٢ بعد فقد المفتاح من IndexedDB: الطابور مستعاد (٣) والكميات ظاهرة', del==='ok'&&(await qlen(P))===3&&(await qty(P,'A1001'))===4&&(await qty(P,'B2002'))===1, 'del='+del+' q='+(await qlen(P))+' A='+(await qty(P,'A1001')));
   ok('د٣ الاستعادة مُعلنة للمستخدم (لا صمت)', /استُعيد طابور العدّ من النسخة الثانية/.test(await toasts(P)), (await toasts(P)).slice(-140));
   const idbBack=await P.evaluate(()=>new Promise(res=>{ const rq=indexedDB.open('iomp-offline'); rq.onsuccess=()=>{ const db=rq.result; const g=db.transaction('kv').objectStore('kv').get('iomp-offline-queue'); g.onsuccess=()=>{ db.close(); res(Array.isArray(g.result)?g.result.length:-1); }; }; }));
-  ok('د٣ المستعاد أُعيدت كتابته في IndexedDB', idbBack===2, 'idb='+idbBack);
+  ok('د٣ المستعاد أُعيدت كتابته في IndexedDB', idbBack===3, 'idb='+idbBack);
   await P.evaluate(()=>window.__quotaOut(false)); await P.evaluate(()=>window.__autoTick()); await sleep(900);
   const a=await srvDoc(P,'A1001'), b=await srvDoc(P,'B2002');
   ok('د٤ المزامنة بعد الاستعادة: الخادم ٤ و١ بالضبط (لا ازدواج) والطابور فارغ', a&&a.qty===4&&b&&b.qty===1&&(await qlen(P))===0);
+  await sleep(1000);
   const mir2=await P.evaluate(()=>JSON.parse(localStorage.getItem('iomp-oq-mirror')||'null'));
   ok('د٥ الطابور الفارغ ينعكس في النسخة الثانية (لا تُستعاد عمليّاتٌ أُرسلت)', Array.isArray(mir2)&&mir2.length===0);
   await ctx.close(); }

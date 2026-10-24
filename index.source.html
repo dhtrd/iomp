@@ -1575,7 +1575,7 @@ $('pwForm').onsubmit=async(e)=>{e.preventDefault();const p1=$('newPw').value,p2=
   catch(err){st('pwStatus','err',errAr(err.code||err.message));$('pwBtn').disabled=false;}};
 /* الطبقة هـ: خروجٌ وفي طابور الجهاز عمليّاتٌ لم تُرسل ⇒ تأكيدٌ صريح يشرح أنها لا تُحذف وأين تبقى (لا خروج صامت) */
 async function safeLogout(){ const n=await idleOwnQueued();
-  if(n>0&&!(await confirmDialog({title:'عمليات عدّ لم تُرسل بعد',message:'لديك '+fmt(n)+' عملية عدّ محفوظة على هذا الجهاز ولم تصل الخادم بعد. الخروج لا يحذفها: تبقى على هذا الجهاز وتُرسل تلقائيًّا عند دخولك من جديد بحسابك على هذا الجهاز نفسه. لا تمسح بيانات المتصفّح قبل إرسالها، ويمكنك تصديرها ملفًّا من «🛡 حماية العدّ».',confirmLabel:'خروج على أي حال',danger:true})))return;
+  if(n>0&&!(await confirmDialog({title:'عمليات عدّ لم تُرسل بعد',message:'لديك '+fmt(n)+' عملية عدّ محفوظة على هذا الجهاز ولم تصل الخادم بعد. الخروج لا يحذفها: تبقى على هذا الجهاز وتُرسل تلقائيًّا عند دخولك من جديد بحسابك على هذا الجهاز نفسه. لا تمسح بيانات المتصفّح قبل إرسالها.',confirmLabel:'خروج على أي حال',danger:true})))return;
   signOut(auth); }
 $('pwLogout').onclick=()=>safeLogout();
 $('logoutBtn').onclick=()=>safeLogout();
@@ -2702,9 +2702,11 @@ function idleStop(){ if(_idleT){clearTimeout(_idleT);_idleT=null;} idleDismiss()
 function idleSync(){ try{ const t=Number(localStorage.getItem(idleKey()))||0; if(t>_idleLast)_idleLast=t; }catch(e){} }
 function idleRearm(){ idleStop(); const c=idleCfg(); if(!myProfile||!(c.minutes>0))return; _idleT=setTimeout(idleWarnDue, Math.max(1000, c.minutes*60000-(Date.now()-_idleLast))); }
 async function idleOwnQueued(){ if(!featuresOfflineOn())return 0; try{ return (await oqLocked(offlineQueueGet)).filter(oqOwn).length; }catch(e){ return _offlineQueueLen||0; } }
-let _idleQNote=0;
-async function idleGoOut(){ const b0=_idleLast; idleSync(); if(myProfile&&_idleLast>b0&&(Date.now()-_idleLast)<idleCfg().minutes*60000){ idleRearm(); return; } // تبويبٌ آخر نشط بعد آخر نشاطٍ هنا
-  const nq=await idleOwnQueued(); if(nq>0&&myProfile){ idleDismiss(); _idleLast=Date.now(); idleRearm(); if(Date.now()-_idleQNote>600000){ _idleQNote=Date.now(); toastWarn('لم يُسجَّل خروجك تلقائيًّا: لديك '+fmt(nq)+' عملية عدّ لم تُرسل بعد — تبقى محفوظة وتُرسل عند عودة الاتصال/الحصّة.'); } return; }
+let _idleQNote=0, _idleGoing=false;
+async function idleGoOut(){ if(_idleGoing)return; _idleGoing=true; try{ await idleGoOut0(); }finally{ _idleGoing=false; } }
+async function idleGoOut0(){ const b0=_idleLast; idleSync(); if(myProfile&&_idleLast>b0&&(Date.now()-_idleLast)<idleCfg().minutes*60000){ idleRearm(); return; } // تبويبٌ آخر نشط بعد آخر نشاطٍ هنا
+  const b1=_idleLast; const nq=await idleOwnQueued(); idleSync(); if(myProfile&&_idleLast>b1){ idleDismiss(); idleRearm(); return; } // نشاطٌ وقع أثناء انتظار الطابور ⇒ لا خروج
+  if(nq>0&&myProfile){ idleDismiss(); _idleLast=Date.now(); idleRearm(); if(Date.now()-_idleQNote>600000){ _idleQNote=Date.now(); toastWarn('لم يُسجَّل خروجك تلقائيًّا: لديك '+fmt(nq)+' عملية عدّ لم تُرسل بعد — تبقى محفوظة وتُرسل عند عودة الاتصال/الحصّة.'); } return; }
   idleStop(); try{ localStorage.removeItem(idleKey()); }catch(e){} window.__idleOut=true; try{ signOut(auth); }catch(e){} try{ toastWarn('لانقضاء مهلة السكون سُجّل خروجك تلقائيًّا — سجّل دخولك من جديد.'); }catch(e){} }
 function idleReset(){ idleStop(); idleStamp(); const c=idleCfg(); if(!myProfile||!(c.minutes>0))return;
   _idleT=setTimeout(idleWarnDue, Math.max(1000, c.minutes*60000)); } // العدّ التنازلي يبدأ عند تمام مدة السكون (اعتماد العميل: ٣:٠٤ + ٣٠د ⇒ يبدأ ٣:٣٤)
@@ -3550,7 +3552,7 @@ function appInstalled(){ try{ return !!((window.matchMedia&&matchMedia('(display
 function isIOS(){ const u=navigator.userAgent||''; return /iPhone|iPad|iPod/.test(u)||(/Macintosh/.test(u)&&navigator.maxTouchPoints>1); }
 async function storagePersist(){ try{ const st=navigator.storage; if(!st||!st.persisted)return _persist=null; if(await st.persisted())return _persist=true; return _persist=!!(st.persist&&await st.persist()); }catch(e){ return _persist=null; } }
 function safeNoteRender(){ const el=$('safeNote'); if(!el)return; const w=[];
-  if(_persist===false)w.push('⚠ المتصفّح لم يمنح «الحفظ الدائم» — قد يمسح بياناتٍ عند امتلاء الجهاز. ثبّت التطبيق، وصدّر الطابور قبل أيّ تنظيف.');
+  if(_persist===false)w.push('⚠ المتصفّح لم يمنح «الحفظ الدائم» — قد يمسح بياناتٍ عند امتلاء الجهاز. ثبّت التطبيق، ولا تنظّف المتصفّح قبل إرسال العدّ.');
   if(isIOS()&&!appInstalled())w.push('⚠ آيفون/آيباد: ثبّت التطبيق على الشاشة الرئيسية (زرّ المشاركة ← «إضافة إلى الشاشة الرئيسية») — سفاري يمسح بيانات المواقع غير المثبّتة بعد ٧ أيام بلا استخدام.');
   w.push('لا تعدّ في نافذة التصفّح الخاص/المتخفّي — ما لم يُرسل يُمسح عند إغلاقها.');
   el.innerHTML=w.map(x=>'<div>'+esc(x)+'</div>').join(''); }
@@ -3752,10 +3754,16 @@ const offlineStore=(function(){ let _idb=null,_idbTried=false;
   function lsSet(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} }
   /* الطبقة د (حماية العدّ، ٢٠٢٦-١٠-٢٤): نسخةٌ ثانية (مرآة) من الطابور ورقم التسلسل في localStorage تُكتب مع كلّ كتابة.
      إن تعذّرت قراءة IndexedDB أو وُجد مفتاح الطابور فيه غائبًا والمرآة فيها عمليّات ⇒ تُعاد المرآة وتُستعاد إلى IndexedDB.
-     (مسح بيانات الموقع كاملةً يمحو الاثنين معًا — لذلك التصدير في «🛡 حماية العدّ» هو المخرج الأخير.) */
+     (مسح بيانات الموقع كاملةً يمحو الاثنين معًا.) */
   const MIR={'iomp-offline-queue':'iomp-oq-mirror','iomp-offline-seq':'iomp-oqseq-mirror'};
   let _mirOk=true, _restored=0;
-  function mirSet(k,v){ const m=MIR[k]; if(!m)return; try{ localStorage.setItem(m,JSON.stringify(v)); _mirOk=true; }catch(e){ _mirOk=false; try{ localStorage.removeItem(m); }catch(_){} } } // فشل الكتابة ⇒ لا تبقى مرآةٌ قديمة تُستعاد لاحقًا فتُعيد عمليّاتٍ أُرسلت
+  /* المراجعة المستقلّة: JSON.stringify + setItem متزامنان (~٤٠ms لخمسة آلاف عمليّة) ⇒ لا يُكتبان مع كلّ مسحة.
+     تُزال المرآة فورًا (رخيص) ثم تُكتب أحدث قيمةٍ بعد هدوءٍ قصير ⇒ المرآة إمّا مطابقة لـ IndexedDB وإمّا غائبة، ولا تكون أقدم منه أبدًا
+     (المرآة الأقدم قد تُعيد عمليّاتٍ أُرسلت). فشل الكتابة ⇒ تبقى غائبة. */
+  const _mirPend={}; let _mirT=0;
+  function mirFlush(){ _mirT=0; for(const m in _mirPend){ const v=_mirPend[m]; delete _mirPend[m]; try{ localStorage.setItem(m,JSON.stringify(v)); _mirOk=true; }catch(e){ _mirOk=false; try{ localStorage.removeItem(m); }catch(_){} } } }
+  function mirSet(k,v){ const m=MIR[k]; if(!m)return; try{ localStorage.removeItem(m); }catch(e){} _mirPend[m]=v; if(_mirT)clearTimeout(_mirT); _mirT=setTimeout(mirFlush,800); }
+  try{ window.addEventListener('pagehide',()=>{ if(_mirT){ clearTimeout(_mirT); mirFlush(); } }); }catch(e){}
   function mirGet(k){ const m=MIR[k]; if(!m)return null; try{ const v=localStorage.getItem(m); return v?JSON.parse(v):null; }catch(e){ return null; } }
   function mirUseful(k,m){ return m!=null&&(k==='iomp-offline-queue'?(Array.isArray(m)&&m.length>0):true); }
   async function idbGet(k){ const db=await idb(); return await new Promise((res,rej)=>{ const tx=db.transaction('kv','readonly'); const rq=tx.objectStore('kv').get(k); rq.onsuccess=()=>res(rq.result==null?null:rq.result); rq.onerror=()=>rej(rq.error); }); }
