@@ -318,6 +318,32 @@ await testEnv.withSecurityRulesDisabled(async (ctx) => { await setDoc(doc(ctx.fi
   await T('علامة الطابور: أربعة تطبيقاتٍ متزامنة للعمليّة نفسها من عميلين ⇒ تُطبَّق مرّةً واحدة بالضبط', (q === 1 && res.filter(x => x === 'applied').length === 1) ? Promise.resolve() : Promise.reject(new Error('qty=' + q + ' res=' + JSON.stringify(res)))); }
 await T('الاستيراد: العدّاد المكلَّف يقرأ علامات الاستيراد السابقة (type+hash)', assertSucceeds(getDocs(query(collection(db('u_ct'), 'sessions/s_qm/activity'), where('type','==','qimport'), where('hash','==','sha256:x')))));
 
+// منع نسبة الكميات لغير صاحبها (قرار المالك ٢٠٢٦-١٠-٢٤، الخيار ١): ownAppend على counts وitemNotes
+await testEnv.withSecurityRulesDisabled(async (ctx) => { const d = ctx.firestore();
+  await setDoc(doc(d, 'sessions/s_own'), { name:'نسبة', status:'open', started:true, assignedCounters:['u_ct','u_wh','u_owner','u_imp'], location:'فرع أ', createdBy:'u_owner' });
+  await setDoc(doc(d, 'users/u_imp'), { email:'imp@x.com', role:'عدّاد', active:true });
+  await setDoc(doc(d, 'config/permissions'), { users: { u_imp: { 'count.importOthers': true } } }, { merge: true });
+  await setDoc(doc(d, 'sessions/s_own/counts/C1'), { code:'C1', qty:3, entries:[{ id:'x1', q:3, by:'u_x', byName:'زميل', at:1, n:3 }] });
+  await setDoc(doc(d, 'sessions/s_own/itemNotes/C1'), { code:'C1', notes:[{ id:'n1', text:'أ', by:'u_x', byName:'زميل', at:1 }] }); });
+const EX = { id:'x1', q:3, by:'u_x', byName:'زميل', at:1, n:3 };
+const cw = (u, entries) => setDoc(doc(db(u), 'sessions/s_own/counts/C1'), { code:'C1', qty:entries.reduce((a,e)=>a+e.q,0), entries });
+await T('نسبة العدّ: العدّاد يضيف سطرًا باسمه', assertSucceeds(cw('u_ct', [EX, { id:'e2', q:1, by:'u_ct', byName:'ع', at:2 }])));
+await T('نسبة العدّ: العدّاد لا يضيف سطرًا باسم زميل', assertFails(cw('u_ct', [EX, { id:'e2', q:1, by:'u_ct', byName:'ع', at:2 }, { id:'e3', q:5, by:'u_x', byName:'زميل', at:3 }])));
+await T('نسبة العدّ: لا تحايل بإدراج سطر الزميل في أوّل القائمة', assertFails(cw('u_ct', [{ id:'e4', q:5, by:'u_x', byName:'زميل', at:4 }, EX, { id:'e2', q:1, by:'u_ct', byName:'ع', at:2 }])));
+await T('نسبة العدّ: لا إضافة باسمه مع تعديل سطر زميل في الكتابة نفسها', assertFails(cw('u_ct', [Object.assign({}, EX, { q:9 }), { id:'e2', q:1, by:'u_ct', byName:'ع', at:2 }, { id:'e5', q:1, by:'u_ct', byName:'ع', at:5 }])));
+await T('نسبة العدّ: «إنقاص واحد» من تتابع زميل (بلا إطالة) مسموح كما كان', assertSucceeds(cw('u_ct', [Object.assign({}, EX, { q:2, n:2 }), { id:'e2', q:1, by:'u_ct', byName:'ع', at:2 }])));
+await T('نسبة العدّ: حذف سطر زميل مسموح كما كان', assertSucceeds(cw('u_ct', [{ id:'e2', q:1, by:'u_ct', byName:'ع', at:2 }])));
+await T('نسبة العدّ: مدير المخزون لا يضيف باسم غيره (بلا الصلاحية افتراضيًّا)', assertFails(cw('u_wh', [{ id:'e2', q:1, by:'u_ct', byName:'ع', at:2 }, { id:'e6', q:1, by:'u_ct', byName:'ع', at:6 }])));
+await T('نسبة العدّ: صاحب «استيراد عدّ الآخرين» يضيف باسم العدّاد', assertSucceeds(cw('u_imp', [{ id:'e2', q:1, by:'u_ct', byName:'ع', at:2 }, { id:'e7', q:2, by:'u_ct', byName:'ع', at:7 }])));
+await T('نسبة العدّ: المالك (كل الصلاحيات) يضيف باسم العدّاد', assertSucceeds(cw('u_owner', [{ id:'e2', q:1, by:'u_ct', byName:'ع', at:2 }, { id:'e7', q:2, by:'u_ct', byName:'ع', at:7 }, { id:'e8', q:1, by:'u_ct', byName:'ع', at:8 }])));
+await T('نسبة العدّ: إنشاء مستند صنفٍ جديد بسطرٍ باسم زميل مرفوض للعدّاد', assertFails(setDoc(doc(db('u_ct'), 'sessions/s_own/counts/C2'), { code:'C2', qty:1, entries:[{ id:'z', q:1, by:'u_x', byName:'زميل', at:1 }] })));
+await testEnv.withSecurityRulesDisabled(async (ctx) => { await setDoc(doc(ctx.firestore(), 'sessions/s_own/counts/C3'), { code:'C3', qty:3, entries:[EX] }); });
+await T('نسبة العدّ: لا تحايل بنسخةٍ مكرّرة من سطر زميل + سطر الكاتب (تضاعف كمية الزميل)', assertFails(setDoc(doc(db('u_ct'), 'sessions/s_own/counts/C3'), { code:'C3', qty:7, entries:[EX, EX, { id:'e9', q:1, by:'u_ct', byName:'ع', at:9 }] })));
+await T('نسبة العدّ: لا إضافة سطرين في كتابة واحدة حتى باسم الكاتب', assertFails(setDoc(doc(db('u_ct'), 'sessions/s_own/counts/C3'), { code:'C3', qty:5, entries:[EX, { id:'e10', q:1, by:'u_ct', byName:'ع', at:10 }, { id:'e11', q:1, by:'u_ct', byName:'ع', at:11 }] })));
+const NX = { id:'n1', text:'أ', by:'u_x', byName:'زميل', at:1 };
+await T('نسبة الملاحظات: العدّاد يضيف ملاحظة باسمه', assertSucceeds(setDoc(doc(db('u_ct'), 'sessions/s_own/itemNotes/C1'), { code:'C1', notes:[NX, { id:'n2', text:'ب', by:'u_ct', byName:'ع', at:2 }] })));
+await T('نسبة الملاحظات: لا يضيف ملاحظة باسم زميل', assertFails(setDoc(doc(db('u_ct'), 'sessions/s_own/itemNotes/C1'), { code:'C1', notes:[NX, { id:'n2', text:'ب', by:'u_ct', byName:'ع', at:2 }, { id:'n3', text:'ج', by:'u_x', byName:'زميل', at:3 }] })));
+
 await testEnv.cleanup();
 console.log(`\nRECON ${pass}/${pass + fail} passed`);
 process.exit(fail ? 1 : 0);

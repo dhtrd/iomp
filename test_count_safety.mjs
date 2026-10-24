@@ -16,10 +16,11 @@ const b64 = (o) => Buffer.from(JSON.stringify(o), 'utf8').toString('base64');
 const C1 = { uid:'u_c1', email:'c1@x.com', name:'عدّاد أول', role:'عدّاد', active:true };
 const MG = { uid:'u_mgr', email:'m@x.com', name:'مدير الفرع', role:'مدير', active:true };
 const OUT = { uid:'u_out', email:'o@x.com', name:'غير مكلَّف', role:'مدير', active:true };
+const C2 = { uid:'u_c2', email:'c2@x.com', name:'عدّاد ثانٍ', role:'عدّاد', active:true };
 const SESS = (assigned)=>[{ id:'sr', name:'جرد ليلي', status:'open', started:true, assignedCounters:assigned, location:'فرع أ', itemCount:3,
   __chunks:[[{code:'A1001',name:'صنف أ',category:'ك',book:5,cost:1},{code:'B2002',name:'صنف ب',category:'ك',book:3,cost:1},{code:'C3003',name:'صنف ج',category:'ك',book:2,cost:1}]] }];
 const CFG = { features:{ offlineCount:true } };
-const sc=(me,assigned,extra)=>Object.assign({ profile:me, users:[C1,MG,OUT], config:CFG, sessions:SESS(assigned||['u_c1','u_mgr']) },extra||{});
+const sc=(me,assigned,extra)=>Object.assign({ profile:me, users:[C1,MG,OUT,C2], config:CFG, sessions:SESS(assigned||['u_c1','u_mgr']) },extra||{});
 
 const results=[]; const ok=(n,c,d='')=>results.push({n,pass:!!c,d});
 const browser=await chromium.launch({ executablePath:EXE, args:['--no-sandbox'] });
@@ -213,6 +214,17 @@ const r6=await doImport(B,F5);
 { const c=await browser.newContext({ viewport:{width:1100,height:1000} }); const M=await c.newPage(); await boot(M,sc(MG,['u_mgr'])); await openSr(M); await openSafe(M);
   const r=await M.evaluate(t=>window.IOMPQ.importText(t),JSON.stringify(F5));
   ok('و١٣ الملف لعدّادٍ ليس ضمن المكلَّفين بالجلسة ⇒ لا تُنسب له كميات', r&&r.err==='blocked'&&/ليس ضمن العدّادين المكلَّفين بهذه الجلسة/.test((r.blocked||[]).join()), JSON.stringify(r)); await c.close(); }
+// صلاحية «استيراد عدّ الآخرين» (قرار المالك ٢٠٢٦-١٠-٢٤): عدّادٌ لا يستورد ملف زميله، ويستورد ملفّه هو
+await A.evaluate(()=>window.__quotaOut(true)); await A.evaluate(()=>window.__addEntry('C3003',2)); await sleep(400);
+await openSafe(A); await A.evaluate(()=>document.getElementById('qioExp').click()); await sleep(500);
+const F6=await A.evaluate(()=>window.__qioLastExport);
+{ const c=await browser.newContext({ viewport:{width:1100,height:1000} }); const X=await c.newPage(); await boot(X,sc(C2,['u_c1','u_mgr','u_c2'])); await openSr(X); await openSafe(X);
+  const r=await X.evaluate(t=>window.IOMPQ.importText(t),JSON.stringify(F6));
+  ok('و١٥ عدّادٌ بلا «استيراد عدّ الآخرين» لا يستورد ملف زميله (رسالة صريحة)', r&&r.err==='cap'&&/استيراد عدّ الآخرين/.test(await toasts(X)), JSON.stringify(r)); await c.close(); }
+{ const c=await browser.newContext({ viewport:{width:1100,height:1000} }); const Y=await c.newPage(); await boot(Y,sc(C1)); await syncStore(B,Y); await openSr(Y);
+  const before=(await srvDoc(Y,'C3003')||{}).qty||0; const r=await doImport(Y,F6);
+  const d=await srvDoc(Y,'C3003');
+  ok('و١٦ العدّاد يستورد ملفّه بحسابه على جهازٍ آخر (بلا صلاحيةٍ إضافيّة)', r&&r.ok&&r.applied>=1&&d.qty===before+2&&d.entries.filter(e=>e.q===2).every(e=>e.by==='u_c1'), JSON.stringify({r,before,q:d&&d.qty})); await c.close(); }
 await devA.close(); await devB.close();
 
 await browser.close(); srv.close();

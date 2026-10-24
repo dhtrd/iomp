@@ -38,7 +38,7 @@ service cloud.firestore {
     // الافتراضات المدمجة — تطابق DEFAULT_CAPS في التطبيق (محسوبة خفيفة بدل بناء خريطة كبيرة)
     function defCap(role, cap) {
       return role == 'مدير' ? true
-        : role == 'مدير مخزون' ? !(['session.approve.finance','session.approve.gm','session.reopen','report.view.own','report.view.location','session.branchReview','branch.manage','users.manage','perms.manage','trash.purge'].hasAny([cap]))
+        : role == 'مدير مخزون' ? !(['session.approve.finance','session.approve.gm','session.reopen','report.view.own','report.view.location','session.branchReview','count.importOthers','branch.manage','users.manage','perms.manage','trash.purge'].hasAny([cap]))
         : role == 'عدّاد' ? (cap == 'count')
         : role == 'مطّلع' ? (cap == 'report.view' || cap == 'report.export' || cap == 'pw.change' || cap == 'pw.request')
         : false;
@@ -115,6 +115,17 @@ service cloud.firestore {
           && s.get('deleted', false) == false && s.get('assignedCounters', []).hasAny([uid()]);
     }
     function sess(sid) { return get(/databases/$(database)/documents/sessions/$(sid)).data; }
+    // منع نسبة الكميات لغير صاحبها (قرار المالك ٢٠٢٦-١٠-٢٤، الخيار ١): حين تطول القائمة (إضافة) يجب أن يكون كلّ ما تغيّر
+    // سطرًا واحدًا باسم الكاتب نفسه — إلا لمن يملك «استيراد عدّ الآخرين». التعديل بلا إطالة (دمج تتابع، إنقاص، حذف) غير مقيَّد
+    // (حدٌّ معروف: القواعد لا تمرّ على عناصر القائمة واحدًا واحدًا).
+    function ownAppend(f) {
+      let n = request.resource.data.get(f, []);
+      let o = resource == null ? [] : resource.data.get(f, []);
+      let added = n.removeAll(o);
+      return n.size() <= o.size()
+        || ( n.size() == o.size() + 1 && added.size() == 1 && added[0].get('by', '') == uid() )   // المراجعة المستقلّة: removeAll يُسقط النسخ المكرّرة ⇒ نسخة سطر زميل + سطر الكاتب كانت تمرّ
+        || can('count.importOthers');
+    }
     // مراجعة الفرع قبل الاعتماد (علم features.branchReview — افتراضيًا معطّل):
     // brOn: العلم مفعّل · brMeta: مستند الإرسال · brSent: أُرسلت المراجعة لهذا الإقفال نفسه (closedAt مطابق)
     function brOn() { return pExists() && pData().get('features', {}).get('branchReview', false) == true; }
@@ -243,13 +254,13 @@ service cloud.firestore {
       // العدّات — قراءة بالنطاق، كتابة للمكلَّف في جلسة مفتوحة مبدوءة، وحذفٌ له أو للحذف النهائي من السلة فقط
       match /counts/{cid} {
         allow read: if readData(sess(sid));
-        allow create, update: if countable(sess(sid));
+        allow create, update: if countable(sess(sid)) && ownAppend('entries');
         allow delete: if countable(sess(sid)) || ( sess(sid).get('deleted', false) == true && can('trash.purge') );
       }
       // ملاحظات العدّ لكل صنف (طلب العميل) — قراءة بالنطاق؛ كتابتها لمن يعدّ فعليًّا (مكلَّف والجلسة مفتوحة)
       match /itemNotes/{nid} {
         allow read: if readData(sess(sid));
-        allow create, update: if countable(sess(sid));
+        allow create, update: if countable(sess(sid)) && ownAppend('notes');
         allow delete: if countable(sess(sid)) || ( sess(sid).get('deleted', false) == true && can('trash.purge') );
       }
       // لقطة الأصناف — قراءة بالنطاق، كتابة عند الرفع، حذف عند الحذف النهائي
