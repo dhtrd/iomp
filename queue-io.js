@@ -6,7 +6,10 @@
      • كلّ عمليّةٍ تُطبَّق عبر C.qApply (index.html) في معاملةٍ مع علامةٍ حتميّة على الخادم ⇒ لا تُطبَّق أيّ عمليّةٍ مرّتين أبدًا
        (ملفٌّ مكرَّر أو متداخل، استئنافٌ بعد انقطاع، أو جهازٌ أصليّ عاد فدفع الطابور نفسه) — هذا ما أوقف التصميم الأوّل في المراجعة المستقلّة.
      • الكميات تُنسب للعدّاد الأصليّ؛ والعلامة/سطر السجلّ يذكر المستورِد (by) والعدّاد (forUid/forName).
-     • «تصفير صنف» يُتخطّى إن كانت على الخادم كمياتٌ أحدث منه، ويظهر في التقرير (قرار المالك).
+     • «تصفير صنف»: يُصفَّر ما عُدّ قبله، وتبقى الكميات الأحدث منه (عدّ زميلٍ بعده) وتظهر في التقرير.
+       (كان التصميم يتخطّى التصفير كلّه — المراجعة المستقلّة: ذلك يُبقي العدّ القديم فوق العدّ الجديد ⇒ زيادة.)
+     • حذفٌ قديم بلا معرّف لا يُطبَّق بفهرس جهازٍ آخر — يظهر في التقرير.
+     • تنبيه أمنيّ: البصمة تثبت سلامة الملف لا مصدره؛ القواعد لا تتحقّق من «by» داخل سطور العدّ (قائمٌ قبل هذه الطبقة).
      • الملف لا يُستورد مرّتين (سطر qimport ببصمته) — حمايةٌ للمستخدم فوق الضمان الذرّيّ. */
 (function(){
 'use strict';
@@ -71,7 +74,9 @@ async function importText(txt){
   const h=await digest(JSON.stringify(F.ops));
   if(F.hash.split(':')[0]!==h.split(':')[0]){ C.toastErr('تعذّر التحقّق من بصمة الملف على هذا المتصفّح.'); return {ok:false,err:'algo'}; }
   if(h!==F.hash){ C.toastErr('بصمة الملف لا تطابق محتواه — الملف معطوب أو عُدِّل. لم يُستورد شيء.'); return {ok:false,err:'hash'}; }
-  if(F.ops.some(o=>!o||o.uid!==F.by.uid||o.deviceId!==F.deviceId||typeof o.seq!=='number'||typeof o.at!=='number')){ C.toastErr('الملف يحتوي عمليات لا تخصّ مُصدِّره أو ناقصة — لم يُستورد شيء.'); return {ok:false,err:'ops'}; }
+  // عمليّات قديمة بلا uid = مُصدِّرها (كما يعدّها الجهاز)؛ ومعرّف الجهاز لا يُشترط تطابقه (قد يتغيّر بمسح localStorage) — العلامة تستعمل معرّف كلّ عمليّة
+  F.ops.forEach(o=>{ if(o&&!o.uid)o.uid=F.by.uid; });
+  if(F.ops.some(o=>!o||o.uid!==F.by.uid||!o.deviceId||typeof o.seq!=='number'||typeof o.at!=='number')){ C.toastErr('الملف يحتوي عمليات لا تخصّ مُصدِّره أو ناقصة — لم يُستورد شيء.'); return {ok:false,err:'ops'}; }
   const AS={uid:F.by.uid,name:F.by.name||''};
   const bySid={}; F.ops.forEach(o=>{ if(o.sid)(bySid[o.sid]=bySid[o.sid]||[]).push(o); });
   const sids=Object.keys(bySid); if(!sids.length){ C.toastWarn('الملف لا يحتوي عمليات.'); return {ok:false,err:'empty'}; }
@@ -95,12 +100,13 @@ async function importText(txt){
 
 async function applyPlan(F,AS,plan,blocked){
   const me=(C.me&&C.me.name)||''; const tag=' — مستوردة من ملف'+(AS.uid!==C.uid?(' لـ'+(AS.name||'')):'')+' بواسطة '+me;
-  let applied=0, already=0; const skipped=[], errors=[];
+  let applied=0, already=0; const skipped=[], errors=[], legacy=[];
   for(const P of plan){ let cnt=0, stop=false;
     for(const op of P.ops){
       try{ const r=await C.qApply(op,AS,tag,true);
         if(r===C.QSKIP)already++;
-        else if(r&&r.skipped)skipped.push({sess:P.name,code:op.code,at:op.at,newer:r.newer});
+        else if(r&&r.partial){ applied++; skipped.push({sess:P.name,code:op.code,at:op.at,newer:r.kept}); }
+        else if(r&&r.legacy)legacy.push(P.name+' — '+op.code);
         else applied++;
         cnt++;
       }catch(e){ errors.push(P.name+' — '+op.code+': '+C.errAr(e.code||e.message)); stop=true; break; } }
@@ -108,11 +114,12 @@ async function applyPlan(F,AS,plan,blocked){
         name:'استيراد ملف طابور: '+C.fmt(cnt)+' عملية لـ'+(AS.name||'')+' (جهاز '+F.deviceId+')',qty:cnt,code:'',by:C.uid,byName:me,at:C.serverTimestamp()}); }catch(e){} }
     if(stop)break; }
   const rep='<div class="cfmsg">'+(errors.length?'⚠ توقّف الاستيراد قبل اكتماله.':'✅ اكتمل الاستيراد.')+' طُبّقت '+C.fmt(applied)+' عملية'+(already?(' — و'+C.fmt(already)+' كانت مطبّقةً سلفًا على الخادم فلم تتكرّر'):'')+'.</div>'
-    +(skipped.length?('<div style="margin-top:8px"><b>«تصفير صنف» لم يُنفَّذ لوجود كمياتٍ أحدث منه على الخادم — راجِعه يدويًّا:</b>'+skipped.map(x=>'<div class="muted" style="font-size:13px">• '+C.esc(x.sess)+' — '+C.esc(x.code)+' (تصفير '+C.esc(C.fmtDT(new Date(x.at)))+'، كميات أحدث: '+C.fmt(x.newer)+')</div>').join('')+'</div>'):'')
+    +(skipped.length?('<div style="margin-top:8px"><b>«تصفير صنف» نُفِّذ على ما عُدّ قبله فقط — وبقيت كمياتٌ أحدث منه على الخادم (عدّ زميلٍ بعد التصفير)، راجِعها:</b>'+skipped.map(x=>'<div class="muted" style="font-size:13px">• '+C.esc(x.sess)+' — '+C.esc(x.code)+' (تصفير '+C.esc(C.fmtDT(new Date(x.at)))+'، سطور أحدث باقية: '+C.fmt(x.newer)+')</div>').join('')+'</div>'):'')
+    +(legacy.length?('<div style="margin-top:8px"><b>حذفٌ قديم بلا معرّف لم يُطبَّق (يُراجَع يدويًّا):</b>'+legacy.map(x=>'<div class="muted" style="font-size:13px">• '+C.esc(x)+'</div>').join('')+'</div>'):'')
     +(blocked.length?('<div style="margin-top:8px"><b>مستثنى:</b>'+blocked.map(b=>'<div class="muted" style="font-size:13px">• '+C.esc(b)+'</div>').join('')+'</div>'):'')
     +(errors.length?('<div style="margin-top:8px;color:var(--danger)"><b>أخطاء:</b>'+errors.map(b=>'<div style="font-size:13px">• '+C.esc(b)+'</div>').join('')+'<div class="muted" style="font-size:12.5px">أعد استيراد الملف نفسه بعد عودة الاتصال — ما طُبّق لا يتكرّر، ويُكمل الباقي.</div></div>'):'');
   shell('⬆ نتيجة الاستيراد',rep);
-  return {ok:!errors.length,applied,already,skipped,errors,blocked}; }
+  return {ok:!errors.length,applied,already,skipped,errors,blocked,legacy}; }
 
 window.IOMPQ={open,exportQueue,importText,_close:close};
 })();

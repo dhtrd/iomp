@@ -4152,7 +4152,7 @@ function netOnline(){ if(_forcedOnline!==null)return !!_forcedOnline; try{ retur
 function offlineDeviceId(){ try{ let d=localStorage.getItem(OFFLINE_DEVICE_KEY); if(!d){ d='dev-'+Math.random().toString(16).slice(2,10)+Math.random().toString(16).slice(2,6); localStorage.setItem(OFFLINE_DEVICE_KEY,d); } return d; }catch(e){ return 'dev-nostore'; } }
 function offlineGetSyncStatus(){ try{ return JSON.parse(localStorage.getItem(SYNC_STATUS_KEY+((myProfile&&myProfile.uid)||''))||'null'); }catch(e){ return null; } }
 function offlineSetSyncStatus(s){ try{ localStorage.setItem(SYNC_STATUS_KEY+((myProfile&&myProfile.uid)||''), JSON.stringify(s||null)); }catch(e){} }
-function offlineIsConnErr(err){ if(!err)return false; const c=(err.code||'')+'', m=(err.message||'')+''; return /unavailable|network|offline|failed-precondition|deadline-exceeded|internal|resource-exhausted|resource_exhausted|exhausted|quota/i.test(c)||/network|offline|connection|failed to|اتصال|resource-exhausted|exhausted|quota|حصّة/i.test(m); }
+function offlineIsConnErr(err){ if(!err)return false; const c=(err.code||'')+'', m=(err.message||'')+''; return /unavailable|network|offline|failed-precondition|deadline-exceeded|internal|resource-exhausted|resource_exhausted|exhausted|quota|aborted/i.test(c)||/network|offline|connection|failed to|اتصال|resource-exhausted|exhausted|quota|حصّة/i.test(m); }
 async function offlineQueueGet(){ return (await offlineStore.get(OFFLINE_QUEUE_KEY))||[]; }
 let _flushFailN=0, _cacheNote=0, _oq=null, _srvCounts={}, _cntDead=null, _qDown=0, _qNoteAt=0, _oqLock=Promise.resolve(), _cntGot=0, _cntEvt=0, _kickT=0, _reattach=null, _lastCache=false;
 function oqLocked(fn){ const run=()=>(navigator.locks&&navigator.locks.request)?navigator.locks.request('iomp-oq',()=>fn()):fn(); const p=_oqLock.then(run,run); _oqLock=p.then(()=>{},()=>{}); return p; }
@@ -4237,8 +4237,11 @@ async function countWriteRemove(sid,code,index,eid,mk){ const ref=doc(db,'sessio
     if(!s.exists()){ if(mk)tx.set(mk.ref,mk.data(null)); return; } const cur=s.data();const entries=(cur.entries||[]).slice();let i=index; if(eid!=null){ i=entries.findIndex(e=>e&&e.id===eid); } if(i<0||i>=entries.length){ if(mk)tx.set(mk.ref,mk.data(null)); return; } removedQ=entries[i].q;entries.splice(i,1);if(!entries.length){tx.delete(ref);}else{tx.set(ref,{code:code,qty:entries.reduce((a,e)=>a+(e.q||0),0),entries:entries,lastByName:myProfile.name||'',lastAt:serverTimestamp()});} if(mk)tx.set(mk.ref,mk.data(removedQ));}); return _sk?QSKIP:removedQ; }
 async function countWriteReset(sid,code,mk,newerThan){ const ref=doc(db,'sessions',sid,'counts',safeId(code)); if(!mk){ await deleteDoc(ref); return; }
   let r=null; await runTransaction(db,async(tx)=>{ const s=await tx.get(ref); const m=await tx.get(mk.ref); r=null; if(m.exists()){ r=QSKIP; return; }
-    if(newerThan!=null&&s.exists()){ const nw=(s.data().entries||[]).filter(e=>e&&(e.at||0)>newerThan).length;
-      if(nw){ r={skipped:true,newer:nw}; tx.set(mk.ref,mk.data(null,{skipped:true,newer:nw})); return; } }
+    if(newerThan!=null&&s.exists()){ const cur=s.data(), all=(cur.entries||[]); const t=e=>Math.max(Number(e&&e.at)||0,Number(e&&e.endAt)||0);
+      const keep=all.filter(e=>e&&t(e)>newerThan);
+      if(keep.length){ const gone=all.length-keep.length, gq=all.filter(e=>!(e&&t(e)>newerThan)).reduce((a,e)=>a+((e&&e.q)||0),0);
+        tx.set(ref,{code:cur.code||code,qty:keep.reduce((a,e)=>a+(e.q||0),0),entries:keep,lastByName:myProfile.name||'',lastAt:serverTimestamp()});
+        r={partial:true,kept:keep.length,removed:gone}; tx.set(mk.ref,mk.data(gq,{partial:true,kept:keep.length})); return; } }
     if(s.exists())tx.delete(ref); tx.set(mk.ref,mk.data(mk.q==null?null:mk.q)); }); return r; }
 const QSKIP={qskip:1};
 function qMarkRef(op){ return doc(db,'sessions',op.sid,'activity','q_'+String(op.deviceId||'dev').replace(/[^A-Za-z0-9_-]/g,'')+'_'+op.seq+'_'+op.at); }
@@ -4247,7 +4250,7 @@ function qMark(op,as,tag){ return {ref:qMarkRef(op), q:(op.log&&op.log.q!=null)?
 async function qApply(op,as,tag,imp){ const mk=qMark(op,as,tag);
   if(op.op==='add') return await countWriteAdd(op.sid,op.code,op.val,op.at,op.eid,op.run||null,op.src||'',as,mk);
   else if(op.op==='dec') return await countWriteDec(op.sid,op.code,op.eid,mk);
-  else if(op.op==='remove') return await countWriteRemove(op.sid,op.code,(imp&&op.eid!=null)?-1:op.index,op.eid,mk);
+  else if(op.op==='remove'){ if(imp&&op.eid==null)return {legacy:true}; return await countWriteRemove(op.sid,op.code,(imp?-1:op.index),op.eid,mk); }
   else if(op.op==='reset') return await countWriteReset(op.sid,op.code,mk,imp?(op.at||0):null);
   else if(op.op==='note') return await noteWriteAdd(op.sid,op.code,op.text,op.at,op.eid,as,mk);
   else if(op.op==='additem') return await extraWriteAdd(op.sid,op.code,op.item,mk); }
@@ -4270,7 +4273,7 @@ async function offlineFlush0(manual){ const quiet=(manual==='auto'); if(quiet)ma
     for(const op of q){ if(!auth.currentUser||!myProfile){ failed=true; break; } const ck=op.sid+'|'+String(op.code); if(skip.has(ck))continue;
       const ev=_cntEvt; try{ const rv=await offlineApplyRemote(op);
         await oqDrop(op); bad=0;
-        if(rv===QSKIP)_qSkipN++;
+        if(rv===QSKIP){ _qSkipN++; if(op.sid===curSid&&$('clist')){ cntRebuild(); renderCountListLive(); } }
         if(op.sid===curSid&&_cntEvt!==ev&&$('clist')){ cntRebuild(); renderCountListLive(); }
         flushed++; flushedBySid[op.sid]=(flushedBySid[op.sid]||0)+1;
       }catch(e){
@@ -4932,7 +4935,7 @@ function renderActivity(qs){
   const _wireBy=()=>{ if($('actlog'))$('actlog').querySelectorAll('.actby').forEach(b=>b.onclick=()=>{ _actByFilter=b.getAttribute('data-actby')||''; if(_actLastQs)renderActivity(_actLastQs); }); };
   if(!rows.length){$('actlog').innerHTML=_scope+'<p class="empty-hint">لا حركات بعد — ستظهر هنا كل إضافة أو حذف مع اسم من قام بها ووقتها.</p>';_wireBy();return;}
   const tmap={add:'➕ إضافة',remove:'➖ حذف كمية',reset:'↺ تصفير صنف',note:'📝 ملاحظة عدّ',close:'🔒 إغلاق للمراجعة',reviewed:'✔ تمت المراجعة',fin_approve:'🖊 اعتماد مالي',approve:'✅ اعتماد وقفل',return:'↩ إرجاع للعدّ',toreview:'↩ إرجاع للمراجعة',reopen:'🔓 فتح استثنائي',sync:'🔄 مزامنة دون اتصال',qimport:'⬆ استيراد ملف طابور'};
-  const tcol={add:'var(--success)',remove:'var(--danger)',reset:'var(--warn)',note:'var(--navy700)',close:'var(--navy500)',reviewed:'var(--navy500)',fin_approve:'var(--navy500)',approve:'var(--success)',return:'var(--warn)',toreview:'var(--warn)',reopen:'var(--danger)',sync:'var(--navy700)'};
+  const tcol={add:'var(--success)',remove:'var(--danger)',reset:'var(--warn)',note:'var(--navy700)',close:'var(--navy500)',reviewed:'var(--navy500)',fin_approve:'var(--navy500)',approve:'var(--success)',return:'var(--warn)',toreview:'var(--warn)',reopen:'var(--danger)',sync:'var(--navy700)',qimport:'var(--navy700)'};
   $('actlog').innerHTML=_scope+'<div style="max-height:300px;overflow:auto">'+rows.map(a=>{
     const t=actWhen(a); let tstr=t?fmtDateTimeAr(t):'الآن';
     if(typeof a.countedAt==='number'&&a.countedAt>0)tstr='عُدّت: '+fmtDateTimeAr(new Date(a.countedAt));

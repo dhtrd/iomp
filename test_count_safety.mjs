@@ -166,6 +166,7 @@ await syncStore(B,A);
 await A.evaluate(()=>window.__quotaOut(false)); await A.evaluate(()=>window.__autoTick()); await sleep(1200);
 { const a=await srvDoc(A,'A1001'), b=await srvDoc(A,'B2002'), c=await srvDoc(A,'C3003');
   ok('و٨ الجهاز الأصليّ يدفع طابوره بعد الاستيراد: لا تعود الكمية المحذوفة ولا يتضاعف التتابع (A=5، B=3، C=4) والطابور فارغ', a.qty===5&&b.qty===3&&c.qty===4&&(await qlen(A))===0, JSON.stringify({a:a.qty,b:b.qty,c:c.qty,q:await qlen(A)}));
+  ok('و٨ شاشة الجهاز بعد التخطّي تطابق الخادم (لا انعكاس عمليّاتٍ مطبَّقة فوق الخادم)', (await qty(A,'A1001'))===5&&(await qty(A,'B2002'))===3&&(await qty(A,'C3003'))===4, JSON.stringify({a:await qty(A,'A1001'),b:await qty(A,'B2002'),c:await qty(A,'C3003')}));
   ok('و٨ تنبيهٌ صريح بأن العمليّات كانت مطبَّقة سلفًا', /كانت مطبَّقةً سلفًا/.test(await toasts(A)), (await toasts(A)).slice(-150)); }
 // العكس: الجهاز يدفع أوّلًا ثم يُستورد ملفّه (نسخة احتياطيّة) — تتابع المسح لا يتضاعف
 await A.evaluate(()=>window.__quotaOut(true));
@@ -191,12 +192,19 @@ const r5=await doImport(B,F4);
   ok('و١٠ استيرادٌ انقطع ثم أُعيد: الأولى تُطبَّق مرّةً واحدة والثانية تُكمَل (A=6، B=9)', r4&&r4.errors.length===1&&midA===6&&r5.ok&&r5.already===1&&a.qty===6&&b.qty===9, JSON.stringify({r4:r4&&{e:r4.errors.length,ap:r4.applied},midA,r5:{ap:r5.applied,al:r5.already},a:a.qty,b:b.qty})); }
 // «تصفير» داخل ملفٍّ والخادم فيه كميةٌ أحدث منه ⇒ يُتخطّى ويظهر في التقرير
 await A.evaluate(()=>window.__resetItem('A1001')); if(await waitVis(A,'cfOverlay')){ await A.evaluate(()=>document.getElementById('cfGo').click()); } await sleep(400);
+await A.evaluate(()=>window.__addEntry('A1001',3)); await sleep(400); // إعادة عدٍّ بعد التصفير
 await openSafe(A); await A.evaluate(()=>document.getElementById('qioExp').click()); await sleep(500);
 const F5=await A.evaluate(()=>window.__qioLastExport);
 await B.evaluate(()=>{ const k='sessions/sr/counts/A1001'; const x=window.__store[k]; const en=x.entries.concat([{id:'zz6',q:6,by:'u_x',byName:'آخر',at:Date.now()+5000}]); window.__store[k]=Object.assign({},x,{entries:en,qty:en.reduce((s,e)=>s+e.q,0)}); });
 const r6=await doImport(B,F5);
 { const a=await srvDoc(B,'A1001');
-  ok('و١١ «تصفير» في ملفٍّ والخادم فيه كميةٌ أحدث ⇒ لا يُمسح عدّ الزميل، ويظهر في التقرير', a&&a.entries.some(e=>e.id==='zz6')&&r6.skipped&&r6.skipped.length===1&&/لم يُنفَّذ/.test(await B.evaluate(()=>document.getElementById('qioBody').textContent)), JSON.stringify({q:a&&a.qty,s:r6.skipped})); }
+  ok('و١١ «تصفير» ثم إعادة عدّ (٣) في ملفٍّ والخادم فيه عدّ زميلٍ أحدث (٦): يُصفَّر القديم فقط ⇒ ٦+٣=٩ (لا يبقى القديم فوق الجديد)', a&&a.qty===9&&a.entries.some(e=>e.id==='zz6')&&a.entries.length===2, JSON.stringify(a&&a.entries.map(e=>[e.id,e.q])));
+  ok('و١١ التقرير يذكر أن التصفير نُفِّذ على ما قبله وبقيت كمياتٌ أحدث', r6.skipped&&r6.skipped.length===1&&/نُفِّذ على ما عُدّ قبله/.test(await B.evaluate(()=>document.getElementById('qioBody').textContent)), JSON.stringify(r6.skipped)); }
+// ملفٌّ فيه عمليّات قديمة بلا uid ومعرّف جهازٍ تغيّر (مسح localStorage) ⇒ يُقبل
+{ const L=JSON.parse(JSON.stringify(F5)); L.deviceId='dev-new0000'; L.ops=L.ops.map(o=>{ const x=Object.assign({},o); delete x.uid; return x; });
+  const crypto=await import('node:crypto'); L.hash='sha256:'+crypto.createHash('sha256').update(JSON.stringify(L.ops)).digest('hex');
+  const rr=await doImport(B,L);
+  ok('و١٤ عمليّات قديمة بلا uid ومعرّف جهاز مختلف: يُقبل الملف، ولا يتكرّر شيء (العلامات بمعرّف كلّ عمليّة)', rr&&rr.ok&&rr.applied===0&&rr.already===L.ops.length&&(await srvDoc(B,'A1001')).qty===9, JSON.stringify(rr)); }
 // مستوردٌ غير مكلَّف بالجلسة ⇒ رفض مع الإرشاد
 { const c=await browser.newContext({ viewport:{width:1100,height:1000} }); const O=await c.newPage(); await boot(O,sc(OUT)); await openSr(O); await openSafe(O);
   const r=await O.evaluate(t=>window.IOMPQ.importText(t),JSON.stringify(F5));

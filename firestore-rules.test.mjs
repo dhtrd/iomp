@@ -308,6 +308,14 @@ await T('علامة الطابور: العدّاد المكلَّف يكتب ا�
 await T('علامة الطابور: لا تُعدَّل بعد إنشائها (append-only)', assertFails(setDoc(doc(fsCt, QM), { type:'qop', code:'QM1', qty:2, by:'u_ct', byName:'ع' })));
 await T('علامة الطابور: لا تُكتب باسم غير الكاتب (by ≠ uid)', assertFails(setDoc(doc(db('u_ct'), 'sessions/s_qm/activity/q_dev-abc_8_1'), { type:'qop', by:'u_owner' })));
 await T('علامة الطابور: غير المكلَّف بالعدّ لا يكتبها', assertFails(setDoc(doc(db('u_vw'), 'sessions/s_qm/activity/q_dev-abc_9_1'), { type:'qop', by:'u_vw' })));
+// سباقٌ حقيقيّ: جهازان (عميلان) يطبّقان العمليّة نفسها في اللحظة نفسها ⇒ تُطبَّق مرّةً واحدة (المحاكي يعيد المعاملة الخاسرة فترى العلامة)
+await testEnv.withSecurityRulesDisabled(async (ctx) => { await setDoc(doc(ctx.firestore(), 'sessions/s_qm/counts/RACE'), { code:'RACE', qty:0, entries:[] }); });
+{ const c1 = db('u_ct'), c2 = db('u_ct'); const MK='sessions/s_qm/activity/q_dev-race_1_1790000000001';
+  const apply = (f) => runTransaction(f, async (tx) => { const r = doc(f, 'sessions/s_qm/counts/RACE'); const m = doc(f, MK); const s = await tx.get(r); const mm = await tx.get(m); if (mm.exists()) return 'skip';
+    const cur = s.data(); tx.set(r, { code:'RACE', qty:(cur.qty||0)+1, entries:(cur.entries||[]).concat([{ id:'r'+Math.random(), q:1, by:'u_ct', byName:'ع', at:1 }]) }); tx.set(m, { type:'qop', code:'RACE', qty:1, by:'u_ct', byName:'ع', countedAt:1, deviceId:'dev-race', seq:1 }); return 'applied'; });
+  let res = []; try { res = await Promise.all([apply(c1), apply(c2), apply(c1), apply(c2)]); } catch (e) { res = ['err:' + e.message]; }
+  let q = -1; await testEnv.withSecurityRulesDisabled(async (ctx) => { q = (await getDoc(doc(ctx.firestore(), 'sessions/s_qm/counts/RACE'))).data().qty; });
+  await T('علامة الطابور: أربعة تطبيقاتٍ متزامنة للعمليّة نفسها من عميلين ⇒ تُطبَّق مرّةً واحدة بالضبط', (q === 1 && res.filter(x => x === 'applied').length === 1) ? Promise.resolve() : Promise.reject(new Error('qty=' + q + ' res=' + JSON.stringify(res)))); }
 await T('الاستيراد: العدّاد المكلَّف يقرأ علامات الاستيراد السابقة (type+hash)', assertSucceeds(getDocs(query(collection(db('u_ct'), 'sessions/s_qm/activity'), where('type','==','qimport'), where('hash','==','sha256:x')))));
 
 await testEnv.cleanup();
