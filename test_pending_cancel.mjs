@@ -146,7 +146,33 @@ await ctx.close();
   await clickDel(p,'B2002',0);
   ok('ك١١ الحذف يعرض خيار «إنقاص واحد / حذف التتابع»', await waitVis(p,'rdOverlay'));
   await p.evaluate(()=>{ const c=document.getElementById('rdCancel'); if(c)c.click(); }); await sleep(200);
+  // «إنقاص واحد» من التتابع المختلط ثم المزامنة ⇒ الخادم ٢
+  await clickDel(p,'B2002',0); await waitVis(p,'rdOverlay'); await p.evaluate(()=>document.getElementById('rdOne').click());
+  if(await waitVis(p,'ppOverlay')) await p.evaluate(()=>{ const i=document.getElementById('ppInput'); i.value='مكرّرة'; i.dispatchEvent(new Event('input',{bubbles:true})); document.getElementById('ppGo').click(); });
+  await sleep(400); await p.evaluate(()=>window.__quotaOut(false)); await p.evaluate(()=>window.__autoTick()); await sleep(900);
+  const d=await srvDoc(p,'B2002');
+  ok('ك١١ «إنقاص واحد» من التتابع المختلط ثم المزامنة: الخادم ٢ والشاشة ٢', d&&d.qty===2&&(await qty(p,'B2002'))===2&&(await qlen(p))===0, JSON.stringify(d&&d.entries));
   await c4.close(); }
+
+// ك١٢ — حذفٌ عاديّ متصل (بالمعرّف الآن): نفس مستند الخادم ونفس سطر السجلّ كما قبل
+{ const c5=await browser.newContext({ viewport:{width:1100,height:1200} }); const p=await c5.newPage();
+  await boot(p,SC,true); await openSr(p);
+  await p.evaluate(()=>window.__addEntry('A1001',4)); await sleep(300); await p.evaluate(()=>window.__addEntry('A1001',6)); await sleep(400);
+  await clickDel(p,'A1001',0); await waitVis(p,'cfOverlay'); await p.evaluate(()=>document.getElementById('cfGo').click());
+  if(await waitVis(p,'ppOverlay')) await p.evaluate(()=>{ const i=document.getElementById('ppInput'); i.value='عادي'; i.dispatchEvent(new Event('input',{bubbles:true})); document.getElementById('ppGo').click(); });
+  await sleep(600);
+  const d=await srvDoc(p,'A1001'); const act=(await activity(p)).filter(x=>x.type==='remove');
+  ok('ك١٢ الحذف المتصل: الخادم يبقى فيه ٦ فقط بسطرٍ واحد', d&&d.qty===6&&d.entries.length===1&&d.entries[0].q===6, JSON.stringify(d&&d.entries));
+  ok('ك١٢ سطر السجلّ: حذف ٤ مع السبب', act.length===1&&act[0].qty===4&&/عادي/.test(act[0].name||''), JSON.stringify(act));
+  // ك١٣ — السطر اختفى أثناء الحوار (حذفه جهاز آخر) ⇒ لا حذف لأيّ سطرٍ آخر + تنبيه
+  await clickDel(p,'A1001',0); await waitVis(p,'cfOverlay');
+  await p.evaluate(()=>{ const k='sessions/sr/counts/A1001'; const x=window.__store[k]; window.__store[k]=Object.assign({},x,{entries:[{id:'zz9',q:9,by:'u_other',byName:'آخر',at:2}],qty:9}); window.__cntRebuild&&window.__cntRebuild(); });
+  await p.evaluate(()=>document.getElementById('cfGo').click());
+  if(await waitVis(p,'ppOverlay')) await p.evaluate(()=>{ const i=document.getElementById('ppInput'); i.value='x'; i.dispatchEvent(new Event('input',{bubbles:true})); document.getElementById('ppGo').click(); });
+  await sleep(600);
+  const d2=await srvDoc(p,'A1001'); const t=await p.evaluate(()=>{ const h=document.getElementById('toastHost'); return h?h.textContent:''; });
+  ok('ك١٣ السطر المقصود اختفى أثناء الحوار: لم يُحذف سطر الزميل (٩ باقٍ) وظهر تنبيه', d2&&d2.qty===9&&d2.entries.length===1&&/لم يُحذف شيء/.test(t), JSON.stringify(d2&&d2.entries)+' | '+t.slice(-120));
+  await c5.close(); }
 
 await browser.close();
 let pass=0; for(const r of results){ console.log((r.pass?'✓':'✗')+' '+r.n+(r.d&&!r.pass?('  << '+r.d):'')); if(r.pass)pass++; }
