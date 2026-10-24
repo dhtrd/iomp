@@ -99,6 +99,14 @@ await page.evaluate(()=>window.__autoTick()); await sleep(900);
   const rmB=act.filter(x=>x.type==='remove'&&x.code==='B2002');
   ok('ك٦ سجلّ الحركة: إنقاص التتابع مسجَّل بسببه', rmB.length===1&&/مسحة مكرّرة/.test(rmB[0].name||''), JSON.stringify(rmB)); }
 
+// ك١٤ — (طلب المالك 24-10) سجلّ الحركة يحمل وقت العدّ الفعليّ للعمليّات المُرسلة لاحقًا
+{ const act=await activity(page); const off=act.filter(x=>x.code==='A1001'&&(x.type==='add'||x.type==='remove'));
+  ok('ك١٤ عمليّات الطابور في السجلّ تحمل countedAt (وقت العدّ على الجهاز) أقدم من وقت الوصول', off.length>=2&&off.every(x=>typeof x.countedAt==='number'&&x.countedAt>0&&x.countedAt<=(x.at&&x.at.__ts||Date.now())), JSON.stringify(off.map(x=>[x.type,x.countedAt,x.at])));
+  await page.evaluate(()=>{ const b=document.getElementById('actToggle'); if(b)b.click(); }); await sleep(500);
+  const txt=await page.evaluate(()=>{ const e=document.getElementById('actlog'); return e?e.textContent:''; });
+  ok('ك١٤ شاشة السجلّ تعرض «عُدّت:» و«وصلت الخادم:» للعمليّات المتأخّرة', /عُدّت:/.test(txt)&&/وصلت الخادم:/.test(txt), txt.slice(0,200));
+  await page.evaluate(()=>{ const b=document.getElementById('actToggle'); if(b)b.click(); }); await sleep(200); }
+
 // ك٧ — بعد المزامنة: لا كميات منتظرة، وأزرار الحذف العاديّة كما هي (بلا وسم الطابور)
 { const b=await delBtns(page,'A1001');
   ok('ك٧ بعد المزامنة: × عاديّ (ليس كمية طابور)', b.length===1&&!b[0].p, JSON.stringify(b)); }

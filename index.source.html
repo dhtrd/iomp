@@ -4503,7 +4503,7 @@ async function offlineFlush0(manual){ const quiet=(manual==='auto'); if(quiet)ma
     for(const op of q){ if(!auth.currentUser||!myProfile){ failed=true; break; } const ck=op.sid+'|'+String(op.code); if(skip.has(ck))continue; // خرج المستخدم ⇒ أوقف؛ وصنفٌ تعثّرت عمليّته ⇒ تُتخطّى بقيّة عمليّاته (ترتيبه محفوظ) وتمضي الأصناف الأخرى
       const ev=_cntEvt; try{ const rv=await offlineApplyRemote(op);
         await oqDrop(op); bad=0;
-        if(op.log)addDoc(collection(db,'sessions',op.sid,'activity'),{type:op.log.t,code:String(op.code),name:op.log.n||'',qty:(op.op==='add'?op.val:(op.op==='reset'?(op.log.q==null?null:op.log.q):(rv==null?null:rv))),by:auth.currentUser.uid,byName:myProfile.name||'',at:serverTimestamp()}).catch(()=>{}); // بعد الإزالة وبلا انتظار: لا تبقى عمليّةٌ مطبَّقة في الطابور بانتظار السجلّ
+        if(op.log)addDoc(collection(db,'sessions',op.sid,'activity'),{type:op.log.t,code:String(op.code),name:op.log.n||'',qty:(op.op==='add'?op.val:(op.op==='reset'?(op.log.q==null?null:op.log.q):(rv==null?null:rv))),by:auth.currentUser.uid,byName:myProfile.name||'',at:serverTimestamp(),countedAt:op.at}).catch(()=>{}); // countedAt (طلب المالك ٢٠٢٦-١٠-٢٤): وقت العدّ الفعليّ على الجهاز؛ at يبقى وقت الوصول للخادم (للترتيب والتوثيق) // بعد الإزالة وبلا انتظار: لا تبقى عمليّةٌ مطبَّقة في الطابور بانتظار السجلّ
         if(op.sid===curSid&&_cntEvt!==ev&&$('clist')){ cntRebuild(); renderCountListLive(); } // صدى الخادم وصل قبل الإزالة ⇒ أعِد البناء الآن؛ وإلّا فالمستمع يتولّاه (لا وميض أدنى)
         flushed++; flushedBySid[op.sid]=(flushedBySid[op.sid]||0)+1;
       }catch(e){
@@ -5235,11 +5235,12 @@ function renderActivity(qs){
   const tmap={add:'➕ إضافة',remove:'➖ حذف كمية',reset:'↺ تصفير صنف',note:'📝 ملاحظة عدّ',close:'🔒 إغلاق للمراجعة',reviewed:'✔ تمت المراجعة',fin_approve:'🖊 اعتماد مالي',approve:'✅ اعتماد وقفل',return:'↩ إرجاع للعدّ',toreview:'↩ إرجاع للمراجعة',reopen:'🔓 فتح استثنائي',sync:'🔄 مزامنة دون اتصال'};
   const tcol={add:'var(--success)',remove:'var(--danger)',reset:'var(--warn)',note:'var(--navy700)',close:'var(--navy500)',reviewed:'var(--navy500)',fin_approve:'var(--navy500)',approve:'var(--success)',return:'var(--warn)',toreview:'var(--warn)',reopen:'var(--danger)',sync:'var(--navy700)'};
   $('actlog').innerHTML=_scope+'<div style="max-height:300px;overflow:auto">'+rows.map(a=>{
-    const t=actWhen(a); const tstr=t?fmtDateTimeAr(t):'الآن';
+    const t=actWhen(a); let tstr=t?fmtDateTimeAr(t):'الآن';
+    if(typeof a.countedAt==='number'&&a.countedAt>0)tstr='عُدّت: '+fmtDateTimeAr(new Date(a.countedAt)); // عمليّةٌ عُدّت دون اتصال: وقت عدّها الفعليّ، ووقت وصولها للخادم في سطرٍ تحته
     return '<div style="display:flex;gap:8px;align-items:baseline;padding:7px 2px;border-bottom:1px solid var(--hair);font-size:13px">'+
       '<span style="font-weight:700;color:'+(tcol[a.type]||'var(--tsec)')+';min-width:82px;white-space:nowrap">'+(tmap[a.type]||esc(a.type))+'</span>'+
       '<span style="flex:1">'+(a.qty!=null?'<b>'+fmt(a.qty)+'</b>'+((a.n>1&&histOpt('history.badge'))?' <span class="muted" title="تتابع عدٍّ واحدٌ متّصل">×'+fmt(a.n)+'</span>':'')+' — ':'')+esc(a.name||'')+(a.code?' <span class="muted" style="direction:ltr;unicode-bidi:embed">('+esc(a.code)+')</span>':'')+'</span>'+
-      '<span class="muted" style="text-align:left;white-space:nowrap"><b>'+esc(a.byName||'')+'</b><br>'+esc(tstr)+'</span></div>';
+      '<span class="muted" style="text-align:left;white-space:nowrap"><b>'+esc(a.byName||'')+'</b><br>'+esc(tstr)+((typeof a.countedAt==='number'&&a.countedAt>0)?'<br><span style="font-size:11px">وصلت الخادم: '+esc(t?fmtDateTimeAr(t):'الآن')+'</span>':'')+'</span></div>';
   }).join('')+'</div>';
   _wireBy();
 }
