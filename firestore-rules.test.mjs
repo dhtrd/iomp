@@ -3,7 +3,7 @@
 //   firebase emulators:exec --only firestore "node firestore-rules.test.mjs"
 // (لا تعمل في بيئة السحابة هنا لأن تنزيل محرّك المحاكي محجوب — شغّلها على جهازك.)
 import { initializeTestEnvironment, assertSucceeds, assertFails } from '@firebase/rules-unit-testing';
-import { doc, setDoc, updateDoc, getDoc, deleteDoc, getDocs, collection, Timestamp } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, getDoc, deleteDoc, getDocs, collection, Timestamp, runTransaction, query, where } from 'firebase/firestore';
 import { readFileSync } from 'node:fs';
 
 const testEnv = await initializeTestEnvironment({
@@ -297,6 +297,18 @@ await T('بوابة الإلزام: إرسالٌ قديم قبل إعادة ال
 await T('بوابة الإلزام: «إرجاع للعدّ» لا تتطلّب مراجعة الفرع', assertSucceeds(updateDoc(doc(db('u_owner'), 'sessions/s_br2'), { status:'open' })));
 await T('مراجعة الفرع: بعد «تمت المراجعة» لا كتابة', assertFails(mark('u_brv','s_br')));
 await testEnv.withSecurityRulesDisabled(async (ctx) => { await setDoc(doc(ctx.firestore(), 'config/permissions'), { features: { branchReview: false } }, { merge: true }); });
+
+// الطبقة و (حماية العدّ ٢٠٢٦-١٠-٢٤): علامة العمليّة الذرّيّة في سجلّ الحركة — بلا تغيير في القواعد
+await testEnv.withSecurityRulesDisabled(async (ctx) => { await setDoc(doc(ctx.firestore(), 'sessions/s_qm'), { name:'طابور', status:'open', started:true, assignedCounters:['u_ct'], location:'فرع أ', createdBy:'u_owner' }); });
+const QM='sessions/s_qm/activity/q_dev-abc_7_1790000000000';
+const fsCt = db('u_ct');
+await T('علامة الطابور: العدّاد المكلَّف يكتب العدّ + العلامة في معاملةٍ واحدة', assertSucceeds(runTransaction(fsCt, async (tx) => {
+  const r = doc(fsCt, 'sessions/s_qm/counts/QM1'); const m = doc(fsCt, QM); await tx.get(r); const mm = await tx.get(m); if (mm.exists()) throw new Error('exists');
+  tx.set(r, { code:'QM1', qty:1, entries:[{ id:'e1', q:1, by:'u_ct', byName:'ع', at:1 }] }); tx.set(m, { type:'qop', code:'QM1', qty:1, by:'u_ct', byName:'ع', countedAt:1, deviceId:'dev-abc', seq:7 }); })));
+await T('علامة الطابور: لا تُعدَّل بعد إنشائها (append-only)', assertFails(setDoc(doc(fsCt, QM), { type:'qop', code:'QM1', qty:2, by:'u_ct', byName:'ع' })));
+await T('علامة الطابور: لا تُكتب باسم غير الكاتب (by ≠ uid)', assertFails(setDoc(doc(db('u_ct'), 'sessions/s_qm/activity/q_dev-abc_8_1'), { type:'qop', by:'u_owner' })));
+await T('علامة الطابور: غير المكلَّف بالعدّ لا يكتبها', assertFails(setDoc(doc(db('u_vw'), 'sessions/s_qm/activity/q_dev-abc_9_1'), { type:'qop', by:'u_vw' })));
+await T('الاستيراد: العدّاد المكلَّف يقرأ علامات الاستيراد السابقة (type+hash)', assertSucceeds(getDocs(query(collection(db('u_ct'), 'sessions/s_qm/activity'), where('type','==','qimport'), where('hash','==','sha256:x')))));
 
 await testEnv.cleanup();
 console.log(`\nRECON ${pass}/${pass + fail} passed`);
