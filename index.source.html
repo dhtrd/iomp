@@ -1573,8 +1573,13 @@ $('pwForm').onsubmit=async(e)=>{e.preventDefault();const p1=$('newPw').value,p2=
   $('pwBtn').disabled=true;st('pwStatus','info','جارٍ الحفظ…',true);
   try{await updatePassword(auth.currentUser,p1);await updateDoc(doc(db,'users',auth.currentUser.uid),{mustChangePassword:false});myProfile.mustChangePassword=false;$('pwBtn').disabled=false;hideSt('pwStatus');$('newPw').value='';$('newPw2').value='';enterApp();}
   catch(err){st('pwStatus','err',errAr(err.code||err.message));$('pwBtn').disabled=false;}};
-$('pwLogout').onclick=()=>signOut(auth);
-$('logoutBtn').onclick=()=>signOut(auth);
+/* الطبقة هـ: خروجٌ وفي طابور الجهاز عمليّاتٌ لم تُرسل ⇒ تأكيدٌ صريح يشرح أنها لا تُحذف وأين تبقى (لا خروج صامت) */
+async function safeLogout(){ const n=await idleOwnQueued();
+  if(n>0&&!(await confirmDialog({title:'عمليات عدّ لم تُرسل بعد',message:'لديك '+fmt(n)+' عملية عدّ محفوظة على هذا الجهاز ولم تصل الخادم بعد. الخروج لا يحذفها: تبقى على هذا الجهاز وتُرسل تلقائيًّا عند دخولك من جديد بحسابك على هذا الجهاز نفسه. لا تمسح بيانات المتصفّح قبل إرسالها.',confirmLabel:'خروج على أي حال',danger:true})))return;
+  signOut(auth); }
+$('pwLogout').onclick=()=>safeLogout();
+$('logoutBtn').onclick=()=>safeLogout();
+try{ window.addEventListener('beforeunload',e=>{ if(myProfile&&featuresOfflineOn()&&_offlineQueueLen>0){ e.preventDefault(); e.returnValue=''; } }); }catch(e){} // إغلاق الصفحة وفي الطابور عمليّات ⇒ تحذير المتصفّح المعتاد
 $('acctBtn').onclick=()=>{ if(myProfile) renderAccount($('appContent')); };
 // ===== صفحة الحساب =====
 function renderAccount(c){
@@ -2692,10 +2697,22 @@ function idleKey(){ return 'iomp-idle-last-'+((myProfile&&myProfile.uid)||''); }
 function idleStamp(){ _idleLast=Date.now(); if(_idleLast-_idleStampT>3000){ _idleStampT=_idleLast; try{ localStorage.setItem(idleKey(),String(_idleLast)); }catch(e){} } } // ختم النشاط محليًّا ⇒ الإنفاذ بالوقت الحقيقي حتى بعد النوم/الخلفية/إعادة الفتح
 function idleDismiss(){ if(_idleCd){clearInterval(_idleCd);_idleCd=null;} if(_idleWrap){try{_idleWrap.remove();}catch(e){} _idleWrap=null;} }
 function idleStop(){ if(_idleT){clearTimeout(_idleT);_idleT=null;} idleDismiss(); }
-function idleGoOut(){ idleStop(); try{ localStorage.removeItem(idleKey()); }catch(e){} window.__idleOut=true; try{ signOut(auth); }catch(e){} try{ toastWarn('لانقضاء مهلة السكون سُجّل خروجك تلقائيًّا — سجّل دخولك من جديد.'); }catch(e){} }
+/* الطبقة هـ (حماية العدّ، ٢٠٢٦-١٠-٢٤): (١) النشاط في أيّ تبويبٍ للمستخدم نفسه يُحسب للكلّ — كان تبويبٌ خاملٌ في الخلفية
+   يُخرج كلّ التبويبات (الخروج مشترك) رغم أن العدّاد يعمل في تبويبٍ آخر؛ (٢) لا خروج تلقائيّ وفي طابور الجهاز عمليّاتٌ لم تُرسل. */
+function idleSync(){ try{ const t=Number(localStorage.getItem(idleKey()))||0; if(t>_idleLast)_idleLast=t; }catch(e){} }
+function idleRearm(){ idleStop(); const c=idleCfg(); if(!myProfile||!(c.minutes>0))return; _idleT=setTimeout(idleWarnDue, Math.max(1000, c.minutes*60000-(Date.now()-_idleLast))); }
+async function idleOwnQueued(){ if(!featuresOfflineOn())return 0; try{ return (await oqLocked(offlineQueueGet)).filter(oqOwn).length; }catch(e){ return _offlineQueueLen||0; } }
+let _idleQNote=0, _idleGoing=false;
+async function idleGoOut(){ if(_idleGoing)return; _idleGoing=true; try{ await idleGoOut0(); }finally{ _idleGoing=false; } }
+async function idleGoOut0(){ const b0=_idleLast; idleSync(); if(myProfile&&_idleLast>b0&&(Date.now()-_idleLast)<idleCfg().minutes*60000){ idleRearm(); return; } // تبويبٌ آخر نشط بعد آخر نشاطٍ هنا
+  const b1=_idleLast; const nq=await idleOwnQueued(); idleSync(); if(myProfile&&_idleLast>b1){ idleDismiss(); idleRearm(); return; } // نشاطٌ وقع أثناء انتظار الطابور ⇒ لا خروج
+  if(nq>0&&myProfile){ idleDismiss(); _idleLast=Date.now(); idleRearm(); if(Date.now()-_idleQNote>600000){ _idleQNote=Date.now(); toastWarn('لم يُسجَّل خروجك تلقائيًّا: لديك '+fmt(nq)+' عملية عدّ لم تُرسل بعد — تبقى محفوظة وتُرسل عند عودة الاتصال/الحصّة.'); } return; }
+  idleStop(); try{ localStorage.removeItem(idleKey()); }catch(e){} window.__idleOut=true; try{ signOut(auth); }catch(e){} try{ toastWarn('لانقضاء مهلة السكون سُجّل خروجك تلقائيًّا — سجّل دخولك من جديد.'); }catch(e){} }
 function idleReset(){ idleStop(); idleStamp(); const c=idleCfg(); if(!myProfile||!(c.minutes>0))return;
-  _idleT=setTimeout(idleWarn, Math.max(1000, c.minutes*60000)); } // العدّ التنازلي يبدأ عند تمام مدة السكون (اعتماد العميل: ٣:٠٤ + ٣٠د ⇒ يبدأ ٣:٣٤)
-function idleWarn(){ if(!myProfile||_idleWrap)return; const c=idleCfg();
+  _idleT=setTimeout(idleWarnDue, Math.max(1000, c.minutes*60000)); } // العدّ التنازلي يبدأ عند تمام مدة السكون (اعتماد العميل: ٣:٠٤ + ٣٠د ⇒ يبدأ ٣:٣٤)
+function idleWarnDue(){ const c=idleCfg(); idleSync(); if(Date.now()-_idleLast<c.minutes*60000){ idleRearm(); return; } idleWarn(); } // المؤقّت: نشاطٌ في تبويبٍ آخر ⇒ لا تنبيه
+let _idleBase=0;
+function idleWarn(){ if(!myProfile||_idleWrap)return; const c=idleCfg(); _idleBase=_idleLast;
   // موعد الخروج بالساعة الفعلية: بداية الخمول + المدة + نافذة التنبيه — والعائد متأخرًا يرى الباقي الحقيقي فقط
   const deadline=Math.min(_idleLast+c.minutes*60000+c.warnSeconds*1000, Date.now()+c.warnSeconds*1000);
   let left=Math.max(1,Math.ceil((deadline-Date.now())/1000));
@@ -2704,11 +2721,12 @@ function idleWarn(){ if(!myProfile||_idleWrap)return; const c=idleCfg();
   _idleWrap.innerHTML='<div class="card" style="max-width:380px;width:100%;text-align:center;margin:0"><h2 style="margin-bottom:6px">⏳ ما زلت هنا؟</h2><p class="muted" style="font-size:14px">لعدم النشاط سيُسجَّل خروجك تلقائيًّا خلال</p><div id="idleCount" style="font-size:34px;font-weight:800;color:var(--danger);margin:8px 0 14px;font-variant-numeric:tabular-nums">'+left+'</div><button class="btn block" id="idleStay">متابعة الجلسة</button></div>';
   document.body.appendChild(_idleWrap);
   const el=_idleWrap.querySelector('#idleCount'); _idleWrap.querySelector('#idleStay').onclick=()=>idleReset();
-  _idleCd=setInterval(()=>{ left=Math.ceil((deadline-Date.now())/1000); if(el)el.textContent=Math.max(0,left); // بالوقت الحقيقي: نوم الجهاز أثناء العدّ لا يمدّد المهلة
+  _idleCd=setInterval(()=>{ idleSync(); if(_idleLast>_idleBase){ idleRearm(); return; } left=Math.ceil((deadline-Date.now())/1000); if(el)el.textContent=Math.max(0,left); // بالوقت الحقيقي: نوم الجهاز أثناء العدّ لا يمدّد المهلة
     if(left<=0){ idleDismiss(); idleGoOut(); } },1000); }
 // الإنفاذ بالوقت الحقيقي (اعتماد العميل): العدّ التنازلي يبدأ عند تمام المدة ولو خارج الشاشة —
 // عاد داخل نافذة التنبيه ⇒ يرى العدّ بالباقي الحقيقي ويستطيع «متابعة الجلسة»؛ فاتته النافذة كلها ⇒ خروج مباشر
-function idleElapsedCheck(){ if(!myProfile)return; const c=idleCfg(); if(!(c.minutes>0))return;
+function idleElapsedCheck(){ if(!myProfile)return; const c=idleCfg(); if(!(c.minutes>0))return; idleSync();
+  if(_idleWrap&&_idleLast>_idleBase){ idleRearm(); return; } // نشاطٌ جديد في تبويبٍ آخر أثناء التنبيه
   const el=Date.now()-_idleLast, total=c.minutes*60000+c.warnSeconds*1000;
   if(el>=total){ idleGoOut(); return; }
   if(el>=c.minutes*60000 && !_idleWrap) idleWarn(); }
@@ -2720,7 +2738,8 @@ function idleInit(){
   ['pointerdown','keydown','touchstart','wheel'].forEach(ev=>document.addEventListener(ev,()=>{ if(_idleWrap)return; idleReset(); },{passive:true}));
   document.addEventListener('visibilitychange',()=>{ if(document.visibilityState!=='hidden')idleElapsedCheck(); });
   try{ window.addEventListener('focus',idleElapsedCheck); window.addEventListener('pageshow',idleElapsedCheck); }catch(e){}
-  _idleIv=setInterval(idleElapsedCheck,15000); }
+  _idleIv=setInterval(idleElapsedCheck,15000);
+  try{ window.addEventListener('storage',e=>{ if(e&&e.key===idleKey()&&myProfile){ idleSync(); if(_idleWrap)idleElapsedCheck(); } }); }catch(e){} } // نشاط تبويبٍ آخر يُغلق تنبيه هذا التبويب فورًا
 // مجموع تحقّقي حتمي (FNV-1a) على نصّ الحمولة — يكشف التلف/التعديل في ملفّ النسخة
 function acChecksum(str){ let h=0x811c9dc5>>>0; for(let i=0;i<str.length;i++){ h^=str.charCodeAt(i); h=Math.imul(h,0x01000193)>>>0; } return 'FNV-'+(h>>>0).toString(16).padStart(8,'0').toUpperCase(); }
 // يبني نصّ النسخة الاحتياطية: إعدادات+أعلام+أدوار+مستودعات من config/permissions، مع طابع ومجموع تحقّقي
@@ -3235,7 +3254,7 @@ function renderCountingShell(){ document.body.classList.add('wide');
     banner='<div class="status show '+(stt==='approved'?'ok':'info')+'" style="margin-top:10px">'+msg+'</div>';
   }
   c.innerHTML='<div class="card"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><button class="btn ghost sm" id="backBtn">→ رجوع</button><div style="flex:1;min-width:160px"><h2 style="margin:0">'+esc(curSess.name)+' <span class="tag '+badgeCls+'" style="font-size:11px;vertical-align:middle">'+esc(sessStatusLabel(stt))+'</span></h2><div class="muted">'+esc(curSess.location||'')+' • '+(blind?'جلسة عمياء • ':'')+'الأصناف: '+fmt(curItems.length)+((curSess.assignedNames&&curSess.assignedNames.length)?' • العدّادون: '+esc(curSess.assignedNames.join('، ')):'')+'</div></div>'+(canViewSession(curSess)?'<button class="btn ghost sm" id="repBtn">📊 تقرير الفروقات</button>':'')+govBtns+'<button class="btn ghost sm" id="actToggle">📋 سجل الحركة</button></div>'+banner+
-    (featuresOfflineOn()?'<div id="offlineBar" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px"><span id="offlineChip" class="offchip"></span><button class="btn ghost sm" id="offlineSyncNow" style="display:none">🔄 مزامنة الآن</button></div>':'')+
+    (featuresOfflineOn()?'<div id="offlineBar" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px"><span id="offlineChip" class="offchip"></span><button class="btn ghost sm" id="offlineSyncNow" style="display:none">🔄 مزامنة الآن</button><button class="btn ghost sm" id="safeBtn">🛡 حماية العدّ</button><div id="safeNote" class="muted" style="flex-basis:100%;font-size:12px;line-height:1.7"></div></div>':'')+
     '<div style="height:8px;background:var(--hair);border-radius:20px;overflow:hidden;margin:12px 0 6px"><i id="cprog" style="display:block;height:100%;background:var(--success);width:0%"></i></div>'+
     '<div class="muted" id="cprogtext">0 / '+fmt(curItems.length)+' معدود</div>'+
     '<input id="csearch" class="inp" placeholder="ابحث بالكود أو الاسم…" style="width:100%;margin-top:12px;font-size:16px;padding:12px 14px">'+
@@ -3282,6 +3301,7 @@ function renderCountingShell(){ document.body.classList.add('wide');
   if($('unkBtn'))$('unkBtn').onclick=unkOpen; // ط-١٣ تدفّق ٥: سجلّ الباركودات المجهولة على هذا الجهاز
   if($('camCloseBtn'))$('camCloseBtn').onclick=stopCamera;
   if($('offlineSyncNow'))$('offlineSyncNow').onclick=()=>offlineFlush(true); // ر١٠: مزامنة يدوية
+  if($('safeBtn')){ $('safeBtn').onclick=()=>qioOpen(); safeNoteRender(); storagePersist().then(safeNoteRender); } // الطبقات أ/ب/ج: الحفظ الدائم + التثبيت + تنبيه النافذة الخاصة
   if(featuresOfflineOn()){ offlineUpdateChip(); offlineRefreshLen(); } // ر١٠: تحديث شريحة الحالة وعدّاد الطابور
   // إدارة ما نُسي: المدير يضيف عدّادين/موقّعين نُسوا بعد البدء — والجلسة مفتوحة فقط
   if(can('session.assign') && sessStatusOf(curSess)==='open'){
@@ -3521,6 +3541,27 @@ function featuresBranchReviewOn(){ return !!(permConfig && permConfig.features &
 const BR_META='__brmeta', BR_V='4'; // BR_V: رقم إصدار branch-review.js — يُرفع مع كل تعديلٍ عليه كي لا تعمل صفحةٌ جديدة بوحدةٍ قديمة من الكاش
 let _brP=null, _brAuto=null;
 function brCan(s){ return featuresBranchReviewOn()&&can('session.branchReview')&&!!s&&(isOwner()||myLocations().indexOf(s.location||'')>=0)&&canSeeSessionData(s); }
+/* ===== حماية العدّ من الضياع (ورقة الاتفاق المعتمدة، ٢٠٢٦-١٠-٢٤) =====
+   أ: طلب «الحفظ الدائم» من المتصفّح عند فتح شاشة العدّ (يمنع المسح الآليّ عند ضيق المساحة).
+   ب: كشف التثبيت على الشاشة الرئيسية — سفاري يمسح بيانات المواقع غير المثبّتة بعد ٧ أيام بلا استخدام.
+   ج: تنبيهٌ ثابت لا كشف: المتصفّحات تمنع كشف النافذة الخاصة عمدًا (قرار المالك: تنبيه بدل المنع).
+   النافذة التفصيليّة في queue-io.js (تُحمَّل عند الطلب). الطبقة و (تصدير/استيراد) في طلب دمجٍ مستقلّ بعد المراجعة المستقلّة. */
+const QIO_V='1'; let _qioP=null, _persist=null, _bip=null;
+try{ window.addEventListener('beforeinstallprompt',e=>{ e.preventDefault(); _bip=e; }); }catch(e){}
+function appInstalled(){ try{ return !!((window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||navigator.standalone===true); }catch(e){ return false; } }
+function isIOS(){ const u=navigator.userAgent||''; return /iPhone|iPad|iPod/.test(u)||(/Macintosh/.test(u)&&navigator.maxTouchPoints>1); }
+async function storagePersist(){ try{ const st=navigator.storage; if(!st||!st.persisted)return _persist=null; if(await st.persisted())return _persist=true; return _persist=!!(st.persist&&await st.persist()); }catch(e){ return _persist=null; } }
+function safeNoteRender(){ const el=$('safeNote'); if(!el)return; const w=[];
+  if(_persist===false)w.push('⚠ المتصفّح لم يمنح «الحفظ الدائم» — قد يمسح بياناتٍ عند امتلاء الجهاز. ثبّت التطبيق، ولا تنظّف المتصفّح قبل إرسال العدّ.');
+  if(isIOS()&&!appInstalled())w.push('⚠ آيفون/آيباد: ثبّت التطبيق على الشاشة الرئيسية (زرّ المشاركة ← «إضافة إلى الشاشة الرئيسية») — سفاري يمسح بيانات المواقع غير المثبّتة بعد ٧ أيام بلا استخدام.');
+  w.push('لا تعدّ في نافذة التصفّح الخاص/المتخفّي — ما لم يُرسل يُمسح عند إغلاقها.');
+  el.innerHTML=w.map(x=>'<div>'+esc(x)+'</div>').join(''); }
+function qioLoad(){ return _qioP||(_qioP=new Promise((ok,no)=>{ const el=document.createElement('script'); el.src='queue-io.js?v='+QIO_V; el.onload=ok; el.onerror=()=>{ _qioP=null; el.remove(); no(new Error('تعذّر تحميل شاشة حماية العدّ — تحقّق من الاتصال ثم أعد المحاولة.')); }; document.head.appendChild(el); })); }
+function qioOpen(){ qioLoad().then(()=>window.IOMPQ.open({
+    queue:()=>oqLocked(offlineQueueGet), own:oqOwn,
+    persist:()=>_persist, installed:appInstalled(), ios:isIOS(), bip:()=>_bip, mirrorOk:()=>offlineStore.mirrorOk(), backend:offlineStore.backend(),
+    esc,fmt}))
+  .catch(e=>toastErr(e.message)); }
 function brLoad(){ return _brP||(_brP=new Promise((ok,no)=>{ const el=document.createElement('script'); el.src='branch-review.js?v='+BR_V; el.onload=ok; el.onerror=()=>{ _brP=null; el.remove(); no(new Error('تعذّر تحميل شاشة مراجعة الفرع — تحقّق من الاتصال ثم أعد المحاولة.')); }; document.head.appendChild(el); })); }
 function brOpen(mode){ const sid=curSid;
   brLoad().then(()=>{ if(curSid!==sid)return;
@@ -3711,9 +3752,28 @@ const offlineStore=(function(){ let _idb=null,_idbTried=false;
   async function idb(){ if(_idb)return _idb; if(_idbTried&&!_idb)throw new Error('no-idb'); _idbTried=true; _idb=await openIdb(); return _idb; }
   function lsGet(k){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):null; }catch(e){ return null; } }
   function lsSet(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} }
-  async function get(k){ if(idbOk()){ try{ const db=await idb(); return await new Promise((res,rej)=>{ const tx=db.transaction('kv','readonly'); const rq=tx.objectStore('kv').get(k); rq.onsuccess=()=>res(rq.result==null?null:rq.result); rq.onerror=()=>rej(rq.error); }); }catch(e){} } return lsGet(k); }
-  async function set(k,v){ if(idbOk()){ try{ const db=await idb(); return await new Promise((res,rej)=>{ const tx=db.transaction('kv','readwrite'); tx.objectStore('kv').put(v,k); tx.oncomplete=()=>res(true); tx.onerror=()=>rej(tx.error); }); }catch(e){} } lsSet(k,v); return true; }
-  return { get, set, backend:()=>idbOk()?'idb':'ls' };
+  /* الطبقة د (حماية العدّ، ٢٠٢٦-١٠-٢٤): نسخةٌ ثانية (مرآة) من الطابور ورقم التسلسل في localStorage تُكتب مع كلّ كتابة.
+     إن تعذّرت قراءة IndexedDB أو وُجد مفتاح الطابور فيه غائبًا والمرآة فيها عمليّات ⇒ تُعاد المرآة وتُستعاد إلى IndexedDB.
+     (مسح بيانات الموقع كاملةً يمحو الاثنين معًا.) */
+  const MIR={'iomp-offline-queue':'iomp-oq-mirror','iomp-offline-seq':'iomp-oqseq-mirror'};
+  let _mirOk=true, _restored=0;
+  /* المراجعة المستقلّة: JSON.stringify + setItem متزامنان (~٤٠ms لخمسة آلاف عمليّة) ⇒ لا يُكتبان مع كلّ مسحة.
+     تُزال المرآة فورًا (رخيص) ثم تُكتب أحدث قيمةٍ بعد هدوءٍ قصير ⇒ المرآة إمّا مطابقة لـ IndexedDB وإمّا غائبة، ولا تكون أقدم منه أبدًا
+     (المرآة الأقدم قد تُعيد عمليّاتٍ أُرسلت). فشل الكتابة ⇒ تبقى غائبة. */
+  const _mirPend={}; let _mirT=0;
+  function mirFlush(){ _mirT=0; for(const m in _mirPend){ const v=_mirPend[m]; delete _mirPend[m]; try{ localStorage.setItem(m,JSON.stringify(v)); _mirOk=true; }catch(e){ _mirOk=false; try{ localStorage.removeItem(m); }catch(_){} } } }
+  function mirSet(k,v){ const m=MIR[k]; if(!m)return; try{ localStorage.removeItem(m); }catch(e){} _mirPend[m]=v; if(_mirT)clearTimeout(_mirT); _mirT=setTimeout(mirFlush,800); }
+  try{ window.addEventListener('pagehide',()=>{ if(_mirT){ clearTimeout(_mirT); mirFlush(); } }); }catch(e){}
+  function mirGet(k){ const m=MIR[k]; if(!m)return null; try{ const v=localStorage.getItem(m); return v?JSON.parse(v):null; }catch(e){ return null; } }
+  function mirUseful(k,m){ return m!=null&&(k==='iomp-offline-queue'?(Array.isArray(m)&&m.length>0):true); }
+  async function idbGet(k){ const db=await idb(); return await new Promise((res,rej)=>{ const tx=db.transaction('kv','readonly'); const rq=tx.objectStore('kv').get(k); rq.onsuccess=()=>res(rq.result==null?null:rq.result); rq.onerror=()=>rej(rq.error); }); }
+  async function idbSet(k,v){ const db=await idb(); return await new Promise((res,rej)=>{ const tx=db.transaction('kv','readwrite'); tx.objectStore('kv').put(v,k); tx.oncomplete=()=>res(true); tx.onerror=()=>rej(tx.error); }); }
+  async function get(k){ if(idbOk()){ let v, bad=false; try{ v=await idbGet(k); }catch(e){ bad=true; }
+      if(MIR[k]&&(bad||v==null)){ const m=mirGet(k); if(mirUseful(k,m)){ if(k==='iomp-offline-queue')_restored=m.length; try{ await idbSet(k,m); }catch(e){} return m; } }
+      if(!bad)return v; }
+    return lsGet(k); }
+  async function set(k,v){ mirSet(k,v); if(idbOk()){ try{ return await idbSet(k,v); }catch(e){} } lsSet(k,v); return true; }
+  return { get, set, backend:()=>idbOk()?'idb':'ls', mirrorOk:()=>_mirOk, takeRestored:()=>{ const n=_restored; _restored=0; return n; } };
 })();
 
 /* ═══════ ط-١٠: طبقة الكتالوج الرئيسيّ — تخزين مقطّع + مرآة محليّة + فهرس O(1) ═══════
@@ -4423,7 +4483,7 @@ function oqReflect(items){ if(!_oq||!featuresOfflineOn())return; _oq.forEach(op=
     offlineApplyOptimistic(op,1); }); }
 async function cntOpen(){ _srvCounts={}; _cntDead=null; _cntGot=0; _oq=featuresOfflineOn()?await oqLocked(offlineQueueGet):null; oqReflect(1); cntRebuild(); }
 async function offlineNextSeq(){ let n=Number(await offlineStore.get(OFFLINE_SEQ_KEY))||0; n++; await offlineStore.set(OFFLINE_SEQ_KEY,n); return n; }
-async function offlineRefreshLen(){ _offlineQueueLen=(await oqLocked(offlineQueueGet)).filter(oqOwn).length; offlineUpdateChip(); try{ syncStripRefresh(); }catch(e){} return _offlineQueueLen; } // ر١١: تحديث مؤشّر المزامنة الموحّد أيضًا
+async function offlineRefreshLen(){ _offlineQueueLen=(await oqLocked(offlineQueueGet)).filter(oqOwn).length; { const rn=offlineStore.takeRestored(); if(rn>0)toastWarn('استُعيد طابور العدّ من النسخة الثانية على الجهاز ('+fmt(rn)+' عملية) — تعذّرت قراءة المخزن الأساسيّ.'); } offlineUpdateChip(); try{ syncStripRefresh(); }catch(e){} return _offlineQueueLen; } // ر١١: تحديث مؤشّر المزامنة الموحّد أيضًا
 // إدراج عملية في الطابور (بالترتيب) مع معرّف الجهاز والطابع ورقم العملية
 async function offlineEnqueue(op){ return oqLocked(async()=>{ const q=await offlineQueueGet(); const seq=await offlineNextSeq();
   const entry={seq:seq,op:op.op,code:op.code,sid:op.sid||curSid,deviceId:offlineDeviceId(),at:Date.now()};
