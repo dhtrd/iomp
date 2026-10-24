@@ -117,6 +117,37 @@ await ctx.close();
   const n=await p.evaluate(()=>document.querySelectorAll('#clist [data-delc]').length);
   ok('ك٩ جلسة مقفلة: لا أزرار حذف', n===0, 'n='+n); await c2.close(); }
 
+// ك١٠ — (المراجعة المستقلّة) مزامنةٌ تقع والحوار مفتوح، وعلى الخادم كمية عدّادٍ آخر لم تصل الشاشة:
+// الحذف يجب أن يصيب الكمية المقصودة (٥) لا كمية الزميل (٧)
+{ const c3=await browser.newContext({ viewport:{width:1100,height:1200} }); const p=await c3.newPage();
+  await boot(p,SC,true); await openSr(p);
+  await p.evaluate(()=>window.__quotaOut(true)); await sleep(100);
+  await p.evaluate(()=>window.__addEntry('A1001',5)); await sleep(300);
+  await p.evaluate(()=>{ window.__store['sessions/sr/counts/A1001']={code:'A1001',qty:7,entries:[{id:'other1',q:7,by:'u_other',byName:'عدّاد آخر',at:1}]}; });
+  await clickDel(p,'A1001',0); await waitVis(p,'cfOverlay');
+  await p.evaluate(()=>window.__quotaOut(false)); await p.evaluate(()=>window.__autoTick()); await sleep(900);
+  await p.evaluate(()=>document.getElementById('cfGo').click());
+  if(await waitVis(p,'ppOverlay')) await p.evaluate(()=>{ const i=document.getElementById('ppInput'); i.value='خطأ'; i.dispatchEvent(new Event('input',{bubbles:true})); document.getElementById('ppGo').click(); });
+  await sleep(800);
+  const d=await srvDoc(p,'A1001'); const ids=(d&&d.entries||[]).map(e=>e.id+':'+e.q);
+  ok('ك١٠ مزامنة أثناء الحوار: حُذفت الكمية المقصودة (٥) وبقيت كمية الزميل (٧)', d&&d.qty===7&&ids.length===1&&ids[0]==='other1:7', JSON.stringify(ids));
+  const act=await activity(p); const rm=act.filter(x=>x.type==='remove');
+  ok('ك١٠ السجلّ يسجّل حذف ٥ لا ٧', rm.length===1&&rm[0].qty===5, JSON.stringify(rm.map(x=>x.qty)));
+  await c3.close(); }
+
+// ك١١ — تتابع مسحٍ بدأ على الخادم ثم استمرّ أثناء النفاد: لا يوصَف بأنه «على الجهاز فقط»، والحذف يسأل (واحد/الكل)
+{ const c4=await browser.newContext({ viewport:{width:1100,height:1200} }); const p=await c4.newPage();
+  await boot(p,SC,true); await openSr(p);
+  await scan(p,'B2002',2); await sleep(300);
+  await p.evaluate(()=>window.__quotaOut(true)); await sleep(100);
+  await scan(p,'B2002',1); await sleep(200);
+  const b=await delBtns(p,'B2002'), e=await ents(p,'B2002');
+  ok('ك١١ التتابع المختلط (خادم + جهاز) = سطرٌ واحد ×٣ بزرّ حذف دون وسم «على الجهاز فقط»', e.length===1&&e[0].n===3&&b.length===1&&!b[0].p, JSON.stringify({e,b}));
+  await clickDel(p,'B2002',0);
+  ok('ك١١ الحذف يعرض خيار «إنقاص واحد / حذف التتابع»', await waitVis(p,'rdOverlay'));
+  await p.evaluate(()=>{ const c=document.getElementById('rdCancel'); if(c)c.click(); }); await sleep(200);
+  await c4.close(); }
+
 await browser.close();
 let pass=0; for(const r of results){ console.log((r.pass?'✓':'✗')+' '+r.n+(r.d&&!r.pass?('  << '+r.d):'')); if(r.pass)pass++; }
 console.log(`\nRECON ${pass}/${results.length} ${pass===results.length?'passed':'FAILED'}`);
