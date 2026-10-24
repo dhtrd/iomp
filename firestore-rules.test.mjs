@@ -337,6 +337,9 @@ await T('نسبة العدّ: مدير المخزون لا يضيف باسم غ�
 await T('نسبة العدّ: صاحب «استيراد عدّ الآخرين» يضيف باسم العدّاد', assertSucceeds(cw('u_imp', [{ id:'e2', q:1, by:'u_ct', byName:'ع', at:2 }, { id:'e7', q:2, by:'u_ct', byName:'ع', at:7 }])));
 await T('نسبة العدّ: المالك (كل الصلاحيات) يضيف باسم العدّاد', assertSucceeds(cw('u_owner', [{ id:'e2', q:1, by:'u_ct', byName:'ع', at:2 }, { id:'e7', q:2, by:'u_ct', byName:'ع', at:7 }, { id:'e8', q:1, by:'u_ct', byName:'ع', at:8 }])));
 await T('نسبة العدّ: إنشاء مستند صنفٍ جديد بسطرٍ باسم زميل مرفوض للعدّاد', assertFails(setDoc(doc(db('u_ct'), 'sessions/s_own/counts/C2'), { code:'C2', qty:1, entries:[{ id:'z', q:1, by:'u_x', byName:'زميل', at:1 }] })));
+await testEnv.withSecurityRulesDisabled(async (ctx) => { await setDoc(doc(ctx.firestore(), 'sessions/s_own/counts/C3'), { code:'C3', qty:3, entries:[EX] }); });
+await T('نسبة العدّ: لا تحايل بنسخةٍ مكرّرة من سطر زميل + سطر الكاتب (تضاعف كمية الزميل)', assertFails(setDoc(doc(db('u_ct'), 'sessions/s_own/counts/C3'), { code:'C3', qty:7, entries:[EX, EX, { id:'e9', q:1, by:'u_ct', byName:'ع', at:9 }] })));
+await T('نسبة العدّ: لا إضافة سطرين في كتابة واحدة حتى باسم الكاتب', assertFails(setDoc(doc(db('u_ct'), 'sessions/s_own/counts/C3'), { code:'C3', qty:5, entries:[EX, { id:'e10', q:1, by:'u_ct', byName:'ع', at:10 }, { id:'e11', q:1, by:'u_ct', byName:'ع', at:11 }] })));
 const NX = { id:'n1', text:'أ', by:'u_x', byName:'زميل', at:1 };
 await T('نسبة الملاحظات: العدّاد يضيف ملاحظة باسمه', assertSucceeds(setDoc(doc(db('u_ct'), 'sessions/s_own/itemNotes/C1'), { code:'C1', notes:[NX, { id:'n2', text:'ب', by:'u_ct', byName:'ع', at:2 }] })));
 await T('نسبة الملاحظات: لا يضيف ملاحظة باسم زميل', assertFails(setDoc(doc(db('u_ct'), 'sessions/s_own/itemNotes/C1'), { code:'C1', notes:[NX, { id:'n2', text:'ب', by:'u_ct', byName:'ع', at:2 }, { id:'n3', text:'ج', by:'u_x', byName:'زميل', at:3 }] })));
