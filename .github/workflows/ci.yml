@@ -53,7 +53,7 @@ jobs:
           mkdir -p _site
           # يضغط المسافات ويثبت تطابق شجرة الصياغة؛ يفشل (فلا يُنشر شيء) عند أيّ فرق أو تجاوز السقف 200,000
           node build_deploy.js
-          cp branch-review.js manifest.webmanifest sw.js icon-192.png icon-512.png icon-maskable-192.png icon-maskable-512.png apple-touch-icon.png _site/
+          cp branch-review.js queue-io.js manifest.webmanifest sw.js icon-192.png icon-512.png icon-maskable-192.png icon-maskable-512.png apple-touch-icon.png _site/
       - uses: actions/upload-pages-artifact@v5
         with: { path: _site }
       - id: deployment

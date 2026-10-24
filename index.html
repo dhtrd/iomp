@@ -1515,8 +1515,12 @@ $('pwForm').onsubmit=async(e)=>{e.preventDefault();const p1=$('newPw').value,p2=
   $('pwBtn').disabled=true;st('pwStatus','info','جارٍ الحفظ…',true);
   try{await updatePassword(auth.currentUser,p1);await updateDoc(doc(db,'users',auth.currentUser.uid),{mustChangePassword:false});myProfile.mustChangePassword=false;$('pwBtn').disabled=false;hideSt('pwStatus');$('newPw').value='';$('newPw2').value='';enterApp();}
   catch(err){st('pwStatus','err',errAr(err.code||err.message));$('pwBtn').disabled=false;}};
-$('pwLogout').onclick=()=>signOut(auth);
-$('logoutBtn').onclick=()=>signOut(auth);
+async function safeLogout(){ const n=await idleOwnQueued();
+  if(n>0&&!(await confirmDialog({title:'عمليات عدّ لم تُرسل بعد',message:'لديك '+fmt(n)+' عملية عدّ محفوظة على هذا الجهاز ولم تصل الخادم بعد. الخروج لا يحذفها: تبقى على هذا الجهاز وتُرسل تلقائيًّا عند دخولك من جديد بحسابك على هذا الجهاز نفسه. لا تمسح بيانات المتصفّح قبل إرسالها، ويمكنك تصديرها ملفًّا من «🛡 حماية العدّ».',confirmLabel:'خروج على أي حال',danger:true})))return;
+  signOut(auth); }
+$('pwLogout').onclick=()=>safeLogout();
+$('logoutBtn').onclick=()=>safeLogout();
+try{ window.addEventListener('beforeunload',e=>{ if(myProfile&&featuresOfflineOn()&&_offlineQueueLen>0){ e.preventDefault(); e.returnValue=''; } }); }catch(e){}
 $('acctBtn').onclick=()=>{ if(myProfile) renderAccount($('appContent')); };
 function renderAccount(c){
   const p=myProfile||{}; const mt=myDescriptiveTasks();
@@ -2575,10 +2579,18 @@ function idleKey(){ return 'iomp-idle-last-'+((myProfile&&myProfile.uid)||''); }
 function idleStamp(){ _idleLast=Date.now(); if(_idleLast-_idleStampT>3000){ _idleStampT=_idleLast; try{ localStorage.setItem(idleKey(),String(_idleLast)); }catch(e){} } }
 function idleDismiss(){ if(_idleCd){clearInterval(_idleCd);_idleCd=null;} if(_idleWrap){try{_idleWrap.remove();}catch(e){} _idleWrap=null;} }
 function idleStop(){ if(_idleT){clearTimeout(_idleT);_idleT=null;} idleDismiss(); }
-function idleGoOut(){ idleStop(); try{ localStorage.removeItem(idleKey()); }catch(e){} window.__idleOut=true; try{ signOut(auth); }catch(e){} try{ toastWarn('لانقضاء مهلة السكون سُجّل خروجك تلقائيًّا — سجّل دخولك من جديد.'); }catch(e){} }
+function idleSync(){ try{ const t=Number(localStorage.getItem(idleKey()))||0; if(t>_idleLast)_idleLast=t; }catch(e){} }
+function idleRearm(){ idleStop(); const c=idleCfg(); if(!myProfile||!(c.minutes>0))return; _idleT=setTimeout(idleWarnDue, Math.max(1000, c.minutes*60000-(Date.now()-_idleLast))); }
+async function idleOwnQueued(){ if(!featuresOfflineOn())return 0; try{ return (await oqLocked(offlineQueueGet)).filter(oqOwn).length; }catch(e){ return _offlineQueueLen||0; } }
+let _idleQNote=0;
+async function idleGoOut(){ const b0=_idleLast; idleSync(); if(myProfile&&_idleLast>b0&&(Date.now()-_idleLast)<idleCfg().minutes*60000){ idleRearm(); return; }
+  const nq=await idleOwnQueued(); if(nq>0&&myProfile){ idleDismiss(); _idleLast=Date.now(); idleRearm(); if(Date.now()-_idleQNote>600000){ _idleQNote=Date.now(); toastWarn('لم يُسجَّل خروجك تلقائيًّا: لديك '+fmt(nq)+' عملية عدّ لم تُرسل بعد — تبقى محفوظة وتُرسل عند عودة الاتصال/الحصّة.'); } return; }
+  idleStop(); try{ localStorage.removeItem(idleKey()); }catch(e){} window.__idleOut=true; try{ signOut(auth); }catch(e){} try{ toastWarn('لانقضاء مهلة السكون سُجّل خروجك تلقائيًّا — سجّل دخولك من جديد.'); }catch(e){} }
 function idleReset(){ idleStop(); idleStamp(); const c=idleCfg(); if(!myProfile||!(c.minutes>0))return;
-  _idleT=setTimeout(idleWarn, Math.max(1000, c.minutes*60000)); }
-function idleWarn(){ if(!myProfile||_idleWrap)return; const c=idleCfg();
+  _idleT=setTimeout(idleWarnDue, Math.max(1000, c.minutes*60000)); }
+function idleWarnDue(){ const c=idleCfg(); idleSync(); if(Date.now()-_idleLast<c.minutes*60000){ idleRearm(); return; } idleWarn(); }
+let _idleBase=0;
+function idleWarn(){ if(!myProfile||_idleWrap)return; const c=idleCfg(); _idleBase=_idleLast;
   const deadline=Math.min(_idleLast+c.minutes*60000+c.warnSeconds*1000, Date.now()+c.warnSeconds*1000);
   let left=Math.max(1,Math.ceil((deadline-Date.now())/1000));
   _idleWrap=document.createElement('div'); _idleWrap.id='idleWarn';
@@ -2586,9 +2598,10 @@ function idleWarn(){ if(!myProfile||_idleWrap)return; const c=idleCfg();
   _idleWrap.innerHTML='<div class="card" style="max-width:380px;width:100%;text-align:center;margin:0"><h2 style="margin-bottom:6px">⏳ ما زلت هنا؟</h2><p class="muted" style="font-size:14px">لعدم النشاط سيُسجَّل خروجك تلقائيًّا خلال</p><div id="idleCount" style="font-size:34px;font-weight:800;color:var(--danger);margin:8px 0 14px;font-variant-numeric:tabular-nums">'+left+'</div><button class="btn block" id="idleStay">متابعة الجلسة</button></div>';
   document.body.appendChild(_idleWrap);
   const el=_idleWrap.querySelector('#idleCount'); _idleWrap.querySelector('#idleStay').onclick=()=>idleReset();
-  _idleCd=setInterval(()=>{ left=Math.ceil((deadline-Date.now())/1000); if(el)el.textContent=Math.max(0,left);
+  _idleCd=setInterval(()=>{ idleSync(); if(_idleLast>_idleBase){ idleRearm(); return; } left=Math.ceil((deadline-Date.now())/1000); if(el)el.textContent=Math.max(0,left);
     if(left<=0){ idleDismiss(); idleGoOut(); } },1000); }
-function idleElapsedCheck(){ if(!myProfile)return; const c=idleCfg(); if(!(c.minutes>0))return;
+function idleElapsedCheck(){ if(!myProfile)return; const c=idleCfg(); if(!(c.minutes>0))return; idleSync();
+  if(_idleWrap&&_idleLast>_idleBase){ idleRearm(); return; }
   const el=Date.now()-_idleLast, total=c.minutes*60000+c.warnSeconds*1000;
   if(el>=total){ idleGoOut(); return; }
   if(el>=c.minutes*60000 && !_idleWrap) idleWarn(); }
@@ -2600,7 +2613,8 @@ function idleInit(){
   ['pointerdown','keydown','touchstart','wheel'].forEach(ev=>document.addEventListener(ev,()=>{ if(_idleWrap)return; idleReset(); },{passive:true}));
   document.addEventListener('visibilitychange',()=>{ if(document.visibilityState!=='hidden')idleElapsedCheck(); });
   try{ window.addEventListener('focus',idleElapsedCheck); window.addEventListener('pageshow',idleElapsedCheck); }catch(e){}
-  _idleIv=setInterval(idleElapsedCheck,15000); }
+  _idleIv=setInterval(idleElapsedCheck,15000);
+  try{ window.addEventListener('storage',e=>{ if(e&&e.key===idleKey()&&myProfile){ idleSync(); if(_idleWrap)idleElapsedCheck(); } }); }catch(e){} }
 function acChecksum(str){ let h=0x811c9dc5>>>0; for(let i=0;i<str.length;i++){ h^=str.charCodeAt(i); h=Math.imul(h,0x01000193)>>>0; } return 'FNV-'+(h>>>0).toString(16).padStart(8,'0').toUpperCase(); }
 function acBuildBackup(){
   const cfg=permConfig||{};
@@ -3085,7 +3099,7 @@ function renderCountingShell(){ document.body.classList.add('wide');
     banner='<div class="status show '+(stt==='approved'?'ok':'info')+'" style="margin-top:10px">'+msg+'</div>';
   }
   c.innerHTML='<div class="card"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><button class="btn ghost sm" id="backBtn">→ رجوع</button><div style="flex:1;min-width:160px"><h2 style="margin:0">'+esc(curSess.name)+' <span class="tag '+badgeCls+'" style="font-size:11px;vertical-align:middle">'+esc(sessStatusLabel(stt))+'</span></h2><div class="muted">'+esc(curSess.location||'')+' • '+(blind?'جلسة عمياء • ':'')+'الأصناف: '+fmt(curItems.length)+((curSess.assignedNames&&curSess.assignedNames.length)?' • العدّادون: '+esc(curSess.assignedNames.join('، ')):'')+'</div></div>'+(canViewSession(curSess)?'<button class="btn ghost sm" id="repBtn">📊 تقرير الفروقات</button>':'')+govBtns+'<button class="btn ghost sm" id="actToggle">📋 سجل الحركة</button></div>'+banner+
-    (featuresOfflineOn()?'<div id="offlineBar" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px"><span id="offlineChip" class="offchip"></span><button class="btn ghost sm" id="offlineSyncNow" style="display:none">🔄 مزامنة الآن</button></div>':'')+
+    (featuresOfflineOn()?'<div id="offlineBar" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px"><span id="offlineChip" class="offchip"></span><button class="btn ghost sm" id="offlineSyncNow" style="display:none">🔄 مزامنة الآن</button><button class="btn ghost sm" id="safeBtn">🛡 حماية العدّ</button><div id="safeNote" class="muted" style="flex-basis:100%;font-size:12px;line-height:1.7"></div></div>':'')+
     '<div style="height:8px;background:var(--hair);border-radius:20px;overflow:hidden;margin:12px 0 6px"><i id="cprog" style="display:block;height:100%;background:var(--success);width:0%"></i></div>'+
     '<div class="muted" id="cprogtext">0 / '+fmt(curItems.length)+' معدود</div>'+
     '<input id="csearch" class="inp" placeholder="ابحث بالكود أو الاسم…" style="width:100%;margin-top:12px;font-size:16px;padding:12px 14px">'+
@@ -3129,6 +3143,7 @@ function renderCountingShell(){ document.body.classList.add('wide');
   if($('unkBtn'))$('unkBtn').onclick=unkOpen;
   if($('camCloseBtn'))$('camCloseBtn').onclick=stopCamera;
   if($('offlineSyncNow'))$('offlineSyncNow').onclick=()=>offlineFlush(true);
+  if($('safeBtn')){ $('safeBtn').onclick=()=>qioOpen(); safeNoteRender(); storagePersist().then(safeNoteRender); }
   if(featuresOfflineOn()){ offlineUpdateChip(); offlineRefreshLen(); }
   if(can('session.assign') && sessStatusOf(curSess)==='open'){
     c.insertAdjacentHTML('beforeend','<div class="card"><button class="btn ghost sm" id="lateAmendBtn">⚙ إدارة ما نُسي (عدّادون/موقّعون)</button><div id="lateAmendBox" style="display:none;margin-top:10px"></div></div>');
@@ -3346,6 +3361,23 @@ function featuresBranchReviewOn(){ return !!(permConfig && permConfig.features &
 const BR_META='__brmeta', BR_V='4';
 let _brP=null, _brAuto=null;
 function brCan(s){ return featuresBranchReviewOn()&&can('session.branchReview')&&!!s&&(isOwner()||myLocations().indexOf(s.location||'')>=0)&&canSeeSessionData(s); }
+const QIO_V='1'; let _qioP=null, _persist=null, _bip=null;
+try{ window.addEventListener('beforeinstallprompt',e=>{ e.preventDefault(); _bip=e; }); }catch(e){}
+function appInstalled(){ try{ return !!((window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||navigator.standalone===true); }catch(e){ return false; } }
+function isIOS(){ const u=navigator.userAgent||''; return /iPhone|iPad|iPod/.test(u)||(/Macintosh/.test(u)&&navigator.maxTouchPoints>1); }
+async function storagePersist(){ try{ const st=navigator.storage; if(!st||!st.persisted)return _persist=null; if(await st.persisted())return _persist=true; return _persist=!!(st.persist&&await st.persist()); }catch(e){ return _persist=null; } }
+function safeNoteRender(){ const el=$('safeNote'); if(!el)return; const w=[];
+  if(_persist===false)w.push('⚠ المتصفّح لم يمنح «الحفظ الدائم» — قد يمسح بياناتٍ عند امتلاء الجهاز. ثبّت التطبيق، وصدّر الطابور قبل أيّ تنظيف.');
+  if(isIOS()&&!appInstalled())w.push('⚠ آيفون/آيباد: ثبّت التطبيق على الشاشة الرئيسية (زرّ المشاركة ← «إضافة إلى الشاشة الرئيسية») — سفاري يمسح بيانات المواقع غير المثبّتة بعد ٧ أيام بلا استخدام.');
+  w.push('لا تعدّ في نافذة التصفّح الخاص/المتخفّي — ما لم يُرسل يُمسح عند إغلاقها.');
+  el.innerHTML=w.map(x=>'<div>'+esc(x)+'</div>').join(''); }
+function qioLoad(){ return _qioP||(_qioP=new Promise((ok,no)=>{ const el=document.createElement('script'); el.src='queue-io.js?v='+QIO_V; el.onload=ok; el.onerror=()=>{ _qioP=null; el.remove(); no(new Error('تعذّر تحميل شاشة حماية العدّ — تحقّق من الاتصال ثم أعد المحاولة.')); }; document.head.appendChild(el); })); }
+function qioOpen(){ qioLoad().then(()=>window.IOMPQ.open({db,doc,collection,query,where,getDocs,getDoc,addDoc,serverTimestamp,
+    queue:()=>oqLocked(offlineQueueGet), own:oqOwn, me:myProfile, uid:auth.currentUser.uid, deviceId:offlineDeviceId(), sid:curSid, sessName:(curSess&&curSess.name)||'',
+    countWriteAdd,countWriteDec,countWriteRemove,countWriteReset,noteWriteAdd,extraWriteAdd,safeId,
+    persist:()=>_persist, installed:appInstalled(), ios:isIOS(), bip:()=>_bip, mirrorOk:()=>offlineStore.mirrorOk(), backend:offlineStore.backend(),
+    esc,fmt,fmtDT:fmtDateTimeAr,toastOk,toastErr,toastWarn,errAr,confirmDialog,acChecksum}))
+  .catch(e=>toastErr(e.message)); }
 function brLoad(){ return _brP||(_brP=new Promise((ok,no)=>{ const el=document.createElement('script'); el.src='branch-review.js?v='+BR_V; el.onload=ok; el.onerror=()=>{ _brP=null; el.remove(); no(new Error('تعذّر تحميل شاشة مراجعة الفرع — تحقّق من الاتصال ثم أعد المحاولة.')); }; document.head.appendChild(el); })); }
 function brOpen(mode){ const sid=curSid;
   brLoad().then(()=>{ if(curSid!==sid)return;
@@ -3509,9 +3541,19 @@ const offlineStore=(function(){ let _idb=null,_idbTried=false;
   async function idb(){ if(_idb)return _idb; if(_idbTried&&!_idb)throw new Error('no-idb'); _idbTried=true; _idb=await openIdb(); return _idb; }
   function lsGet(k){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):null; }catch(e){ return null; } }
   function lsSet(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} }
-  async function get(k){ if(idbOk()){ try{ const db=await idb(); return await new Promise((res,rej)=>{ const tx=db.transaction('kv','readonly'); const rq=tx.objectStore('kv').get(k); rq.onsuccess=()=>res(rq.result==null?null:rq.result); rq.onerror=()=>rej(rq.error); }); }catch(e){} } return lsGet(k); }
-  async function set(k,v){ if(idbOk()){ try{ const db=await idb(); return await new Promise((res,rej)=>{ const tx=db.transaction('kv','readwrite'); tx.objectStore('kv').put(v,k); tx.oncomplete=()=>res(true); tx.onerror=()=>rej(tx.error); }); }catch(e){} } lsSet(k,v); return true; }
-  return { get, set, backend:()=>idbOk()?'idb':'ls' };
+  const MIR={'iomp-offline-queue':'iomp-oq-mirror','iomp-offline-seq':'iomp-oqseq-mirror'};
+  let _mirOk=true, _restored=0;
+  function mirSet(k,v){ const m=MIR[k]; if(!m)return; try{ localStorage.setItem(m,JSON.stringify(v)); _mirOk=true; }catch(e){ _mirOk=false; try{ localStorage.removeItem(m); }catch(_){} } }
+  function mirGet(k){ const m=MIR[k]; if(!m)return null; try{ const v=localStorage.getItem(m); return v?JSON.parse(v):null; }catch(e){ return null; } }
+  function mirUseful(k,m){ return m!=null&&(k==='iomp-offline-queue'?(Array.isArray(m)&&m.length>0):true); }
+  async function idbGet(k){ const db=await idb(); return await new Promise((res,rej)=>{ const tx=db.transaction('kv','readonly'); const rq=tx.objectStore('kv').get(k); rq.onsuccess=()=>res(rq.result==null?null:rq.result); rq.onerror=()=>rej(rq.error); }); }
+  async function idbSet(k,v){ const db=await idb(); return await new Promise((res,rej)=>{ const tx=db.transaction('kv','readwrite'); tx.objectStore('kv').put(v,k); tx.oncomplete=()=>res(true); tx.onerror=()=>rej(tx.error); }); }
+  async function get(k){ if(idbOk()){ let v, bad=false; try{ v=await idbGet(k); }catch(e){ bad=true; }
+      if(MIR[k]&&(bad||v==null)){ const m=mirGet(k); if(mirUseful(k,m)){ if(k==='iomp-offline-queue')_restored=m.length; try{ await idbSet(k,m); }catch(e){} return m; } }
+      if(!bad)return v; }
+    return lsGet(k); }
+  async function set(k,v){ mirSet(k,v); if(idbOk()){ try{ return await idbSet(k,v); }catch(e){} } lsSet(k,v); return true; }
+  return { get, set, backend:()=>idbOk()?'idb':'ls', mirrorOk:()=>_mirOk, takeRestored:()=>{ const n=_restored; _restored=0; return n; } };
 })();
 
 const CATALOG_CH=400, CATALOG_CACHE_KEY='iomp-catalog-v1';
@@ -4134,7 +4176,7 @@ function oqReflect(items){ if(!_oq||!featuresOfflineOn())return; _oq.forEach(op=
     offlineApplyOptimistic(op,1); }); }
 async function cntOpen(){ _srvCounts={}; _cntDead=null; _cntGot=0; _oq=featuresOfflineOn()?await oqLocked(offlineQueueGet):null; oqReflect(1); cntRebuild(); }
 async function offlineNextSeq(){ let n=Number(await offlineStore.get(OFFLINE_SEQ_KEY))||0; n++; await offlineStore.set(OFFLINE_SEQ_KEY,n); return n; }
-async function offlineRefreshLen(){ _offlineQueueLen=(await oqLocked(offlineQueueGet)).filter(oqOwn).length; offlineUpdateChip(); try{ syncStripRefresh(); }catch(e){} return _offlineQueueLen; }
+async function offlineRefreshLen(){ _offlineQueueLen=(await oqLocked(offlineQueueGet)).filter(oqOwn).length; { const rn=offlineStore.takeRestored(); if(rn>0)toastWarn('استُعيد طابور العدّ من النسخة الثانية على الجهاز ('+fmt(rn)+' عملية) — تعذّرت قراءة المخزن الأساسيّ.'); } offlineUpdateChip(); try{ syncStripRefresh(); }catch(e){} return _offlineQueueLen; }
 async function offlineEnqueue(op){ return oqLocked(async()=>{ const q=await offlineQueueGet(); const seq=await offlineNextSeq();
   const entry={seq:seq,op:op.op,code:op.code,sid:op.sid||curSid,deviceId:offlineDeviceId(),at:Date.now()};
   if(op.op==='add'){ entry.val=numv(op.val); entry.eid=op.eid||entryId(); if(op.src)entry.src=op.src; if(op.run)entry.run={eid:op.run.eid,ri:op.run.ri,by:op.run.by,seq:op.run.seq}; } if(op.op==='dec'){ entry.eid=op.eid; } if(op.op==='remove'){ entry.index=op.index; if(op.eid!=null)entry.eid=op.eid; } if(op.op==='note'){ entry.text=String(op.text||''); entry.eid=op.eid||entryId(); } if(op.op==='additem'){ entry.item=op.item||null; }
@@ -4159,16 +4201,16 @@ async function offlineEnqueueAndReflect(op){ const entry=await offlineEnqueue(op
   if(!netOnline())toastWarn('دون اتصال — حُفظ محليًّا وسيُزامَن تلقائيًّا ('+fmt(_offlineQueueLen)+' بانتظار المزامنة)');
   else if(Date.now()-_qNoteAt>30000){ _qNoteAt=Date.now(); toastWarn('تعذّر الوصول للخادم مؤقّتًا — يُحفظ العدّ على جهازك ويُزامَن تلقائيًّا ('+fmt(_offlineQueueLen)+' بانتظار المزامنة)'); }
   return entry; }
-async function countWriteAdd(sid,code,d,at,eid,run,sk){ const ref=doc(db,'sessions',sid,'counts',safeId(code)); let _ri=-1;
+async function countWriteAdd(sid,code,d,at,eid,run,sk,as){ const ref=doc(db,'sessions',sid,'counts',safeId(code)); let _ri=-1; const W=as||{uid:auth.currentUser.uid,name:myProfile.name||''};
   await runTransaction(db,async(tx)=>{const s=await tx.get(ref);const cur=s.exists()?s.data():{code:code,qty:0,entries:[]};
     const src=(cur.entries||[]); _ri=-1;
     if(run){ const i=runIndex(src,run);
       if(i>=0){ const e=src[i];
         if(e.lastEid===eid){ _ri=i; return; }
         if(e.by===run.by){ const en=src.slice(); en[i]=Object.assign({},e,{q:(e.q||0)+d,n:entryN(e)+1,endAt:(at||Date.now()),lastEid:eid});
-          tx.set(ref,{code:code,qty:(cur.qty||0)+d,entries:en,lastByName:myProfile.name||'',lastAt:serverTimestamp()}); _ri=i; return; } } }
+          tx.set(ref,{code:code,qty:(cur.qty||0)+d,entries:en,lastByName:W.name,lastAt:serverTimestamp()}); _ri=i; return; } } }
     if(eid!=null){ const j=src.findIndex(e=>e&&e.id===eid); if(j>=0){ _ri=j; return; } }
-    const ne={id:eid||entryId(),q:d,by:auth.currentUser.uid,byName:myProfile.name||'',at:(at||Date.now())}; if(sk)ne.src=sk; const entries=src.concat([ne]);_ri=entries.length-1;tx.set(ref,{code:code,qty:(cur.qty||0)+d,entries:entries,lastByName:myProfile.name||'',lastAt:serverTimestamp()});});
+    const ne={id:eid||entryId(),q:d,by:W.uid,byName:W.name,at:(at||Date.now())}; if(sk)ne.src=sk; const entries=src.concat([ne]);_ri=entries.length-1;tx.set(ref,{code:code,qty:(cur.qty||0)+d,entries:entries,lastByName:W.name,lastAt:serverTimestamp()});});
   return _ri; }
 async function countWriteDec(sid,code,eid){ const ref=doc(db,'sessions',sid,'counts',safeId(code)); let per=null;
   await runTransaction(db,async(tx)=>{const s=await tx.get(ref);if(!s.exists())return;const cur=s.data();const src=(cur.entries||[]);
@@ -4191,7 +4233,11 @@ async function offlineLogSync(sid,n){ if(!sid)return; try{ await addDoc(collecti
 function offlineFlush(manual){ if(!featuresOfflineOn())return Promise.resolve({ok:true,flushed:0});
   if(navigator.locks&&navigator.locks.request)return navigator.locks.request('iomp-oq-flush',{ifAvailable:true},lk=>lk?offlineFlush0(manual):{ok:false,busy:true});
   return offlineFlush0(manual); }
-async function offlineFlush0(manual){ const quiet=(manual==='auto'); if(quiet)manual=false;
+let _qimpCache={};
+async function qimpMax(sid,uid){ const ck=sid+'|'+uid; if(_qimpCache[ck]!=null)return _qimpCache[ck]; let m=0;
+  const qs=await getDocs(query(collection(db,'sessions',sid,'activity'),where('type','==','qimport'),where('deviceId','==',offlineDeviceId())));
+  qs.forEach(d=>{ const a=d.data(); if(a&&a.forUid===uid&&Number(a.maxSeq)>m)m=Number(a.maxSeq); }); return _qimpCache[ck]=m; }
+async function offlineFlush0(manual){ const quiet=(manual==='auto'); if(quiet)manual=false; _qimpCache={}; let qimpSkip=0;
   if(_offlineSyncing)return {ok:false,busy:true};
   _offlineSyncing=true; offlineUpdateChip();
   let flushed=0; const flushedBySid={}; let failed=false, lastErr=null; const rejected=[];
@@ -4201,7 +4247,8 @@ async function offlineFlush0(manual){ const quiet=(manual==='auto'); if(quiet)ma
     for(let pass=0;pass<50&&q.length&&!failed;pass++){ q=q.slice().sort((a,b)=>a.seq-b.seq);
     const skip=new Set(); let bad=0;
     for(const op of q){ if(!auth.currentUser||!myProfile){ failed=true; break; } const ck=op.sid+'|'+String(op.code); if(skip.has(ck))continue;
-      const ev=_cntEvt; try{ const rv=await offlineApplyRemote(op);
+      const ev=_cntEvt; try{ if(op.seq<=await qimpMax(op.sid,op.uid||auth.currentUser.uid)){ await oqDrop(op); qimpSkip++; continue; }
+        const rv=await offlineApplyRemote(op);
         await oqDrop(op); bad=0;
         if(op.log)addDoc(collection(db,'sessions',op.sid,'activity'),{type:op.log.t,code:String(op.code),name:op.log.n||'',qty:(op.op==='add'?op.val:(op.op==='reset'?(op.log.q==null?null:op.log.q):(rv==null?null:rv))),by:auth.currentUser.uid,byName:myProfile.name||'',at:serverTimestamp(),countedAt:op.at}).catch(()=>{});
         if(op.sid===curSid&&_cntEvt!==ev&&$('clist')){ cntRebuild(); renderCountListLive(); }
@@ -4216,6 +4263,7 @@ async function offlineFlush0(manual){ const quiet=(manual==='auto'); if(quiet)ma
     if(!failed)q=(await oqLocked(offlineQueueGet)).filter(oqOwn); }
   } finally { _offlineSyncing=false; await offlineRefreshLen(); }
   for(const sid in flushedBySid) await offlineLogSync(sid,flushedBySid[sid]);
+  if(qimpSkip)toastWarn(fmt(qimpSkip)+' عملية في طابور هذا الجهاز سبق استيرادها من ملفٍّ على جهازٍ آخر — أُزيلت دون إرسالها مرّةً ثانية.');
   if(rejected.length){ try{ const prev=(await offlineStore.get(OFFLINE_REJECTED_KEY))||[]; await offlineStore.set(OFFLINE_REJECTED_KEY, prev.concat(rejected)); }catch(_){} toastErr('رُفضت '+fmt(rejected.length)+' عملية عدّ (قد تكون الجلسة أُقفلت أثناء الانقطاع) — سُجّلت في «العمليات المرفوضة» ولم تعُد تحجب الطابور.'); }
   const own=(_oq||[]).filter(oqOwn).length;
   if(!failed&&!own){ _qDown=0; _flushFailN=0; if(_cntDead)cntReattach(); globalReattach(); }
@@ -4345,9 +4393,9 @@ async function decEntry(code,eid){ if(!assertOpen())return;
   try{ const q=await countWriteDec(curSid,code,eid);
     if(q!=null)logActivity('remove',code,itemName(code)+(reason?' — سبب التسوية: '+reason:''),q);
   }catch(err){ if(offDown(err)){ await offlinePath(); return; } toastErr('تعذّر الحذف: '+errAr(err.code||err.message)); } }
-async function noteWriteAdd(sid,code,text,at,nid){ const ref=doc(db,'sessions',sid,'itemNotes',safeId(code));
+async function noteWriteAdd(sid,code,text,at,nid,as){ const ref=doc(db,'sessions',sid,'itemNotes',safeId(code)); const W=as||{uid:auth.currentUser.uid,name:myProfile.name||''};
   await runTransaction(db,async(tx)=>{ const s=await tx.get(ref); const cur=s.exists()?s.data():{code:code,notes:[]};
-    const notes=(cur.notes||[]).concat([{id:nid||entryId(),text:String(text||''),by:auth.currentUser.uid,byName:myProfile.name||'',at:(at||Date.now())}]);
+    const notes=(cur.notes||[]).concat([{id:nid||entryId(),text:String(text||''),by:W.uid,byName:W.name,at:(at||Date.now())}]); if(nid&&(cur.notes||[]).some(n=>n&&n.id===nid))return;
     tx.set(ref,{code:code,notes:notes}); }); }
 async function noteWriteRemove(sid,code,nid){ const ref=doc(db,'sessions',sid,'itemNotes',safeId(code));
   await runTransaction(db,async(tx)=>{ const s=await tx.get(ref); if(!s.exists())return; const cur=s.data();

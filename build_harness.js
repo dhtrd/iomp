@@ -61,7 +61,7 @@ let __signInFail=false; // م٦-٤: التحكم في نجاح/فشل الدخو
 function onAuthStateChanged(a, cb){ setTimeout(()=>cb(__SC.loggedOut?null:__auth.currentUser), 0); return ()=>{}; }
 function signInWithEmailAndPassword(a,e,p){ if(__signInFail) return Promise.reject({code:'auth/invalid-credential'}); return Promise.resolve({user:{uid:__user.uid}}); }
 function createUserWithEmailAndPassword(a,e,p){ const uid='u'+(__uidSeq++); return Promise.resolve({user:{uid}}); }
-function signOut(){ return Promise.resolve(); }
+function signOut(){ window.__signOuts=(window.__signOuts||0)+1; return Promise.resolve(); }
 function updatePassword(){ return Promise.resolve(); }
 function sendPasswordResetEmail(){ return Promise.resolve(); }
 function serverTimestamp(){ return {__ts:Date.now()}; }
@@ -257,6 +257,7 @@ window.__acSavePersonalize = ()=>acSavePersonalize();
 // مهلة السكون: خطاطيف الاختبار — إظهار التنبيه فورًا دون انتظار المهلة
 window.__idleCfg = ()=>idleCfg();
 window.__idleLastSet = (ms)=>{ _idleLast=Number(ms)||Date.now(); try{ localStorage.setItem(idleKey(),String(_idleLast)); }catch(e){} };
+window.__idleLastMem = (ms)=>{ _idleLast=Number(ms)||Date.now(); }; // حماية العدّ: تبويبٌ خامل محلّيًّا دون لمس الختم المشترك
 window.__idleCheck = ()=>idleElapsedCheck();
 window.__curNotes = ()=>curNotes; // ملاحظات العدّ الحيّة
 window.__countsMap = ()=>curCounts; // الخريطة الكاملة (لا تلمس __curCounts القديم — يعيد المفاتيح فقط)
