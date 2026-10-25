@@ -11,8 +11,8 @@ jobs:
       - uses: actions/setup-node@v6
         with: { node-version: 22 }
       - run: npm install firebase-admin
-      - name: كتابة حتى نفاد الحصّة
+      - name: حذف بيانات الاختبار zz_quota_test
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          MODE: burn
+          MODE: cleanup
         run: node ops/write_burn.mjs
