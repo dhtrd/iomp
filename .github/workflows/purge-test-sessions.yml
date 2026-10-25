@@ -1,0 +1,30 @@
+name: حذف جلستي اختبار الحصّة نهائيًّا (لمرة واحدة)
+# تشغيل يدوي فقط من تبويب Actions. الوضع الافتراضي «معاينة» لا يحذف شيئًا.
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'الوضع: «معاينة» (عدّ فقط) أو «حذف» (نهائي بلا رجعة)'
+        required: true
+        default: 'معاينة'
+        type: choice
+        options: ['معاينة', 'حذف']
+      confirm:
+        description: 'للحذف فقط: اكتب حرفيًّا «احذف جلستي الاختبار»'
+        required: false
+        default: ''
+jobs:
+  purge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with: { node-version: 22 }
+      - run: npm install --no-save firebase-admin
+      - name: حذف جلستي الاختبار
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          MODE: ${{ inputs.mode }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: node ops/purge_test_sessions.mjs
