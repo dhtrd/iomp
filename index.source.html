@@ -1530,6 +1530,8 @@ function arNorm(s){ return String(s==null?'':s).toLowerCase()
   .replace(/[ً-ْٰ]/g,'').replace(/[أإآ]/g,'ا').replace(/ة/g,'ه').replace(/ى/g,'ي').replace(/ـ/g,''); }
 window.arNorm=arNorm;
 function fmt(n){if(n==null||isNaN(n))return '—';return Number(n).toLocaleString('en-US',{maximumFractionDigits:2});}
+/* عدد العمليات بتمييزٍ صحيح (طلب المالك ٢٠٢٦-١٠-٢٥): ٢–١٠ ⇒ «عمليات»، وما عداها ⇒ «عملية» (١ و١١+ و١٠٠…) */
+function nOp(n){ const v=Math.abs(Number(n)||0), m=v%100; return fmt(n)+' '+((m>=2&&m<=10)?'عمليات':'عملية'); }
 // تنسيق تاريخ/وقت حتمي بالعربية (يوم/شهر، س:د ص/م) — يقرأ getHours/getMinutes مباشرةً فيتفادى خلل تقريب الدقائق في بعض المتصفّحات (ظهور «:٦٠») الناتج عن toLocaleString.
 function fmtDateTimeAr(v){ const d=(v instanceof Date)?v:new Date(v); if(!d||isNaN(d.getTime()))return '';
   let h=d.getHours(); const ap=h<12?'ص':'م'; h=h%12||12;
@@ -1576,7 +1578,7 @@ $('pwForm').onsubmit=async(e)=>{e.preventDefault();const p1=$('newPw').value,p2=
   catch(err){st('pwStatus','err',errAr(err.code||err.message));$('pwBtn').disabled=false;}};
 /* الطبقة هـ: خروجٌ وفي طابور الجهاز عمليّاتٌ لم تُرسل ⇒ تأكيدٌ صريح يشرح أنها لا تُحذف وأين تبقى (لا خروج صامت) */
 async function safeLogout(){ const n=await idleOwnQueued();
-  if(n>0&&!(await confirmDialog({title:'عمليات عدّ لم تُرسل بعد',message:'لديك '+fmt(n)+' عملية عدّ محفوظة على هذا الجهاز ولم تصل الخادم بعد. الخروج لا يحذفها: تبقى على هذا الجهاز وتُرسل تلقائيًّا عند دخولك من جديد بحسابك على هذا الجهاز نفسه. لا تمسح بيانات المتصفّح قبل إرسالها، ويمكنك تصديرها ملفًّا من «🛡 حماية العدّ».',confirmLabel:'خروج على أي حال',danger:true})))return;
+  if(n>0&&!(await confirmDialog({title:'عمليات عدّ لم تُرسل بعد',message:'لديك '+nOp(n)+' عدّ محفوظة على هذا الجهاز ولم تصل الخادم بعد. الخروج لا يحذفها: تبقى على هذا الجهاز وتُرسل تلقائيًّا عند دخولك من جديد بحسابك على هذا الجهاز نفسه. لا تمسح بيانات المتصفّح قبل إرسالها، ويمكنك تصديرها ملفًّا من «🛡 حماية العدّ».',confirmLabel:'خروج على أي حال',danger:true})))return;
   signOut(auth); }
 $('pwLogout').onclick=()=>safeLogout();
 $('logoutBtn').onclick=()=>safeLogout();
@@ -1765,8 +1767,8 @@ function deriveNotifs(list){
   // ر١٠ (م٢٤): إشعارات المزامنة — مستقلّة عن الجلسات، مشتقّة من حالة المزامنة المحفوظة، وخلف علم العدّ دون اتصال فقط (⇒ صفر إشعارات حين العلم مطفأ)
   if(featuresOfflineOn()){ const ss=offlineGetSyncStatus();
     if(ss&&ss.at&&!notifMuted('sync')){ const ms=tsMs({__ts:ss.at});
-      if(ms){ if(ss.state==='failed') out.push({key:'sync|failed|'+ss.at,sid:'',cat:'sync',icon:NOTIF_CATS.sync,title:'⚠ تعذّرت مزامنة العدّ دون اتصال',ctx:'تبقّى '+fmt(ss.remaining||0)+' عملية غير مُزامَنة — تحقّق من الاتصال ثم «مزامنة الآن»',at:ms,critical:true});
-        else if(ss.state==='done'&&(ss.flushed||0)>0) out.push({key:'sync|done|'+ss.at,sid:'',cat:'sync',icon:NOTIF_CATS.sync,title:'اكتملت مزامنة العدّ دون اتصال',ctx:'تمّت مزامنة '+fmt(ss.flushed)+' عملية بنجاح',at:ms}); } } }
+      if(ms){ if(ss.state==='failed') out.push({key:'sync|failed|'+ss.at,sid:'',cat:'sync',icon:NOTIF_CATS.sync,title:'⚠ تعذّرت مزامنة العدّ دون اتصال',ctx:'تبقّى '+nOp(ss.remaining||0)+' غير مُزامَنة — تحقّق من الاتصال ثم «مزامنة الآن»',at:ms,critical:true});
+        else if(ss.state==='done'&&(ss.flushed||0)>0) out.push({key:'sync|done|'+ss.at,sid:'',cat:'sync',icon:NOTIF_CATS.sync,title:'اكتملت مزامنة العدّ دون اتصال',ctx:'تمّت مزامنة '+nOp(ss.flushed)+' بنجاح',at:ms}); } } }
   // ر١١: إشعارات النسخ الاحتياطي إلى Dropbox — فئة «مزامنة»، مشتقّة من حالة محفوظة، وخلف علم الميزة فقط (⇒ صفر إشعارات حين العلم مطفأ)
   if(featuresDropboxOn()){ const ds=dbxGetStatus();
     if(ds&&ds.at&&!notifMuted('sync')){ const ms=tsMs({__ts:ds.at});
@@ -2708,7 +2710,7 @@ async function idleGoOut(){ if(_idleGoing)return; _idleGoing=true; try{ await id
 async function idleGoOut0(){ const b0=_idleLast; idleSync(); if(myProfile&&_idleLast>b0&&(Date.now()-_idleLast)<idleCfg().minutes*60000){ idleRearm(); return; } // تبويبٌ آخر نشط بعد آخر نشاطٍ هنا
   const b1=_idleLast; const nq=await idleOwnQueued(); idleSync(); if(myProfile&&_idleLast>b1){ idleDismiss(); idleRearm(); return; } // نشاطٌ وقع أثناء انتظار الطابور ⇒ لا خروج
   if(nq>0&&myProfile){ const c=idleCfg(), inact=Date.now()-_idleLast; // قرار المالك ٢٠٢٦-١٠-٢٤: وقت نفاد الحصّة فقط — بعد ٣ أضعاف مدّة السكون يُسجَّل الخروج رغم الطابور (العمليّات باقية على الجهاز)
-    if(!(_qQuota&&_qDown>Date.now()&&inact>=3*c.minutes*60000)){ idleDismiss(); idleStop(); _idleT=setTimeout(idleWarnDue,Math.max(60000,c.minutes*60000)); if(Date.now()-_idleQNote>600000){ _idleQNote=Date.now(); toastWarn('لم يُسجَّل خروجك تلقائيًّا: لديك '+fmt(nq)+' عملية عدّ لم تُرسل بعد — تبقى محفوظة وتُرسل عند عودة الاتصال/الحصّة.'); } return; } }
+    if(!(_qQuota&&_qDown>Date.now()&&inact>=3*c.minutes*60000)){ idleDismiss(); idleStop(); _idleT=setTimeout(idleWarnDue,Math.max(60000,c.minutes*60000)); if(Date.now()-_idleQNote>600000){ _idleQNote=Date.now(); toastWarn('لم يُسجَّل خروجك تلقائيًّا: لديك '+nOp(nq)+' عدّ لم تُرسل بعد — تبقى محفوظة وتُرسل عند عودة الاتصال/الحصّة.'); } return; } }
   idleStop(); try{ localStorage.removeItem(idleKey()); }catch(e){} window.__idleOut=true; try{ signOut(auth); }catch(e){} try{ toastWarn('لانقضاء مهلة السكون سُجّل خروجك تلقائيًّا — سجّل دخولك من جديد.'); }catch(e){} }
 function idleReset(){ idleStop(); idleStamp(); const c=idleCfg(); if(!myProfile||!(c.minutes>0))return;
   _idleT=setTimeout(idleWarnDue, Math.max(1000, c.minutes*60000)); } // العدّ التنازلي يبدأ عند تمام مدة السكون (اعتماد العميل: ٣:٠٤ + ٣٠د ⇒ يبدأ ٣:٣٤)
@@ -3548,7 +3550,7 @@ function brCan(s){ return featuresBranchReviewOn()&&can('session.branchReview')&
    ب: كشف التثبيت على الشاشة الرئيسية — سفاري يمسح بيانات المواقع غير المثبّتة بعد ٧ أيام بلا استخدام.
    ج: تنبيهٌ ثابت لا كشف: المتصفّحات تمنع كشف النافذة الخاصة عمدًا (قرار المالك: تنبيه بدل المنع).
    النافذة التفصيليّة + الطبقة و (تصدير/استيراد الطابور) في queue-io.js (تُحمَّل عند الطلب)؛ الضمان الذرّيّ ضدّ التكرار في qApply/qMark. */
-const QIO_V='3'; let _qioP=null, _persist=null, _bip=null;
+const QIO_V='4'; let _qioP=null, _persist=null, _bip=null;
 try{ window.addEventListener('beforeinstallprompt',e=>{ e.preventDefault(); _bip=e; }); }catch(e){}
 function appInstalled(){ try{ return !!((window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||navigator.standalone===true); }catch(e){ return false; } }
 function isIOS(){ const u=navigator.userAgent||''; return /iPhone|iPad|iPod/.test(u)||(/Macintosh/.test(u)&&navigator.maxTouchPoints>1); }
@@ -3563,7 +3565,7 @@ function qioOpen(){ qioLoad().then(()=>window.IOMPQ.open({
     queue:()=>oqLocked(offlineQueueGet), own:oqOwn, me:myProfile, uid:auth.currentUser.uid, deviceId:offlineDeviceId(),
     db,doc,collection,query,where,getDocs,getDoc,addDoc,serverTimestamp, qApply, QSKIP, canOthers:can('count.importOthers'),
     persist:()=>_persist, installed:appInstalled(), ios:isIOS(), bip:()=>_bip, mirrorOk:()=>offlineStore.mirrorOk(), backend:offlineStore.backend(),
-    esc,fmt,fmtDT:fmtDateTimeAr,toastOk,toastErr,toastWarn,errAr,confirmDialog,acChecksum}))
+    esc,fmt,nOp,fmtDT:fmtDateTimeAr,toastOk,toastErr,toastWarn,errAr,confirmDialog,acChecksum}))
   .catch(e=>toastErr(e.message)); }
 function brLoad(){ return _brP||(_brP=new Promise((ok,no)=>{ const el=document.createElement('script'); el.src='branch-review.js?v='+BR_V; el.onload=ok; el.onerror=()=>{ _brP=null; el.remove(); no(new Error('تعذّر تحميل شاشة مراجعة الفرع — تحقّق من الاتصال ثم أعد المحاولة.')); }; document.head.appendChild(el); })); }
 function brOpen(mode){ const sid=curSid;
@@ -4488,7 +4490,7 @@ function oqReflect(items){ if(!_oq||!featuresOfflineOn())return; _oq.forEach(op=
     offlineApplyOptimistic(op,1); }); }
 async function cntOpen(){ _srvCounts={}; _cntDead=null; _cntGot=0; _oq=featuresOfflineOn()?await oqLocked(offlineQueueGet):null; oqReflect(1); cntRebuild(); }
 async function offlineNextSeq(){ let n=Number(await offlineStore.get(OFFLINE_SEQ_KEY))||0; n++; await offlineStore.set(OFFLINE_SEQ_KEY,n); return n; }
-async function offlineRefreshLen(){ _offlineQueueLen=(await oqLocked(offlineQueueGet)).filter(oqOwn).length; { const rn=offlineStore.takeRestored(); if(rn>0)toastWarn('استُعيد طابور العدّ من النسخة الثانية على الجهاز ('+fmt(rn)+' عملية) — تعذّرت قراءة المخزن الأساسيّ.'); } offlineUpdateChip(); try{ syncStripRefresh(); }catch(e){} return _offlineQueueLen; } // ر١١: تحديث مؤشّر المزامنة الموحّد أيضًا
+async function offlineRefreshLen(){ _offlineQueueLen=(await oqLocked(offlineQueueGet)).filter(oqOwn).length; { const rn=offlineStore.takeRestored(); if(rn>0)toastWarn('استُعيد طابور العدّ من النسخة الثانية على الجهاز ('+nOp(rn)+') — تعذّرت قراءة المخزن الأساسيّ.'); } offlineUpdateChip(); try{ syncStripRefresh(); }catch(e){} return _offlineQueueLen; } // ر١١: تحديث مؤشّر المزامنة الموحّد أيضًا
 // إدراج عملية في الطابور (بالترتيب) مع معرّف الجهاز والطابع ورقم العملية
 async function offlineEnqueue(op){ return oqLocked(async()=>{ const q=await offlineQueueGet(); const seq=await offlineNextSeq();
   const entry={seq:seq,op:op.op,code:op.code,sid:op.sid||curSid,deviceId:offlineDeviceId(),at:Date.now()};
@@ -4577,7 +4579,7 @@ async function qApply(op,as,tag,imp){ const mk=qMark(op,as,tag);
   else if(op.op==='additem') return await extraWriteAdd(op.sid,op.code,op.item,mk); }
 async function offlineApplyRemote(op){ if(_offlineForceFail) throw {code:'unavailable',message:'forced-fail (test)'}; if(_offlineForceReject) throw {code:'permission-denied',message:'forced-reject (test)'};
   return await qApply(op,null,'',false); } // ط-١٣: الترتيب بالتسلسل يضمن وصول الصنف قبل عدّاته // ط-١٣: الترتيب بالتسلسل يضمن وصول الصنف قبل عدّاته
-async function offlineLogSync(sid,n){ if(!sid)return; try{ await addDoc(collection(db,'sessions',sid,'activity'),{type:'sync',code:'',name:'مزامنة '+n+' عملية دون اتصال',qty:n,by:auth.currentUser.uid,byName:myProfile.name||'',deviceId:offlineDeviceId(),at:serverTimestamp()}); }catch(e){} }
+async function offlineLogSync(sid,n){ if(!sid)return; try{ await addDoc(collection(db,'sessions',sid,'activity'),{type:'sync',code:'',name:'مزامنة '+nOp(n)+' دون اتصال',qty:n,by:auth.currentUser.uid,byName:myProfile.name||'',deviceId:offlineDeviceId(),at:serverTimestamp()}); }catch(e){} }
 // دفع الطابور بترتيب رقم العملية؛ إزالة كلٍّ عند نجاحه؛ عند اكتمال الكل يُسجَّل «مزامنة» ويظهر نجاح؛ عند الفشل يبقى الباقي ويُطلَق إشعار حرج
 function offlineFlush(manual){ if(!featuresOfflineOn())return Promise.resolve({ok:true,flushed:0}); // دفعٌ واحد في كلّ الجهاز: تبويبٌ يدفع والبقيّة تتخطّى
   if(navigator.locks&&navigator.locks.request)return navigator.locks.request('iomp-oq-flush',{ifAvailable:true},lk=>lk?offlineFlush0(manual):{ok:false,busy:true});
@@ -4609,19 +4611,19 @@ async function offlineFlush0(manual){ const quiet=(manual==='auto'); if(quiet)ma
     if(!failed)q=(await oqLocked(offlineQueueGet)).filter(oqOwn); }
   } finally { _offlineSyncing=false; await offlineRefreshLen(); }
   for(const sid in flushedBySid) await offlineLogSync(sid,flushedBySid[sid]);
-  if(_qSkipN)toastWarn(fmt(_qSkipN)+' عملية في طابور هذا الجهاز كانت مطبَّقةً سلفًا على الخادم (استُوردت من ملفٍّ على جهازٍ آخر) — أُزيلت دون تكرار.');
-  if(rejected.length){ try{ const prev=(await offlineStore.get(OFFLINE_REJECTED_KEY))||[]; await offlineStore.set(OFFLINE_REJECTED_KEY, prev.concat(rejected)); }catch(_){} toastErr('رُفضت '+fmt(rejected.length)+' عملية عدّ (قد تكون الجلسة أُقفلت أثناء الانقطاع) — سُجّلت في «العمليات المرفوضة» ولم تعُد تحجب الطابور.'); }
+  if(_qSkipN)toastWarn(nOp(_qSkipN)+' في طابور هذا الجهاز كانت مطبَّقةً سلفًا على الخادم (استُوردت من ملفٍّ على جهازٍ آخر) — أُزيلت دون تكرار.');
+  if(rejected.length){ try{ const prev=(await offlineStore.get(OFFLINE_REJECTED_KEY))||[]; await offlineStore.set(OFFLINE_REJECTED_KEY, prev.concat(rejected)); }catch(_){} toastErr('رُفضت '+nOp(rejected.length)+' عدّ (قد تكون الجلسة أُقفلت أثناء الانقطاع) — سُجّلت في «العمليات المرفوضة» ولم تعُد تحجب الطابور.'); }
   const own=(_oq||[]).filter(oqOwn).length;
   if(!failed&&!own){ _qDown=0; _flushFailN=0; if(_cntDead)cntReattach(); globalReattach(); }
   if(failed&&quiet&&!/exhaust|quota/i.test(String((lastErr&&(lastErr.code||lastErr.message))||''))&&(++_flushFailN)%6===0)toastErr('تتعذّر مزامنة '+fmt(own)+' عمليّة عدٍّ منذ مدّة ('+errAr((lastErr&&(lastErr.code||lastErr.message))||'?')+') — تحقّق من الاتصال واضغط «مزامنة الآن»، ولا تمسح بيانات المتصفّح.'); // عمليّةٌ عالقة لا تبقى صامتة // الطابور فرغ فعلًا ⇒ عُد للخادم مباشرةً وأعِد ربط البثّ الحيّ (بلا إعادة رسم الشاشة)
   if(failed){ offlineSetSyncStatus({state:'failed',at:Date.now(),remaining:_offlineQueueLen,flushed:flushed}); if(!quiet)toastErr('تعذّرت مزامنة بعض عمليات العدّ — تبقّى '+fmt(_offlineQueueLen)+' بانتظار المحاولة.'); }
-  else if(!rejected.length){ offlineSetSyncStatus({state:'done',at:Date.now(),flushed:flushed}); if(flushed>0)toastOk('اكتملت المزامنة — '+fmt(flushed)+' عملية ✓'); }
+  else if(!rejected.length){ offlineSetSyncStatus({state:'done',at:Date.now(),flushed:flushed}); if(flushed>0)toastOk('اكتملت المزامنة — '+nOp(flushed)+' ✓'); }
   else { offlineSetSyncStatus({state:'done',at:Date.now(),flushed:flushed,rejected:rejected.length}); }
   refreshNotifBadge(); const dr=$('notifDrawer'); if(dr&&dr.classList.contains('open'))renderNotifList();
   offlineUpdateChip(); return {ok:!failed,flushed:flushed,remaining:_offlineQueueLen,rejected:rejected.length}; }
 // شريحة الحالة في قشرة العدّ: 🔴 دون اتصال / 🟢 متصل / ⏳ مزامنة N — وزرّ «مزامنة الآن» حين وجود طابور
 function offlineUpdateChip(){ const chip=$('offlineChip'); if(!chip)return; const on=netOnline(), n=_offlineQueueLen; let cls,txt;
-  if(_offlineSyncing){ cls='sync'; txt='⏳ مزامنة '+fmt(n)+' عملية'; }
+  if(_offlineSyncing){ cls='sync'; txt='⏳ مزامنة '+nOp(n); }
   else if(!on){ cls='off'; txt='🔴 دون اتصال — يُحفظ محليًّا'+(n?(' • بانتظار المزامنة ('+fmt(n)+')'):''); }
   else if(n>0){ cls='pending'; txt='⏳ بانتظار المزامنة ('+fmt(n)+') — تُعاد المحاولة تلقائيًّا'; }
   else { cls='on'; txt='🟢 متصل'; }

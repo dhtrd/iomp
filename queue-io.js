@@ -64,7 +64,7 @@ async function exportQueue(own){
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; document.body.appendChild(a); a.click();
   setTimeout(()=>{ try{ URL.revokeObjectURL(a.href); a.remove(); }catch(e){} },1500);
   window.__qioLastExport=file; // للاختبارات
-  C.toastOk('صُدِّر '+C.fmt(ops.length)+' عملية إلى الملف «'+name+'» — احفظه في مكانٍ آمن. العمليات باقية على الجهاز كما هي.'); }
+  C.toastOk('صُدِّر '+C.nOp(ops.length)+' إلى الملف «'+name+'» — احفظه في مكانٍ آمن. العمليات باقية على الجهاز كما هي.'); }
 
 function readText(f){ return new Promise((ok,no)=>{ const r=new FileReader(); r.onload=()=>ok(String(r.result||'')); r.onerror=()=>no(r.error); r.readAsText(f); }); }
 async function importFile(f){ let txt; try{ txt=await readText(f); }catch(e){ C.toastErr('تعذّرت قراءة الملف.'); return; } return importText(txt); }
@@ -94,7 +94,7 @@ async function importText(txt){
     plan.push({sid,name:nm,ops:bySid[sid].slice().sort((a,b)=>a.seq-b.seq)}); }
   if(!plan.length){ shell('⬆ استيراد ملف طابور','<div class="cfmsg">لم يُستورد شيء:</div>'+blocked.map(b=>'<div class="muted" style="font-size:13px">• '+C.esc(b)+'</div>').join('')); return {ok:false,err:'blocked',blocked}; }
   const n=plan.reduce((a,p)=>a+p.ops.length,0);
-  const msg='سيُستورد '+C.fmt(n)+' عملية عدّ صُدِّرت من جهاز «'+F.deviceId+'» في '+C.fmtDT(new Date(F.exportedAt))+'، وتُنسب الكميات إلى «'+(AS.name||AS.uid)+'».'
+  const msg='سيُستورد '+C.nOp(n)+' عدّ صُدِّرت من جهاز «'+F.deviceId+'» في '+C.fmtDT(new Date(F.exportedAt))+'، وتُنسب الكميات إلى «'+(AS.name||AS.uid)+'».'
     +' الجلسات: '+plan.map(p=>p.name).join('، ')+'.'+(blocked.length?(' (تُستثنى: '+blocked.join('؛ ')+')'):'')
     +' ما سبق تطبيقه على الخادم من هذه العمليات لا يُطبَّق ثانيةً.';
   if(!(await C.confirmDialog({title:'استيراد ملف طابور',message:msg,confirmLabel:'استيراد'})))return {ok:false,err:'cancel'};
@@ -113,9 +113,9 @@ async function applyPlan(F,AS,plan,blocked){
         cnt++;
       }catch(e){ errors.push(P.name+' — '+op.code+': '+C.errAr(e.code||e.message)); stop=true; break; } }
     if(!stop){ try{ await C.addDoc(C.collection(C.db,'sessions',P.sid,'activity'),{type:'qimport',hash:F.hash,deviceId:F.deviceId,forUid:AS.uid,forName:AS.name,
-        name:'استيراد ملف طابور: '+C.fmt(cnt)+' عملية لـ'+(AS.name||'')+' (جهاز '+F.deviceId+')',qty:cnt,code:'',by:C.uid,byName:me,at:C.serverTimestamp()}); }catch(e){} }
+        name:'استيراد ملف طابور: '+C.nOp(cnt)+' لـ'+(AS.name||'')+' (جهاز '+F.deviceId+')',qty:cnt,code:'',by:C.uid,byName:me,at:C.serverTimestamp()}); }catch(e){} }
     if(stop)break; }
-  const rep='<div class="cfmsg">'+(errors.length?'⚠ توقّف الاستيراد قبل اكتماله.':'✅ اكتمل الاستيراد.')+' طُبّقت '+C.fmt(applied)+' عملية'+(already?(' — و'+C.fmt(already)+' كانت مطبّقةً سلفًا على الخادم فلم تتكرّر'):'')+'.</div>'
+  const rep='<div class="cfmsg">'+(errors.length?'⚠ توقّف الاستيراد قبل اكتماله.':'✅ اكتمل الاستيراد.')+' طُبّقت '+C.nOp(applied)+(already?(' — و'+C.fmt(already)+' كانت مطبّقةً سلفًا على الخادم فلم تتكرّر'):'')+'.</div>'
     +(skipped.length?('<div style="margin-top:8px"><b>«تصفير صنف» نُفِّذ على ما عُدّ قبله فقط — وبقيت كمياتٌ أحدث منه على الخادم (عدّ زميلٍ بعد التصفير)، راجِعها:</b>'+skipped.map(x=>'<div class="muted" style="font-size:13px">• '+C.esc(x.sess)+' — '+C.esc(x.code)+' (تصفير '+C.esc(C.fmtDT(new Date(x.at)))+'، سطور أحدث باقية: '+C.fmt(x.newer)+')</div>').join('')+'</div>'):'')
     +(legacy.length?('<div style="margin-top:8px"><b>حذفٌ قديم بلا معرّف لم يُطبَّق (يُراجَع يدويًّا):</b>'+legacy.map(x=>'<div class="muted" style="font-size:13px">• '+C.esc(x)+'</div>').join('')+'</div>'):'')
     +(blocked.length?('<div style="margin-top:8px"><b>مستثنى:</b>'+blocked.map(b=>'<div class="muted" style="font-size:13px">• '+C.esc(b)+'</div>').join('')+'</div>'):'')
